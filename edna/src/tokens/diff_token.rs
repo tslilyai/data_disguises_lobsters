@@ -2,8 +2,6 @@ use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::tokens::*;
 use crate::{RowVal, DID, UID};
-#[cfg(feature = "flame_it")]
-use flamer::flame;
 use log::{warn};
 use rand::{thread_rng, Rng};
 use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
@@ -12,6 +10,7 @@ use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::time;
+use std::collections::{HashSet};
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
@@ -61,8 +60,8 @@ pub struct EdnaDiffToken {
     pub pubkey: Vec<u8>,
     pub is_anon: bool,
     pub should_remove: bool,
-    pub ownership_loc_caps: Vec<LocCap>,
-    pub diff_loc_caps: Vec<LocCap>,
+    pub ownership_loc_caps: HashSet<LocCap>,
+    pub diff_loc_caps: HashSet<LocCap>,
 }
 
 impl Hash for DiffTokenWrapper {

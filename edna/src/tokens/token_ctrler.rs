@@ -6,8 +6,6 @@ use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
-#[cfg(feature = "flame_it")]
-use flamer::flame;
 use log::{warn};
 use mysql::prelude::*;
 use rand::{rngs::OsRng, RngCore};
@@ -34,7 +32,6 @@ pub struct EncData {
 }
 
 impl EncData {
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn decrypt_encdata(&self, decrypt_cap: &DecryptCap) -> (Vec<u8>, Vec<u8>) {
         if decrypt_cap.is_empty() {
             return (vec![], vec![]);
@@ -59,8 +56,8 @@ pub struct PrincipalData {
     pub should_remove: bool,
 
     // only nonempty for pseudoprincipals!
-    pub ownership_loc_caps: Vec<LocCap>,
-    pub diff_loc_caps: Vec<LocCap>,
+    pub ownership_loc_caps: HashSet<LocCap>,
+    pub diff_loc_caps: HashSet<LocCap>,
 }
 
 #[derive(Clone)]
@@ -177,7 +174,6 @@ impl TokenCtrler {
         );
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_pseudoprincipal_key_from_pool(&mut self) -> (RsaPrivateKey, RsaPublicKey) {
         match self.pseudoprincipal_keys_pool.pop() {
             Some(key) => key,
@@ -200,7 +196,6 @@ impl TokenCtrler {
         self.tmp_diff_loc_caps.get(&(uid.to_string(), did))
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn save_and_clear(
         &mut self,
         db: &mut mysql::PooledConn,
@@ -220,7 +215,7 @@ impl TokenCtrler {
                 .expect(&format!("no user with uid {} when saving?", uid));
             // save to principal data if no email (pseudoprincipal)
             if p.is_anon {
-                p.diff_loc_caps.push(*c);
+                p.diff_loc_caps.insert(*c);
 
                 // update persistence
                 let uidstr = uid.trim_matches('\'');
@@ -240,7 +235,7 @@ impl TokenCtrler {
             let p = self.principal_data.get_mut(uid).unwrap();
             // save to principal data if anon (pseudoprincipal)
             if p.is_anon {
-                p.ownership_loc_caps.push(*c);
+                p.ownership_loc_caps.insert(*c);
 
                 // update persistence
                 let uidstr = uid.trim_matches('\'');
@@ -274,7 +269,6 @@ impl TokenCtrler {
         self.tmp_own_tokens.clear();
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn get_ownership_loc_cap(&mut self, uid: &UID, did: DID) -> LocCap {
         // get the location capability being used for this disguise
         match self.tmp_ownership_loc_caps.get(&(uid.clone(), did)) {
@@ -293,7 +287,6 @@ impl TokenCtrler {
         }
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn get_diff_loc_cap(&mut self, uid: &UID, did: u64) -> LocCap {
         // get the location capability being used for this disguise
         match self.tmp_diff_loc_caps.get(&(uid.clone(), did)) {
@@ -312,15 +305,14 @@ impl TokenCtrler {
     /*
      * REGISTRATION
      */
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn register_saved_principal(
         &mut self,
         uid: &UID,
         is_anon: bool,
         should_remove: bool,
         pubkey: &RsaPublicKey,
-        ot: Vec<LocCap>,
-        dt: Vec<LocCap>,
+        ot: HashSet<LocCap>,
+        dt: HashSet<LocCap>,
         persist: bool,
         db: &mut mysql::PooledConn,
     ) {
@@ -339,7 +331,6 @@ impl TokenCtrler {
         self.principal_data.insert(uid.clone(), pdata);
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn register_principal(
         &mut self,
         uid: &UID,
@@ -352,8 +343,8 @@ impl TokenCtrler {
         let pdata = PrincipalData {
             pubkey: pubkey,
             is_anon: is_anon,
-            ownership_loc_caps: vec![],
-            diff_loc_caps: vec![],
+            ownership_loc_caps: HashSet::new(),
+            diff_loc_caps: HashSet::new(),
             should_remove: false,
         };
 
@@ -365,7 +356,6 @@ impl TokenCtrler {
         private_key
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn register_anon_principal(
         &mut self,
         uid: &UID,
@@ -404,7 +394,6 @@ impl TokenCtrler {
             .push((uid.clone(), pdata.clone()));
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn persist_principals(&mut self, db: &mut mysql::PooledConn) {
         if self.tmp_principals_to_insert.is_empty() {
             return;
@@ -426,9 +415,13 @@ impl TokenCtrler {
             ));
         }
         let insert_q = format!(
-            "INSERT INTO {} VALUES {};",
+            "INSERT INTO {} VALUES {} AS new ON DUPLICATE UPDATE {} = new.{}, {} = new.{};",
             PRINCIPAL_TABLE,
-            values.join(", ")
+            values.join(", "),
+            "ownershipToks",
+            "ownershipToks",
+            "diffToks",
+            "diffToks",
         );
         warn!("Persist Principals insert q {}", insert_q);
         db.query_drop(&insert_q).unwrap();
@@ -441,7 +434,6 @@ impl TokenCtrler {
     }
 
     // Note: pseudoprincipals cannot be removed (they're essentially like ``tokens'')
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn mark_principal_to_be_removed(&mut self, uid: &UID, did: DID) {
         let start = time::Instant::now();
         let p = self.principal_data.get_mut(uid).unwrap();
@@ -584,7 +576,6 @@ impl TokenCtrler {
         );
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn insert_ownership_token_wrapper(&mut self, pppk: &OwnershipTokenWrapper) {
         let start = time::Instant::now();
         let p = self.principal_data.get_mut(&pppk.old_uid);
@@ -640,7 +631,6 @@ impl TokenCtrler {
         );
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn insert_user_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
         let start = time::Instant::now();
         let did = token.did;
@@ -705,7 +695,6 @@ impl TokenCtrler {
     /*
      * GLOBAL TOKEN FUNCTIONS
      */
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn insert_global_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
         warn!(
             "Inserting global token disguise {} user {}",
@@ -729,7 +718,6 @@ impl TokenCtrler {
         }
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn check_global_diff_token_for_match(&mut self, token: &DiffTokenWrapper) -> (bool, bool) {
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&token.did) {
             if let Some(user_tokens) = global_diff_tokens.get(&token.uid) {
@@ -751,7 +739,6 @@ impl TokenCtrler {
         return (false, false);
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn remove_global_diff_token_wrapper(
         &mut self,
         uid: &UID,
@@ -774,7 +761,6 @@ impl TokenCtrler {
         return found;
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn update_global_diff_token_from_old_to(
         &mut self,
         old_token: &DiffTokenWrapper,
@@ -798,174 +784,8 @@ impl TokenCtrler {
     }
 
     /*
-     * UPDATE TOKEN FUNCTIONS
-     */
-    #[cfg_attr(feature = "flame_it", flame)]
-    // TODO not supporting batching
-    pub fn mark_diff_token_revealed(
-        &mut self,
-        did: DID,
-        token: &DiffTokenWrapper,
-        decrypt_cap: &DecryptCap,
-        diff_loc_caps: &Vec<LocCap>,
-        ownership_loc_caps: &Vec<LocCap>,
-    ) -> bool {
-        let mut found = false;
-        if token.is_global {
-            if let Some(global_diff_tokens) = self.global_diff_tokens.get(&token.did) {
-                if let Some(user_tokens) = global_diff_tokens.get(&token.uid) {
-                    let mut tokens = user_tokens.write().unwrap();
-                    let mut t = token.clone();
-                    t.revealed = true;
-                    tokens.insert(t);
-                    found = true;
-                }
-                // just return if the disguise was global
-            }
-            return found;
-        }
-
-        // return if no tokens accessible
-        if decrypt_cap.is_empty() {
-            return false;
-        }
-
-        // iterate through user's encrypted datatokens
-        'lcloop: for lc in diff_loc_caps {
-            if let Some(tokenls) = self.enc_diffs_map.get_mut(&lc) {
-                for (i, enc_token) in tokenls.iter_mut().enumerate() {
-                    // decrypt data and compare
-                    let (key, tokenplaintext) = enc_token.decrypt_encdata(decrypt_cap);
-                    let mut curtoken = diff_token_from_bytes(&tokenplaintext);
-
-                    if curtoken.did != did {
-                        continue 'lcloop;
-                    }
-
-                    if curtoken.token_id == token.token_id {
-                        curtoken.revealed = true;
-                        let cipher = Aes128Cbc::new_from_slices(&key, &enc_token.iv).unwrap();
-                        let plaintext = serialize_to_bytes(&curtoken);
-                        let encrypted = cipher.encrypt_vec(&plaintext);
-                        let iv = enc_token.iv.clone();
-                        assert_eq!(encrypted.len() % 16, 0);
-                        // replace token with updated token
-                        tokenls[i] = EncData {
-                            enc_key: enc_token.enc_key.clone(),
-                            enc_data: encrypted,
-                            iv: iv,
-                        };
-                        warn!(
-                            "token uid {} disguise {} revealed token {}",
-                            token.uid, token.did, token.token_id,
-                        );
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // iterate through allowed pseudoprincipals' tokens as well
-        for lc in ownership_loc_caps {
-            if let Some(pks) = self.enc_ownership_map.get(&lc) {
-                for enc_pk in &pks.clone() {
-                    // decrypt with decrypt_cap provided by client
-                    let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
-                    let pk = ownership_token_from_bytes(&plaintext);
-
-                    // get all tokens of pseudoprincipal
-                    if let Some(pp) = self.principal_data.get(&pk.new_uid) {
-                        let pp = pp.clone();
-                        if self.mark_diff_token_revealed(
-                            did,
-                            token,
-                            &pk.priv_key,
-                            &pp.diff_loc_caps,
-                            &pp.ownership_loc_caps,
-                        ) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        false
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    // TODO not supporting batching
-    pub fn mark_ownership_token_revealed(
-        &mut self,
-        did: DID,
-        token: &OwnershipTokenWrapper,
-        decrypt_cap: &DecryptCap,
-        ownership_loc_caps: &Vec<LocCap>,
-    ) -> bool {
-        // return if no tokens accessible
-        if decrypt_cap.is_empty() {
-            return false;
-        }
-
-        // iterate through my ownership tokens
-        for lc in ownership_loc_caps {
-            if let Some(pks) = self.enc_ownership_map.get_mut(&lc) {
-                for (i, enc_token) in pks.iter_mut().enumerate() {
-                    // decrypt with decrypt_cap provided by client
-                    let (key, plaintext) = enc_token.decrypt_encdata(decrypt_cap);
-                    let mut curtoken = ownership_token_from_bytes(&plaintext);
-                    if curtoken.token_id == token.token_id {
-                        curtoken.revealed = true;
-                        let cipher = Aes128Cbc::new_from_slices(&key, &enc_token.iv).unwrap();
-                        let plaintext = serialize_to_bytes(&curtoken);
-                        let encrypted = cipher.encrypt_vec(&plaintext);
-                        let iv = enc_token.iv.clone();
-                        assert_eq!(encrypted.len() % 16, 0);
-                        // replace token with updated token
-                        pks[i] = EncData {
-                            enc_key: enc_token.enc_key.clone(),
-                            enc_data: encrypted,
-                            iv: iv,
-                        };
-                        warn!(
-                            "token uid {} disguise {} revealed token {}",
-                            token.old_uid, token.did, token.token_id,
-                        );
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // iterate through allowed pseudoprincipals' tokens as well
-        for lc in ownership_loc_caps {
-            if let Some(pks) = self.enc_ownership_map.get(&lc) {
-                for enc_pk in &pks.clone() {
-                    // decrypt with decrypt_cap provided by client
-                    let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
-                    let pk = ownership_token_from_bytes(&plaintext);
-
-                    // get all tokens of pseudoprincipal
-                    if let Some(pp) = self.principal_data.get(&pk.new_uid) {
-                        let pp = pp.clone();
-                        if self.mark_ownership_token_revealed(
-                            did,
-                            token,
-                            &pk.priv_key,
-                            &pp.ownership_loc_caps,
-                        ) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        false
-    }
-
-    /*
      * GET TOKEN FUNCTIONS
      */
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_all_global_diff_tokens(&self) -> Vec<DiffTokenWrapper> {
         let mut tokens = vec![];
         for (_, global_diff_tokens) in self.global_diff_tokens.iter() {
@@ -984,7 +804,6 @@ impl TokenCtrler {
         tokens
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_global_diff_tokens_of_disguise(&self, did: DID) -> Vec<DiffTokenWrapper> {
         let mut tokens = vec![];
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&did) {
@@ -1008,7 +827,6 @@ impl TokenCtrler {
         tokens
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_global_diff_tokens(&self, uid: &UID, did: DID) -> Vec<DiffTokenWrapper> {
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&did) {
             if let Some(user_tokens) = global_diff_tokens.get(uid) {
@@ -1025,24 +843,28 @@ impl TokenCtrler {
         vec![]
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_user_tokens(
-        &self,
+        &mut self,
         did: DID,
         decrypt_cap: &DecryptCap,
-        diff_loc_caps: &Vec<LocCap>,
-        ownership_loc_caps: &Vec<LocCap>,
+        diff_loc_caps: &HashSet<LocCap>,
+        ownership_loc_caps: &HashSet<LocCap>,
         reveal: bool,
-    ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>) {
+        db: &mut mysql::PooledConn,
+    ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>, HashSet<LocCap>, HashSet<LocCap>) {
+        // XXX delete locators + encrypted tokens if should reveal
+        // remove pseudoprincipal metadata if caps are empty
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
+        let mut diff_locs_to_remove = HashSet::new();
+        let mut own_locs_to_remove = HashSet::new();
         if decrypt_cap.is_empty() {
-            return (diff_tokens, own_tokens);
+            return (diff_tokens, own_tokens, diff_locs_to_remove, own_locs_to_remove);
         }
         for loc_cap in diff_loc_caps {
             if let Some(tokenls) = self.enc_diffs_map.get(&loc_cap) {
                 warn!("Getting tokens of user from ls len {}", tokenls.len());
-                for enc_token in tokenls {
+                for enc_token in tokenls.clone() {
                     let start = time::Instant::now();
                     // decrypt token with decrypt_cap provided by client
                     let (_, plaintext) = enc_token.decrypt_encdata(decrypt_cap);
@@ -1052,18 +874,29 @@ impl TokenCtrler {
                         warn!(
                             "EdnaBatch: Decrypted diff tokens added {}: {}", tokens.len(), start.elapsed().as_micros(),
                         );
-                        diff_tokens.append(&mut tokens);
+                        if !tokens.is_empty() && tokens[0].did == did {
+                            diff_tokens.append(&mut tokens);
+                        }
+                        // remove if we found a matching token
+                        if reveal && (tokens.is_empty() || tokens[0].did == did) {
+                            diff_locs_to_remove.insert(*loc_cap);
+                        }
                     } else {
                         let token = diff_token_from_bytes(&plaintext);
                         // add token to list only if it hasn't be revealed before
-                        if !token.revealed && token.did == did {
+                        if token.did == did {
                             diff_tokens.push(token.clone());
+                            // remove loc cap if matching disguise
+                            if reveal {
+                                diff_locs_to_remove.insert(*loc_cap);
+                            }
                         }
                         warn!(
                             "Edna: Decrypted tokens pushed to len {}: {}", diff_tokens.len(), start.elapsed().as_micros(),
                         );
                     }
                 }
+                
             }
         }
         // get allowed pseudoprincipal diff tokens for all owned pseudoprincipals
@@ -1080,14 +913,25 @@ impl TokenCtrler {
                         warn!(
                             "EdnaBatch: Decrypted own tokens added {}: {}", tokens.len(), start.elapsed().as_micros(),
                         );
-
+                        // get ALL new_uids regardless of disguise that token came from
                         for pk in &tokens {
                             new_uids.push((pk.new_uid.clone(), pk.priv_key.clone()));
                         }
-                        own_tokens.append(&mut tokens);
+                        // only return own tokens for this disguise though
+                        if !tokens.is_empty() && tokens[0].did == did {
+                            own_tokens.append(&mut tokens);
+                        }
+                        if reveal && (tokens.is_empty() || tokens[0].did == did) {
+                            own_locs_to_remove.insert(*lc);
+                        }
                     } else {
                         let pk = ownership_token_from_bytes(&plaintext);
-                        own_tokens.push(pk.clone());
+                        if pk.did == did {
+                            own_tokens.push(pk.clone());
+                            if reveal {
+                                own_locs_to_remove.insert(*lc);
+                            }
+                        }
                         new_uids.push((pk.new_uid, pk.priv_key));
                         warn!(
                             "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
@@ -1098,6 +942,7 @@ impl TokenCtrler {
                     // get all tokens of pseudoprincipal
                     for (new_uid, privkey) in new_uids {
                         if let Some(pp) = self.principal_data.get(&new_uid) {
+                            let mut pp = pp.clone();
                             warn!(
                                 "Getting tokens of pseudoprincipal {} with data {}, {:?}, {:?}",
                                 new_uid,
@@ -1105,13 +950,30 @@ impl TokenCtrler {
                                 pp.diff_loc_caps,
                                 pp.ownership_loc_caps
                             );
-                            let (mut pp_diff_tokens, mut pp_own_tokens) = self.get_user_tokens(
+                            let (mut pp_diff_tokens, mut pp_own_tokens, diff_locs_to_remove, own_locs_to_remove) = self.get_user_tokens(
                                 did,
                                 &privkey,
                                 &pp.diff_loc_caps,
                                 &pp.ownership_loc_caps,
                                 reveal,
+                                db,
                             );
+                            // remove locs from pp
+                            for dl in &diff_locs_to_remove {
+                                pp.diff_loc_caps.remove(dl);
+                            }
+                            for ol in &own_locs_to_remove {
+                                pp.ownership_loc_caps.remove(ol);
+                            }
+                            if pp.should_remove && pp.diff_loc_caps.is_empty() && pp.ownership_loc_caps.is_empty() {
+                                // either remove the principal metadata
+                                self.remove_principal(&new_uid, db);
+                            } else {
+                                // or update the principal data record in edna
+                                self.mark_principal_to_insert(&new_uid, &pp);
+                                self.persist_principals(db);
+                                self.principal_data.insert(new_uid, pp.clone());
+                            }
                             diff_tokens.append(&mut pp_diff_tokens);
                             own_tokens.append(&mut pp_own_tokens);
                         }
@@ -1119,16 +981,25 @@ impl TokenCtrler {
                 }
             }
         }
-        (diff_tokens, own_tokens)
+        // actually remove locs
+        for dl in &diff_locs_to_remove {
+            self.enc_diffs_map.remove(dl);
+        }
+        for ol in &own_locs_to_remove {
+            self.enc_ownership_map.remove(ol);
+        }
+        // return tokens matching disguise and the removed locs from this iteration
+        (diff_tokens, own_tokens, diff_locs_to_remove, own_locs_to_remove)
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_user_pseudoprincipals(
         &self,
         decrypt_cap: &DecryptCap,
-        ownership_loc_caps: &Vec<LocCap>,
+        ownership_loc_caps: &HashSet<LocCap>,
         reveal: bool,
     ) -> Vec<UID> {
+        // XXX delete if should reveal
+        // remove pseudoprincipal metadata if caps are empty
         let mut uids = vec![];
         if decrypt_cap.is_empty() {
             return vec![];

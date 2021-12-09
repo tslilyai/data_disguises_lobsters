@@ -1,8 +1,4 @@
 extern crate base64;
-#[cfg(feature = "flame_it")]
-extern crate flame;
-#[cfg(feature = "flame_it")]
-extern crate flamer;
 extern crate mysql;
 extern crate ordered_float;
 
@@ -13,8 +9,10 @@ use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, RwLock};
 use std::*;
+use std::iter::FromIterator;
 
 pub mod disguise;
 pub mod generate_keys;
@@ -77,7 +75,7 @@ impl EdnaClient {
         guise_gen: Arc<RwLock<GuiseGen>>,
     ) -> EdnaClient {
         init_db(prime, in_memory, host, dbname, schema);
-        //XXX 
+        //XXX
         let root_url = if host != "127.0.0.1" {
             format!("mysql://root:password@{}", host)
         } else {
@@ -88,7 +86,12 @@ impl EdnaClient {
             schema: schema.to_string(),
             in_memory: in_memory,
             disguiser: disguise::Disguiser::new(
-                &root_url, &overall_url, keypool_size, guise_gen, batch),
+                &root_url,
+                &overall_url,
+                keypool_size,
+                guise_gen,
+                batch,
+            ),
         }
     }
 
@@ -109,7 +112,9 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     pub fn start_disguise(&self, _did: DID) {}
 
-    pub fn end_disguise(&self) -> (
+    pub fn end_disguise(
+        &self,
+    ) -> (
         HashMap<(UID, DID), tokens::LocCap>,
         HashMap<(UID, DID), tokens::LocCap>,
     ) {
@@ -133,10 +138,17 @@ impl EdnaClient {
         own_loc_caps: Vec<tokens::LocCap>,
         reveal: bool,
     ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
-        let locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
-        let (dts, own_tokens) =
-            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps, reveal);
+        let mut db = self.get_conn().unwrap();
+        let (dts, own_tokens, _, _) = locked_token_ctrler.get_user_tokens(
+            did,
+            &decrypt_cap,
+            &HashSet::from_iter(diff_loc_caps.iter().cloned()),
+            &HashSet::from_iter(own_loc_caps.iter().cloned()),
+            reveal,
+            &mut db,
+        );
         diff_tokens.extend(dts.iter().cloned());
         drop(locked_token_ctrler);
         (
@@ -162,7 +174,7 @@ impl EdnaClient {
     }
 
     // TODO add API calls to remove/modify global tokens?
-    */ 
+    */
 
     //-----------------------------------------------------------------------------
     // Save arbitrary diffs performed by the disguise for the purpose of later
