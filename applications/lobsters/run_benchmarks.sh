@@ -1,9 +1,7 @@
 #!/bin/bash
 
 cargo build --release
-rm -rf output
 rm *txt
-mkdir output
 set -e
 
 #get stats first, prime when you do this
@@ -16,11 +14,11 @@ set -e
 #echo "Ran stats primed test for users"
 
 for u in 1 ; do
-	RUST_LOG=error perflock ../../target/release/lobsters \
+	RUST_BACKTRACE=1 RUST_LOG=error perflock ../../target/release/lobsters \
 		--scale 1.5 \
 		--nsleep 0\
 		--nconcurrent $u \
-		--filename "${u}users_nodisguising" \
-	&> output/users$s-$u-nodisguising.out
+		--filename "${u}users_cheap" \
+	&> output/users-$u-cheap.out
 	echo "Ran concurrent test for $u users 0 sleep"
 done

@@ -5,7 +5,7 @@ use mysql::prelude::*;
 use std::*;
 use std::collections::HashSet;
 use std::time;
-use log::error;
+use log::warn;
 
 pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Result<(), mysql::Error> 
 {
@@ -25,7 +25,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
             users.insert(user_id);
             stories.insert(story_id);
         })?;
-    error!("\t select comments {}", start.elapsed().as_micros());
+    warn!("\t select comments {}", start.elapsed().as_micros());
 
     let stories = stories
         .into_iter()
@@ -42,7 +42,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
                      AND hidden_stories.story_id IN ({})",
                      uid, stories
                 ))?;
-        error!("\t select hidden {}", start.elapsed().as_micros());
+        warn!("\t select hidden {}", start.elapsed().as_micros());
     }
 
     assert!(!users.is_empty());
@@ -57,7 +57,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
              WHERE `users`.`id` IN ({})",
             users
         ))?;
-    error!("\t select users {}", start.elapsed().as_micros());
+    warn!("\t select users {}", start.elapsed().as_micros());
    
     let mut authors = HashSet::new();
     let start = time::Instant::now();
@@ -67,7 +67,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
             stories
         ),
         |user_id: u32| authors.insert(user_id))?;
-    error!("\t select authors {}", start.elapsed().as_micros());
+    warn!("\t select authors {}", start.elapsed().as_micros());
 
     assert!(!authors.is_empty());
     if let Some(uid) = acting_as {
@@ -84,7 +84,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
                  AND `votes`.`comment_id` IN ({})",
                  uid, comments)
             )?;
-        error!("\t select votes {}", start.elapsed().as_micros());
+        warn!("\t select votes {}", start.elapsed().as_micros());
     }
 
     // NOTE: the real website issues all of these one by one...
@@ -100,7 +100,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
              WHERE `users`.`id` IN ({})",
             authors
         ))?;
-    error!("\t select users again {}", start.elapsed().as_micros());
+    warn!("\t select users again {}", start.elapsed().as_micros());
     Ok(())
 }
 

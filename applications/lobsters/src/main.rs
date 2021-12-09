@@ -120,6 +120,7 @@ fn main() {
     let mut user_comments = 0;
     let mut user_votes = 0;
     let mut user_to_disguise = 1 as u64;
+        //nusers as u64;//1 as u64;
     let res = db
         .query_iter(format!(
             r"SELECT COUNT(*) FROM stories WHERE user_id={};",
@@ -172,7 +173,7 @@ fn main() {
 
     let arc_edna = Arc::new(Mutex::new(edna));
     let ndisguises = 0;
-    /*let ndisguises = run_disguising_sleeps(
+    let ndisguises = run_disguising_sleeps(
         &args,
         arc_edna,
         user_to_disguise,
@@ -180,7 +181,7 @@ fn main() {
         delete_durations.clone(),
         restore_durations.clone(),
     )
-    .unwrap();*/
+    .unwrap();
 
     for j in threads {
         j.join().expect("Could not join?");
@@ -291,7 +292,10 @@ fn run_normal_thread(
         }
         res.sort();
         my_op_durations.push((overall_start.elapsed(), start.elapsed()));
-        //error!("user{} {}: {}", user_id, op, start.elapsed().as_micros());
+        let dur = start.elapsed().as_micros();
+        if dur > 50000 {
+            error!("user{} {}: {}", user_id, op, dur);
+        }
     }
     op_durations.lock().unwrap().append(&mut my_op_durations);
 }

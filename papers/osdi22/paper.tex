@@ -5,6 +5,7 @@
 %\settopmatter{printfolios=true}
 
 \usepackage{usenix}
+\usepackage[utf8]{inputenc}
 % to be able to draw some self-contained figs
 \usepackage{tikz}
 \usepackage{amsmath}
@@ -66,6 +67,13 @@ keys
 \newcommand{\tabitem}{~~\llap{\textbullet}~~}
 \newcommand{\eg}{{e.g.},\xspace}
 \newcommand{\ie}{{i.e.},\xspace}
+
+% Enumeration commands
+\newcommand{\one}{({\em i}\/)}
+\newcommand{\two}{({\em ii}\/)}
+\newcommand{\three}{({\em iii}\/)}
+\newcommand{\four}{({\em iv}\/)}
+\newcommand{\five}{({\em v}\/)}
 
 \definecolor{codegreen}{rgb}{0,0.4,0}
 \definecolor{codegray}{rgb}{0.5,0.5,0.5}
@@ -157,8 +165,8 @@ keys
 %\input{pseudoprincipal_design}
 %\input{disguise_specs}
 %\input{composition}
-\input{case_studies}
 \input{impl}
+\input{case_studies}
 \input{eval}
 \input{disc}
 

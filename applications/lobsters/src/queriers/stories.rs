@@ -5,17 +5,23 @@ use chrono;
 use std::collections::HashSet;
 use mysql::prelude::*;
 use std::*;
+use std::time;
+use log::warn;
 
 pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) -> Result<Vec<String>, mysql::Error> {
     let mut result = vec![];
+    let start = time::Instant::now();
     let (author, story) : (u32, u32) = db.query_first(format!(
             "SELECT `stories`.`id`, `stories`.`user_id` \
              FROM `stories` \
              WHERE `stories`.`short_id` = '{}'", id))?.unwrap();
     result.push(format!("({}, {})", story, author));
+    warn!("\t select stories {}", start.elapsed().as_micros());
     
+    let start = time::Instant::now();
     db.query_drop(format!("SELECT `users`.* FROM `users` WHERE `users`.`id` = {}", author))?;
     //result.push(format!("({}, {})", story, author));
+    warn!("\t select users {}", start.elapsed().as_micros());
 
     // NOTE: technically this happens before the select from user...
     if let Some(uid) = acting_as {
@@ -23,6 +29,7 @@ pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) 
         // NOTE: *technically* the update only happens at the end...
         let mut rr = None;
         let now = format!("\'{}\'", chrono::Local::now().naive_local());
+        let start = time::Instant::now();
         db.query_map(format!(
             "SELECT  `read_ribbons`.`id` \
                  FROM `read_ribbons` \
@@ -30,7 +37,9 @@ pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) 
                  AND `read_ribbons`.`story_id` = {}",
             uid, story),
             |id: u32| rr = Some(id)).unwrap();
+        warn!("\t select rr {}", start.elapsed().as_micros());
 
+        let start = time::Instant::now();
         match rr {
             None => {
                 db.query_drop(format!(
@@ -49,16 +58,21 @@ pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) 
                 )?;
             }
         };
+        warn!("\t update rr {}", start.elapsed().as_micros());
     }
 
     // XXX: probably not drop here, but we know we have no merged stories
+    let start = time::Instant::now();
     db.query_drop(format!(
             "SELECT `stories`.`id` \
              FROM `stories` \
              WHERE `stories`.`merged_story_id` = {}",
             story))?;
+    warn!("\t select stories2 {}", start.elapsed().as_micros());
+
     let mut users = HashSet::new();
     let mut comments = HashSet::new();
+    let start = time::Instant::now();
     db.query_map(format!(
         "SELECT `comments`.`user_id`, `comments`.`id`, \
          `comments`.`upvotes` - `comments`.`downvotes` AS saldo \
@@ -72,8 +86,10 @@ pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) 
             users.insert(user_id);
             comments.insert(id);
         })?;
+    warn!("\t select comments {}", start.elapsed().as_micros());
 
     if !users.is_empty() {
+        let start = time::Instant::now();
         // get user info for all commenters
         let users = users
             .into_iter()
@@ -81,21 +97,25 @@ pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) 
             .collect::<Vec<_>>()
             .join(", ");
         db.query_drop(&format!("SELECT `users`.* FROM `users` WHERE `users`.`id` IN ({})", users))?;
+        warn!("\t select users {}", start.elapsed().as_micros());
     }
 
     // get comment votes
     // XXX: why?!
     if !comments.is_empty() {
+        let start = time::Instant::now();
         let comments = comments
             .into_iter()
             .map(|id| format!("{}", id))
             .collect::<Vec<_>>()
             .join(", ");
             db.query_drop(&format!("SELECT `votes`.* FROM `votes` WHERE `votes`.`comment_id` IN ({})", comments))?;
+        warn!("\t select commentvotes {}", start.elapsed().as_micros());
     }
 
     // OTE: lobste.rs here fetches the user list again. unclear why?
     if let Some(uid) = acting_as {
+        let start = time::Instant::now();
         db.query_drop(format!(
                 "SELECT `votes`.* \
                  FROM `votes` \
@@ -103,21 +123,27 @@ pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) 
                  AND `votes`.`story_id` = {} \
                  AND `votes`.`comment_id` IS NULL",
                 uid, story))?;
+        warn!("\t select votes {}", start.elapsed().as_micros());
+        let start = time::Instant::now();
         db.query_drop(format!(
                 "SELECT `hidden_stories`.* \
                  FROM `hidden_stories` \
                  WHERE `hidden_stories`.`user_id` = {} \
                  AND `hidden_stories`.`story_id` = {}",
                 uid, story))?;
+        warn!("\t select hiddenstories {}", start.elapsed().as_micros());
+        let start = time::Instant::now();
         db.query_drop(format!(
                 "SELECT `saved_stories`.* \
                  FROM `saved_stories` \
                  WHERE `saved_stories`.`user_id` = {} \
                  AND `saved_stories`.`story_id` = {}",
                 uid, story))?;
+        warn!("\t select savedstories {}", start.elapsed().as_micros());
     }
 
     let mut tags = HashSet::new();
+    let start = time::Instant::now();
     db.query_map(format!(
             "SELECT `taggings`.`tag_id` \
              FROM `taggings` \
@@ -125,14 +151,17 @@ pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) 
     |tag_id: u32| {
         tags.insert(tag_id);
     })?;
+    warn!("\t select taggings {}", start.elapsed().as_micros());
 
     if !tags.is_empty() {
+        let start = time::Instant::now();
         let tags = tags
             .into_iter()
             .map(|id| format!("{}", id))
             .collect::<Vec<_>>()
             .join(", ");
         db.query_drop(&format!("SELECT `tags`.* FROM `tags` WHERE `tags`.`id` IN ({})", tags))?;
+        warn!("\t select tags {}", start.elapsed().as_micros());
     }
     Ok(result)
 }

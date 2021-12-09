@@ -3,9 +3,7 @@ use crate::spec::*;
 use crate::stats::*;
 use crate::tokens::*;
 use crate::*;
-#[cfg(feature = "flame_it")]
-use flamer::flame;
-use log::{warn, error};
+use log::warn;
 use mysql::{Opts, Pool};
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
@@ -25,7 +23,13 @@ impl Disguiser {
     /**************************************************
      * Functions for lower-level disguising
      *************************************************/
-    pub fn new(dbserver: &str, url: &str, keypool_size: usize, guise_gen: Arc<RwLock<GuiseGen>>, batch: bool) -> Disguiser {
+    pub fn new(
+        dbserver: &str,
+        url: &str,
+        keypool_size: usize,
+        guise_gen: Arc<RwLock<GuiseGen>>,
+        batch: bool,
+    ) -> Disguiser {
         let opts = Opts::from_url(&url).unwrap();
         let pool = Pool::new(opts).unwrap();
         let stats = Arc::new(Mutex::new(stats::QueryStat::new()));
@@ -81,7 +85,6 @@ impl Disguiser {
         );
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn create_new_pseudoprincipal(&mut self) -> (UID, Vec<RowVal>) {
         match self.pseudoprincipal_data_pool.pop() {
             Some(vs) => vs,
@@ -99,7 +102,8 @@ impl Disguiser {
         ownership_loc_caps: &Vec<LocCap>,
     ) -> Vec<UID> {
         let locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let uids = locked_token_ctrler.get_user_pseudoprincipals(decrypt_cap, ownership_loc_caps);
+        let uids =
+            locked_token_ctrler.get_user_pseudoprincipals(decrypt_cap, &HashSet::from_iter(ownership_loc_caps.iter().cloned()));
         drop(locked_token_ctrler);
         uids
     }
@@ -121,19 +125,24 @@ impl Disguiser {
         // XXX revealing all global tokens when a disguise is reversed
         let start = time::Instant::now();
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
-        let (dts, own_tokens) =
-            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
+        let (dts, own_tokens) = locked_token_ctrler.get_user_tokens(
+            did,
+            &decrypt_cap,
+            &HashSet::from_iter(diff_loc_caps.iter().cloned()),
+            &HashSet::from_iter(own_loc_caps.iter().cloned()),
+        );
         diff_tokens.extend(dts.iter().cloned());
         warn!(
             "Edna: Get tokens for reveal: {}",
             start.elapsed().as_micros()
         );
+        let mut failed = false;
 
         // reverse REMOVE tokens first
         let start = time::Instant::now();
         for dwrapper in &diff_tokens {
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
-            if dwrapper.did == did && !dwrapper.revealed && d.update_type == REMOVE_GUISE {
+            if dwrapper.did == did && !dwrapper.revealed && (d.update_type == REMOVE_GUISE || d.update_type == REMOVE_PRINCIPAL) {
                 warn!("Reversing remove token {:?}\n", d);
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                 if revealed {
@@ -145,6 +154,9 @@ impl Disguiser {
                         &diff_loc_caps,
                         &own_loc_caps,
                     );*/
+                } else {
+                    failed = true;
+                    warn!("Failed to reverse remove token");
                 }
             }
         }
@@ -152,7 +164,7 @@ impl Disguiser {
         for dwrapper in &diff_tokens {
             // only reverse tokens of disguise if not yet revealed
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
-            if dwrapper.did == did && !dwrapper.revealed && d.update_type != REMOVE_GUISE {
+            if dwrapper.did == did && !dwrapper.revealed && d.update_type != REMOVE_GUISE && d.update_type != REMOVE_PRINCIPAL {
                 warn!("Reversing token {:?}\n", d);
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                 if revealed {
@@ -164,6 +176,9 @@ impl Disguiser {
                         &diff_loc_caps,
                         &own_loc_caps,
                     );*/
+                } else {
+                    failed = true;
+                    warn!("Failed to reverse non-remove token");
                 }
             }
         }
@@ -176,7 +191,8 @@ impl Disguiser {
                 Ok(d) => {
                     if d.did == did {
                         warn!("Reversing token {:?}\n", d);
-                        let revealed = d.reveal(&mut db, self.stats.clone())?;
+                        let revealed =
+                            d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                         if revealed {
                             warn!("Decor Ownership Token reversed!\n");
                             /*locked_token_ctrler.mark_ownership_token_revealed(
@@ -185,11 +201,23 @@ impl Disguiser {
                                 &decrypt_cap,
                                 &own_loc_caps,
                             );*/
+                        } else {
+                            failed = true;
                         }
                     }
                 }
             }
         }
+        if !failed {
+            locked_token_ctrler.cleanup_user_tokens(
+                did,
+                &decrypt_cap,
+                &HashSet::from_iter(diff_loc_caps.iter().cloned()),
+                &HashSet::from_iter(own_loc_caps.iter().cloned()),
+                &mut db,
+            );
+        }
+
         warn!("Reveal tokens: {}", start.elapsed().as_micros());
 
         drop(locked_token_ctrler);
@@ -214,13 +242,13 @@ impl Disguiser {
         //let mut threads = vec![];
         let did = disguise.did;
         let start = time::Instant::now();
-        let locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
         let (_, ownership_tokens) = locked_token_ctrler.get_user_tokens(
             disguise.did,
             &decrypt_cap,
-            &vec![],
-            &ownership_loc_caps,
+            &HashSet::new(),
+            &HashSet::from_iter(ownership_loc_caps.iter().cloned()),
         );
         drop(locked_token_ctrler);
         warn!(
@@ -342,7 +370,6 @@ impl Disguiser {
                     }
                 }
             }
-        
             // save token transforms to perform
             let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
             locked_tokens.extend(token_transforms);
@@ -393,7 +420,6 @@ impl Disguiser {
         Ok(loc_caps)
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
         let start = time::Instant::now();
         let did = disguise.did;
@@ -489,7 +515,6 @@ impl Disguiser {
         );
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn execute_removes(
         &self,
         disguise: Arc<Disguise>,
@@ -534,10 +559,9 @@ impl Disguiser {
                             HashSet::from_iter(selected_rows.iter().cloned());
                         warn!(
                             "Edna: select items for remove {}: {:?}",
-                            selection,
-                            pred_items
+                            selection, pred_items
                         );
- 
+
                         warn!(
                             "Edna: select items for remove {}: {}",
                             selection,
@@ -590,8 +614,12 @@ impl Disguiser {
                                 // if we're working on a guise table (e.g., a users table)
                                 // remove the user
                                 if locked_guise_gen.guise_name == table {
-                                    warn!("Found item to delete from table {} that is guise", table);
-                                    locked_token_ctrler.mark_principal_to_be_removed(&token.uid, token.did);
+                                    warn!(
+                                        "Found item to delete from table {} that is guise",
+                                        table
+                                    );
+                                    locked_token_ctrler
+                                        .mark_principal_to_be_removed(&token.uid, token.did);
                                 }
                             }
                         }
@@ -650,7 +678,6 @@ impl Disguiser {
 /*
  * Also only used by higher-level disguise specs
  */
-#[cfg_attr(feature = "flame_it", flame)]
 fn decor_items(
     did: DID,
     token_ctrler: &mut TokenCtrler,
@@ -752,7 +779,6 @@ fn decor_items(
     }
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
 fn modify_items(
     did: DID,
     global: bool,
@@ -771,7 +797,11 @@ fn modify_items(
     let start = time::Instant::now();
     // update column for this item
     //error!("UPDATE {} SET {} = '{}' WHERE {}", table, col, new_val, selection);
-    query_drop(format!("UPDATE {} SET {} = '{}' WHERE {}", table, col, new_val, selection),
+    query_drop(
+        format!(
+            "UPDATE {} SET {} = '{}' WHERE {}",
+            table, col, new_val, selection
+        ),
         db,
         stats.clone(),
     )

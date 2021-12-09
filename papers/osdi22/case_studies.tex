@@ -5,9 +5,11 @@
 
 %
 We wrote data disguises via \sys for three real applications:
-WebSubmit~\cite{websubmit-rs-anon}, Lobsters~\cite{lobsters}, and HotCRP~\cite{hotcrp}.
+Lobsters~\cite{lobsters},
+WebSubmit~\cite{websubmit-rs-anon},
+and HotCRP~\cite{hotcrp}.
 %
-We fully integrated \sys with two applications, WebSubmit and Lobsters.
+We fully integrated \sys with two applications, Lobsters and WebSubmit.
 %
 In the following, we discuss our experience writing these disguises and integrating
 \sys into the applications.
@@ -16,99 +18,123 @@ In the following, we discuss our experience writing these disguises and integrat
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Lobsters}
 
-We integrated the Lobsters~\cite{lobsters} link-sharing and discussion application with \sys to
-explore data disguises in another class of web applications. \sys-Lobsters supports three disguises:
-the current Lobsters deletion policy\lyt{CITE}, a GDPR-compliant account deletion, and automatic
-data decay, all implemented \sys's high-level API.
-
-Note that a disguise such as universal anonymization makes less sense for an application such as
-Lobsters, in which users may use the application at very different frequencies.  \sys-Lobsters'
-account decay allows inactive users to automatically gain privacy after a period of unuse (\eg a
-year); \sys-Lobsters emails decayed users a link with the appropriate locators that allows the user
-to return to delete their account or reactive it.
-
+%
+Lobsters is a link-sharing and discussion platform with 14.5k users~\cite{lobsters},
+written as a Ruby-on-Rails application backed by a MySQL database.
+%
+Lobsters supports account deletion, implemented manually by the developers in Ruby.
+%
 The current Lobsters deletion policy
+\one{} hides the user account by flagging it as deleted (but retains it in the \fn{users} table);
+\two{} deletes the users' invitations;
+\three{} hides comments with negative votes by flagging them as deleted (but leaves
+the comments in the database);
+\four{} hides private messages by flagging them as deleted (but retains the message
+in the database); and
+\five{} optionally decorrelates a user's stories and comments by reassigning them to
+to a special \fn{inactive-user}.
 %
-(1)~hides the user account by flagging it as deleted (but retains the user in the users table);
-%
-(2)~deletes the users' invitations;
-%
-(3)~hides comments with negative votes by flagging them as deleted (but retains the comment in the database)
-%
-(4)~hides private messages from the other party by flagging them as deleted (but retains the message
-in the database);
-%
-(4)~and (optionally) decorrelates a user's stories and comments by referring them
-to a \emph{single} pseudoprincipal with username \texttt{inactive-user}.
-%
-This policy allows users are able to return by simply marking user accounts as not-deleted.
-
-GDPR-compliant account deletion
-%
-(1)~deletes the user account;
-%
-(2)~deletes information that's only relevant to the user, such as their invitations, hats, and saved
-stories;
-%
-(3) modifies story and comment content to ``[deleted content]'' in order to preserve comment threads
-(and nested threads) on stories;
-%
-(4)~hides private messages from the other party by marking them as deleted (but retains them in the
-database);
-%
-(5)~and decorrelates private messages, votes, stories, comments, and moderations on the user's data
-by referring each object to a \emph{unique} pseudoprincipal.
+This policy allows users to return by reverting the ``deleted'' flags, but it is
+not GDPR-compliant, as personally-identifiable data remains in the database after
+account removal.
 %
 
-This preserves application semantics for other users (\eg vote counts remain consistent even if
-users delete their accounts, and other users' comments remain visible and editable), while better
-protecting the identity of deleted users than the current policy, which assigns all decorrelated
-data to a single pseudoprincipal---yielding more information about which data may belong to a single
-deleted user---and fails to be GDPR-compliant by retaining plaintext usernames. Furthermore,
-important information such as moderations on the user's content remain in the database, and will be
-recorrelated if the user decides to restore their account.  After \sys-Lobsters applies account
-deletion, \sys-Lobsters emails the user a URL with the locator produced by the disguise, which when
-clicked, allows the user to restore their account (barring application updates that occurred in the
-interim).
-
-\sys-Lobsters automatically applies data decay to user accounts that have been inactive for over a year.
-Data decay
 %
-(1)~deletes the user account;
+We implemented three disguises for Lobsters: the current Lobsters deletion
+policy as a disguise, a GDPR-compliant account deletion disguise, and automatic data decay,
+which anonymizes user's contributions after some time without activity on the site.
 %
-(2)~deletes information that's only relevant to the user, such as their invitations, hats, and saved
-stories;
-%
-(3)~and decorrelates votes, stories, comments, and moderations on the user's data by referring them
-to newly generated pseudoprincipals.
+All disguises use \sys's high-level API.
 %
 
-While similar to account deletion, data decay importantly does \emph{not} remove story or comment
-content, resulting in both greater utility for other users but also potentially more retained
-identifying information.  As with account deletion, \sys-Lobsters emails the user a URL with the locator
-produced by applying data decay; when users want to reactivate to return to \sys-Lobsters or compose
-account deletion on top of data decay, they can simply click the URL to regain access to their
-restored data.
+\paragraph{GDPR-compliant Account Deletion.}
+%
+We changed the account deletion button in Lobsters's UI to trigger a disguise in \sys.
+%
+This disguise:
+\one{} deletes the user account (and stores the encrypted details in \sys's store);
+\two{} deletes information that's only relevant to the individual user, such as their
+invitations, hats, and saved stories (and stores it encryptedly in \sys's store);
+\three{} modifies story and comment content to ``[deleted content]'', but retains the
+database objects in order to preserve comment threads (and nested threads) on stories;
+\four{} hides private messages by marking them as deleted (but retains them in the
+database) and decorrelates them from the account-deleting user; and
+\five{} and decorrelates votes, stories, comments, and moderations on the user's
+data by associating each remaining object with a unique pseudoprincipal.
+%
+This preserves application semantics for other users---\eg vote counts remain consistent
+even after users delete their accounts, and other users' comments remain visible and
+editable---while better protecting the privacy of deleted users.
+%
+Furthermore, important information such as moderations on the user's content remain in
+the database, and \sys will recorrelate it if the user restores their account.
+%
+After the disguise is applied, Lobsters emails the user a URL that embeds the locator
+produced by \sys.
+%
+When clicked, this URL allows the user to restore their account.
+%
 
-\sys-Lobsters is a fully E2E application that uses \sys by running \sys as a local
-server that exposes \sys's API, and serializes arguments and return values as JSON to the Lobsters
-application.
-The original Lobsters is \lyt{TODO}LoC.
-Modifications to the Lobsters code required \lyt{TODO}LoC and took \lyt{TODO} person-days.
+\paragraph{Data Decay.}
+%
+Our account decay disguise helps Lobsters users automatically gain privacy
+after a period of inactivity (\eg a year).
+%
+We added a cron job that applies the data decay disguise to user accounts that have
+been inactive for over a year.
+%
+Data decay:
+\one{} deletes the user's account (and stores its details);
+\two{} deletes information that's only relevant to the user, such as their invitations, hats,
+and saved stories (again, storing it);
+\three{} and decorrelates votes, stories, comments, and moderations on the
+user's data by associating them with pseudoprincipals.
+%
+While similar to account deletion, data decay does not remove story or comment
+content.
+%
+This preserves greater utility for other users, but also potentially retains
+identifying information within the content.
+%
+Lobsters sends the user an email which informs them that their data has decayed,
+and which includes URLs to reactivate or completely delete their account.
+%
+The URLs embed the locator produced by the data decay disguise, and take the user
+to a form that requests their private key to complete the operation.
+%
+
+\paragraph{Integration.}
+%
+Our version of Lobsters is end-to-end integrated with \sys.
+%
+Lobster's Ruby code communicates with \sys through a JSON-HTTP API.
+%
+We modified \lyt{TODO} lines of code in Lobster's \lyt{TODO} LoC code base
+(\lyt{TODO}\%).
+%
+These modifications took \lyt{TODO} person-days for developers familiar with
+\sys, but unfamiliar with Ruby and Lobsters.
+%
+
+%\lyt{Do we need to talk about how Lobsters uses \eg keystores, and the high-level API doesn't deal
+%with this?}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{WebSubmit}
 \label{s:case-websubmit}
-%
-We integrate \sys into WebSubmit~\cite{websubmit-rs-anon} as a Rust library to support the two
-disguises described in our running example from \S\ref{s:api}, namely intructor-initiated answer anonymization, and GDPR-compliant user account deletion.
 
-Our version of WebSubmit uses \sys's lower-level API, and sends locators and keys to users via
-email.
 %
-We added new HTTP endpoints for editing disguised data and restoring a deleted account.
+We integrated \sys with WebSubmit~\cite{websubmit-rs-anon} as a Rust library.
+%
+Our version of WebSubmit supports the two disguises described in our \S\ref{s:api}
+running example: intructor-initiated answer anonymization, and GDPR-compliant
+user account deletion.
+%
+Our modified WebSubmit sends locators and keys to users via email, and we added
+new HTTP endpoints for editing disguised data and restoring a deleted account.
 %
 
+%
 The original WebSubmit has 922 LoC; adding \sys's disguises required an additional 304 LoC
 to specify the disguises, 254 LoC for two additional HTTP endpoints; and 809 LoC added to
 existing code \lyt{(some of which were to add \eg benchmark timings)} \ms{can we subtract the
@@ -120,39 +146,44 @@ unfamiliar with WebSubmit.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{HotCRP}
-HotCRP is a conference management application with a schema containing users (reviewers/PC members and
-authors), paper submissions, reviews, comments, tags, and per-user data such as paper watches and review ratings.
-%
-\sys-HotCRP supports similar disguises to WebSubmit: a universal conference anonymization disguise,
-and a GDPR-compliant account deletion disguise.  \sys-HotCRP uses the high-level \sys API to
-specify, apply, and reveal both disguises.  \sys-HotCRP also supports review editing after
-anonymization by emailing a link with the appropriate locators to anonymized users. Both disguises
-are implemented using \sys's higher-level API.
+\label{s:case-hotcrp}
 
-Universal conference anonymization decorrelates users from their submissions, reviews, and comments,
-as well as per-user data such as paper watches. User accounts remain in the database but have no
-correlated data.
+%
+HotCRP is a conference management application with a schema consisting of users
+(reviewers/PC members and authors), paper submissions, reviews, comments, tags,
+and per-user data such as watched papers and review ratings~\cite{hotcrp}.
+%
+We wrote two disguises for HotCRP: a universal conference anonymization disguise
+(invoked by the PC chairs after the conference), and a GDPR-compliant account
+deletion disguise.
+%
+Both disguises use the high-level \sys API.
+%
+%\sys-HotCRP also supports review editing after
+%anonymization by emailing a link with the appropriate locators to anonymized users. Both disguises
+%are implemented using \sys's higher-level API.
+%
+Universal conference anonymization decorrelates users from their submissions,
+reviews, and comments, as well as per-user data such as watched papers.
+%
+User accounts remain in the database, but have no data.
+%
+Account deletion \one{} deletes the user's account; \two{} deletes information
+that's only relevant to the user, such as their review preferences;
+\three{} deletes their author relationships to papers; and
+\four{} decorrelates the remainder of their data, such as reviews, to
+individual pseudoprincipals.
+%
+The decorrelation of reviews makes them difficult to reassociate with one
+another or with the natural principal.
+%
+Pseudoprincipals have suitable default properties provided by HotCRP; for example,
+they are marked as disabled, so that they have no permissions and cannot log in.
+%
+This account deletion disguise removes a user's relationship to co-authored papers,
+but does not remove the papers themselves; a different policy might go even
+further and automatically delete a submission whose last author is removed.
+%
 
-\lyt{This is taken from hotos} Account deletion of a user
-%
-(1)~deletes the user account;
-%
-(2)~deletes information that's only relevant to the user, such as their review preferences;
-%
-(3)~deletes their contact author relationships to any submissions;
-%
-(4)~decorrelates their other data, such as reviews, by referring them to newly generated
-pseudoprincipals.
-
-After account deletion, a user's reviews remain in the system, but linked to different
-pseudoprincipals, making them difficult to reassociate with one another or with the user.
-%
-Pseudoprincipals have suitable default values; for example, they should be disabled, ensuring they
-have no permissions and cannot log in.
-%
-This form of account deletion removes a user's relationship to submissions, but does not remove the
-submissions themselves; a different policy might go even further and automatically delete a
-submission whose last author is scrubbed.
-
-\lyt{An end-to-end integration with the HotCRP client is future work; however, we imagine that modifications similar to those in WebSubmit
-would be necessary.}
+An end-to-end integration with the HotCRP client is future work; however, we believe
+that the required modifications would be similar to those in Lobsters.

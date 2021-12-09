@@ -1,6 +1,6 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
-//use crate::tokens::*;
+use crate::tokens::*;
 use crate::{RowVal, DID, UID};
 use log::warn;
 use rand::{thread_rng, Rng};
@@ -93,6 +93,7 @@ pub fn new_edna_ownership_token(
 impl EdnaOwnershipToken {
     pub fn reveal(
         &self,
+        token_ctrler: &mut TokenCtrler,
         db: &mut mysql::PooledConn,
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<bool, mysql::Error> {
@@ -173,8 +174,8 @@ impl EdnaOwnershipToken {
             stats.clone(),
         )?;
         // remove the principal from being registered by the token ctrler
-        //XXX LYT keep principal around for now
-        //token_ctrler.remove_principal(&self.new_uid, self.did, db);
+        //XXX LYT keep principal around for now until all locators are gone
+        token_ctrler.remove_principal(&self.new_uid, db);
         Ok(true)
     }
 }

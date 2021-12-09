@@ -55,6 +55,7 @@ pub fn generate_keys(dbserver: &str) -> Result<Vec<(RsaPrivateKey, RsaPublicKey)
 
 pub fn get_keys(dbserver: &str) -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Error> {
     let mut keys = vec![];
+    warn!("dbserver is {}", dbserver);
     let mut db = mysql::Conn::new(Opts::from_url(dbserver).unwrap()).unwrap();
     if !db.select_db(&format!("{}", KEY_PAIRS_DB)) {
         return generate_keys(dbserver);
