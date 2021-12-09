@@ -60,7 +60,7 @@ pub struct EdnaDiffToken {
     pub pubkey: Vec<u8>,
     pub is_anon: bool,
     pub should_remove: bool,
-    pub loc_caps: HashSet<LocCap>,
+    pub loc_caps: HashSet<EncData>,
 }
 
 impl Hash for DiffTokenWrapper {
