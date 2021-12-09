@@ -136,6 +136,8 @@ Rails.application.routes.draw do
         :as => "user_disable_invite"
   post "/users/:username/enable_invitation" => "users#enable_invitation",
         :as => "user_enable_invite"
+  get "/users/recover_account" => "users#recover_account_form"
+  post "/users/recover_account" => "users#recover_account"
 
   get "/settings" => "settings#index"
   post "/settings" => "settings#update"

@@ -21,11 +21,29 @@ class SettingsController < ApplicationController
       return redirect_to settings_path
     end
 
-    @user.delete!
     disown_text = ""
-    if params[:user][:disown].present?
-     disown_text = " and disowned your stories and comments."
-     InactiveUser.disown_all_by_author! @user
+
+    # Don't actually delete! Edna handles this :)
+    # @user.delete!
+    #if params[:user][:disown].present?
+    #  disown_text = " and disowned your stories and comments."
+    #  InactiveUser.disown_all_by_author! @user
+    #end
+    
+    # Edna: disguise user.
+    uid = @user.id.to_s
+    api_instance = SwaggerClient::DefaultApi.new
+    body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
+    body.decrypt_cap = []
+    body.ownership_locators = []
+    app = 'lobsters' # String |
+    did = 0 # Integer |
+    uid = "#{uid}" # String |
+    begin
+      result = api_instance.apiproxy_apply_disguise(body, app, did, uid)
+      p result
+    rescue SwaggerClient::ApiError => e
+      puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
 
     reset_session
