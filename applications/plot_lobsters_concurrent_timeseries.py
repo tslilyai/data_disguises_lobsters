@@ -40,8 +40,8 @@ def get_all_points(filename, results, i):
             opdata[key] = val
         results.append(opdata)
 
-users = [1, 30]
-disguiser = ['cheap', 'expensive', 'none']
+users = [1, 30, 50]
+disguiser = ['none', 'cheap', 'expensive']
 for u in users:
     for d in disguiser:
         get_opdata('results/lobsters_results/concurrent_disguise_stats_{}users_{}.csv'.format(u, d),
@@ -57,35 +57,11 @@ for u in users:
         label ='{} Normal Users: {}'.format(u, disguiser[index])
         plt.plot(xs, ys, label=label)
 
-#for index in range(3,6):
-    #xs = list(op_results[index].keys())
-    #order = np.argsort(xs)
-    #xs = np.array(xs)[order]
-    #ys = [statistics.mean(x) for x in op_results[index].values()]
-    #ys = np.array(ys)[order]
-    #label ='{} Normal Users: {}'.format(users[0], "No Disguiser")
-    #if index == 4:
-        ##label ='{} Normal Users: {}'.format(users[0], "Expensive Disguiser")
-    #if index == 5:
-        #label='{} Normal Users: {}'.format(users[0], "Cheap Disguiser")
-    #plt.plot(xs, ys, label=label)
-
-    #xs = list(delete_results[index].keys())
-    #order = np.argsort(xs)
-    #xs = np.array(xs)[order]
-    #ys = [statistics.mean(x) for x in delete_results[index].values()]
-    #ys = np.array(ys)[order]
-    #label ='Delete {} Normal Users: {}'.format(users[1], "Expensive Disguiser")
-    #if index == 3:
-        #label='Delete {} Normal Users: {}'.format(users[1], "Cheap Disguiser")
-    #plt.plot(xs, ys, label=label)
-
-    plt.xlabel('Benchmark Time (s)')
-    plt.ylabel('Latency (ms)')
-    plt.ylim(ymin=0, ymax=40)
-    plt.xlim(xmin=0, xmax=50)
-    plt.legend(loc="upper right")
-    plt.title("Lobsters Op Latency vs. Number Normal Users")
-
+plt.xlabel('Benchmark Time (s)')
+plt.ylabel('Latency (ms)')
+plt.ylim(ymin=0, ymax=40)
+plt.xlim(xmin=0, xmax=50)
+plt.legend(loc="upper right")
+plt.title("Lobsters Op Latency vs. Number Normal Users")
 plt.tight_layout(h_pad=4)
 plt.savefig('lobsters_concurrent_results_timeseries.pdf')

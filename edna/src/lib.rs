@@ -9,10 +9,8 @@ use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::sync::{Arc, Mutex, RwLock};
 use std::*;
-use std::iter::FromIterator;
 
 pub mod disguise;
 pub mod generate_keys;
@@ -112,12 +110,8 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     pub fn start_disguise(&self, _did: DID) {}
 
-    pub fn end_disguise(
-        &self,
-    ) -> (
-        HashMap<(UID, DID), tokens::LocCap>,
-        HashMap<(UID, DID), tokens::LocCap>,
-    ) {
+    pub fn end_disguise(&self) -> HashMap<(UID, DID), tokens::LocCap>
+    {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let loc_caps = locked_token_ctrler.save_and_clear(&mut self.get_conn().unwrap());
         drop(locked_token_ctrler);
@@ -134,18 +128,18 @@ impl EdnaClient {
         &self,
         did: DID,
         decrypt_cap: tokens::DecryptCap,
-        diff_loc_caps: Vec<tokens::LocCap>,
-        own_loc_caps: Vec<tokens::LocCap>,
+        loc_caps: Vec<tokens::LocCap>,
     ) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let mut db = self.get_conn().unwrap();
-        locked_token_ctrler.cleanup_user_tokens(
-            did,
-            &decrypt_cap,
-            &HashSet::from_iter(diff_loc_caps.iter().cloned()),
-            &HashSet::from_iter(own_loc_caps.iter().cloned()),
-            &mut db,
-        );
+        for lc in loc_caps {
+            locked_token_ctrler.cleanup_user_tokens(
+                did,
+                &decrypt_cap,
+                &lc,
+                &mut db,
+            );
+        }
         drop(locked_token_ctrler);
     }
 
@@ -153,18 +147,22 @@ impl EdnaClient {
         &self,
         did: DID,
         decrypt_cap: tokens::DecryptCap,
-        diff_loc_caps: Vec<tokens::LocCap>,
-        own_loc_caps: Vec<tokens::LocCap>,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
-        let (dts, own_tokens) = locked_token_ctrler.get_user_tokens(
-            did,
-            &decrypt_cap,
-            &HashSet::from_iter(diff_loc_caps.iter().cloned()),
-            &HashSet::from_iter(own_loc_caps.iter().cloned()),
-        );
-        diff_tokens.extend(dts.iter().cloned());
+        //let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
+        //let mut own_tokens = locked_token_ctrler.get_global_ownership_tokens_of_disguise(did);
+        let mut diff_tokens = vec![];
+        let mut own_tokens = vec![];
+        for lc in loc_caps {
+            let (dts, ots) = locked_token_ctrler.get_user_tokens(
+                did,
+                &decrypt_cap,
+                &lc,
+            );
+            diff_tokens.extend(dts.iter().cloned());
+            own_tokens.extend(ots.iter().cloned());
+        }
         drop(locked_token_ctrler);
         (
             diff_tokens
@@ -241,10 +239,10 @@ impl EdnaClient {
     pub fn get_pseudoprincipals(
         &self,
         decrypt_cap: tokens::DecryptCap,
-        ownership_loc_caps: Vec<tokens::LocCap>,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> Vec<UID> {
         self.disguiser
-            .get_pseudoprincipals(&decrypt_cap, &ownership_loc_caps)
+            .get_pseudoprincipals(&decrypt_cap, &loc_caps)
     }
 
     /**********************************************************************
@@ -254,29 +252,24 @@ impl EdnaClient {
         &mut self,
         disguise: Arc<spec::Disguise>,
         decrypt_cap: tokens::DecryptCap,
-        ownership_loc_caps: Vec<tokens::LocCap>,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> Result<
-        (
             HashMap<(UID, DID), tokens::LocCap>,
-            HashMap<(UID, DID), tokens::LocCap>,
-        ),
         mysql::Error,
     > {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
         self.disguiser
-            .apply(disguise.clone(), decrypt_cap, ownership_loc_caps)
+            .apply(disguise.clone(), decrypt_cap, loc_caps)
     }
 
     pub fn reverse_disguise(
         &mut self,
         did: DID,
         decrypt_cap: tokens::DecryptCap,
-        diff_loc_caps: Vec<tokens::LocCap>,
-        ownership_loc_caps: Vec<tokens::LocCap>,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
         warn!("EDNA: REVERSING Disguise {}", did);
-        self.disguiser
-            .reverse(did, decrypt_cap, diff_loc_caps, ownership_loc_caps)?;
+        self.disguiser.reverse(did, decrypt_cap, loc_caps)?;
         Ok(())
     }
 
