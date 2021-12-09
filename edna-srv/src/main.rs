@@ -144,7 +144,7 @@ async fn main() {
         )
         .get_matches();
 
-    if matches.is_present("test") {
+    /*if matches.is_present("test") {
         match matches.value_of("app").unwrap() {
             "lobsters" => tests::test_lobsters_disguise().await,
             "hotcrp" => tests::test_hotcrp_disguise().await,
@@ -152,6 +152,9 @@ async fn main() {
         }
         return;
     }
+    tests::test_lobsters_disguise().await;
+    return;
+    */
 
     let my_rocket = rocket(
         matches.is_present("edna-prime"),
