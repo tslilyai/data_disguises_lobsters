@@ -40,6 +40,8 @@ struct Cli {
     filename: String,
     #[structopt(long = "nconcurrent", default_value = "1")]
     nconcurrent: usize,
+    #[structopt(long = "disguiser", default_value = "cheap")]
+    disguiser: String,
     #[structopt(long = "prime")]
     prime: bool,
     #[structopt(long = "stats")]
@@ -119,8 +121,11 @@ fn main() {
     let mut user_stories = 0;
     let mut user_comments = 0;
     let mut user_votes = 0;
-    let mut user_to_disguise = 1 as u64;
-        //nusers as u64;//1 as u64;
+    let mut user_to_disguise = match args.disguiser {
+        "cheap".to_string() => 1 as u64,
+        "expensive".to_string() => nusers as u64,
+        _ => 0 as u64,
+    };
     let res = db
         .query_iter(format!(
             r"SELECT COUNT(*) FROM stories WHERE user_id={};",
@@ -172,16 +177,19 @@ fn main() {
     barrier.wait();
 
     let arc_edna = Arc::new(Mutex::new(edna));
-    let ndisguises = 0;
-    let ndisguises = run_disguising_sleeps(
-        &args,
-        arc_edna,
-        user_to_disguise,
-        &user2decryptcap,
-        delete_durations.clone(),
-        restore_durations.clone(),
-    )
-    .unwrap();
+    let ndisguises = if user_to_disguise > 0 {
+        run_disguising_sleeps(
+            &args,
+            arc_edna,
+            user_to_disguise,
+            &user2decryptcap,
+            delete_durations.clone(),
+            restore_durations.clone(),
+        )
+        .unwrap();
+    } else {
+        0
+    };
 
     for j in threads {
         j.join().expect("Could not join?");

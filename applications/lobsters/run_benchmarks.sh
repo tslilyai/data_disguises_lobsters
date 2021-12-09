@@ -13,12 +13,15 @@ set -e
 #	&> output/users.out
 #echo "Ran stats primed test for users"
 
-for u in 1 ; do
-	RUST_BACKTRACE=1 RUST_LOG=error perflock ../../target/release/lobsters \
-		--scale 1.5 \
-		--nsleep 0\
-		--nconcurrent $u \
-		--filename "${u}users_cheap" \
-	&> output/users-$u-cheap.out
-	echo "Ran concurrent test for $u users 0 sleep"
+for d in cheap expensive none ; do
+	for u in 1 30 100; do
+		RUST_BACKTRACE=1 RUST_LOG=error perflock ../../target/release/lobsters \
+			--scale 1.5 \
+			--nsleep 0\
+			--nconcurrent $u \
+			--disguiser $d \
+			--filename "${u}users_${d}" \
+		&> output/users-$u-${d}.out
+		echo "Ran concurrent test for $u users 0 sleep ${d}"
+	done
 done
