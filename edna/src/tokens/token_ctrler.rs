@@ -193,10 +193,7 @@ impl TokenCtrler {
         self.tmp_loc_caps.get(&(uid.to_string(), did))
     }
 
-    pub fn save_and_clear(
-        &mut self,
-        db: &mut mysql::PooledConn,
-    ) -> HashMap<(UID, DID), LocCap> {
+    pub fn save_and_clear(&mut self, db: &mut mysql::PooledConn) -> HashMap<(UID, DID), LocCap> {
         // this creates dlcs and olcs btw, so we have to do it first
         if self.batch {
             self.insert_batch_tokens();
@@ -650,7 +647,6 @@ impl TokenCtrler {
         );
     }
 
-
     fn insert_ownership_token_wrapper(&mut self, pppk: &OwnershipTokenWrapper) {
         let start = time::Instant::now();
         let p = self.principal_data.get_mut(&pppk.old_uid);
@@ -1037,11 +1033,8 @@ impl TokenCtrler {
                         &pp.loc_caps,
                     );
                     for lc in pp.loc_caps {
-                        let (mut pp_diff_tokens, mut pp_own_tokens) = self.get_user_tokens(
-                            did,
-                            &privkey,
-                            &lc,
-                        );
+                        let (mut pp_diff_tokens, mut pp_own_tokens) =
+                            self.get_user_tokens(did, &privkey, &lc);
                         diff_tokens.append(&mut pp_diff_tokens);
                         own_tokens.append(&mut pp_own_tokens);
                     }
@@ -1058,15 +1051,17 @@ impl TokenCtrler {
         decrypt_cap: &DecryptCap,
         lc: &LocCap,
         db: &mut mysql::PooledConn,
-    ) -> (bool, bool) {
-        // delete locators + encrypted tokens 
+    ) -> (bool, bool, bool) {
+        // delete locators + encrypted tokens
         // remove pseudoprincipal metadata if caps are empty
-        let mut removed_dl = false;
-        let mut removed_ol = false;
+        let mut no_diffs_at_loc = true;
+        let mut no_owns_at_loc = true;
+        let mut no_pks_at_loc = true;
         if decrypt_cap.is_empty() {
-            return (false, false);
+            return (false, false, false);
         }
         if let Some(tokenls) = self.enc_diffs_map.get(&lc) {
+            no_diffs_at_loc = false;
             warn!("Getting tokens of user from ls len {}", tokenls.len());
             for enc_token in tokenls.clone() {
                 let start = time::Instant::now();
@@ -1082,18 +1077,19 @@ impl TokenCtrler {
                     );
                     // remove if we found a matching token for the disguise
                     if tokens.is_empty() || tokens[0].did == did {
-                        removed_dl = true;
+                        no_diffs_at_loc = true;
                     }
                 } else {
                     let token = diff_token_from_bytes(&plaintext);
                     // remove loc cap if matching disguise
                     if token.did == did {
-                        removed_dl = true;
+                        no_diffs_at_loc = true;
                     }
                 }
             }
         }
         if let Some(pks) = self.enc_ownership_map.get(&lc) {
+            no_owns_at_loc = false;
             for enc_pk in &pks.clone() {
                 let start = time::Instant::now();
                 // decrypt with decrypt_cap provided by client
@@ -1107,12 +1103,12 @@ impl TokenCtrler {
                         start.elapsed().as_micros(),
                     );
                     if tokens.is_empty() || tokens[0].did == did {
-                        removed_ol = true;
+                        no_owns_at_loc = true;
                     }
                 } else {
                     let token = ownership_token_from_bytes(&plaintext);
                     if token.did == did {
-                        removed_ol = true;
+                        no_owns_at_loc = true;
                     }
                     warn!(
                         "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
@@ -1122,6 +1118,8 @@ impl TokenCtrler {
             }
         }
         if let Some(pks) = self.enc_privkeys_map.get(&lc) {
+            no_pks_at_loc = false;
+            let mut uid: String;
             for enc_pk in &pks.clone() {
                 let start = time::Instant::now();
                 // decrypt with decrypt_cap provided by client
@@ -1137,67 +1135,125 @@ impl TokenCtrler {
                     );
                     // get ALL new_uids regardless of disguise that token came from
                     for pk in &tokens {
-                        new_uids.push((pk.new_uid.clone(), pk.priv_key.clone()));
+                        new_uids.push((pk.new_uid.clone(), pk.clone()));
                     }
+                    uid = tokens[0].old_uid.clone();
                 } else {
                     let pk = privkey_token_from_bytes(&plaintext);
-                    new_uids.push((pk.new_uid, pk.priv_key));
+                    new_uids.push((pk.new_uid.clone(), pk.clone()));
+                    uid = pk.old_uid.clone();
                     warn!(
                         "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
                         start.elapsed().as_micros()
                     );
                 }
-                // get all tokens of pseudoprincipal
-                for (new_uid, privkey) in &new_uids {
+                // remove matching tokens of pseudoprincipals
+                let mut kept_privkeys = vec![];
+                // for each pseudoprincipal for which we hold a private key
+                for (new_uid, pkt) in &new_uids {
                     if let Some(pp) = self.principal_data.get(new_uid) {
                         let mut new_pp = pp.clone();
                         warn!(
                             "Getting tokens of pseudoprincipal {} with data {}, {:?}",
                             new_uid,
-                            privkey.len(),
+                            pkt.priv_key.len(),
                             new_pp.loc_caps,
                         );
                         // XXX TODO encrypt/decrypt
+
+                        // for each locator that the pp has
                         for pplc in new_pp.loc_caps.clone() {
-                            let (removed_dl, removed_ol) = self
-                                .cleanup_user_tokens(
-                                    did,
-                                    &privkey,
-                                    &pplc,
-                                    db,
-                                );
-                            // remove locs from pp if both dts and ots match did
-                            // XXX TODO can't remove locator if still has privkeys
+                            // clean up the tokens at the locators
+                            let (no_diffs_at_loc, no_owns_at_loc, no_pks_at_loc) =
+                                self.cleanup_user_tokens(did, &pkt.priv_key, &pplc, db);
+                            // remove loc from pp if nothing's left at that loc
                             let mut removed = false;
-                            if removed_dl && removed_ol {
+                            if no_diffs_at_loc && no_owns_at_loc && no_pks_at_loc {
+                                //self.enc_privkeys_map.remove(&pplc);
                                 removed = new_pp.loc_caps.remove(&pplc);
                             }
+
+                            // remove the pp if it has no more bags and should be removed,
+                            // otherwise update the pp's metadata in edna if changed
                             if new_pp.should_remove && new_pp.loc_caps.is_empty() {
                                 // either remove the principal metadata
                                 warn!("Removing metadata of {}", new_uid);
                                 self.remove_principal(&new_uid, db);
                             } else if removed {
-                                // or update the principal data record in edna if changed
                                 warn!("Updating metadata of {}", new_uid);
                                 self.mark_principal_to_insert(&new_uid, &new_pp);
                                 self.persist_principals(db);
                                 self.principal_data.insert(new_uid.clone(), new_pp.clone());
                             }
+
+                            // this is a privkey whose corresponding pp still has data :\
+                            // we need to keep it
+                            if !(new_pp.should_remove && new_pp.loc_caps.is_empty()) {
+                                kept_privkeys.push(pkt.clone());
+                            }
                         }
                     }
+                }
+                // if this is empty, yay! no more private keys at this principal
+                if kept_privkeys.is_empty() {
+                    no_pks_at_loc = true;
+                }
+                // otherwise update the encrypted store of private keys
+                else {
+                    assert!(self.batch);
+                    self.update_batch_privkeys_at_loc(uid.to_string(), lc, &kept_privkeys);
                 }
             }
         }
         // actually remove locs
-        if removed_dl {
+        if no_diffs_at_loc {
             self.enc_diffs_map.remove(lc);
         }
-        if removed_ol {
+        if no_owns_at_loc {
             self.enc_ownership_map.remove(lc);
         }
-        // TODO privkeys?
-        // return whether we removed the dl and ol bags
-        (removed_dl, removed_ol)
+        // return whether we removed bags
+        (no_diffs_at_loc, no_owns_at_loc, no_pks_at_loc)
+    }
+
+    pub fn update_batch_privkeys_at_loc(&mut self, uid: UID, lc: &LocCap, pks: &Vec<PrivkeyToken>) {
+        let p = self
+            .principal_data
+            .get_mut(&uid)
+            .expect("no user with uid found?");
+
+        // generate key
+        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
+        self.rng.fill_bytes(&mut key[..]);
+
+        // encrypt key with pubkey
+        let padding = PaddingScheme::new_pkcs1v15_encrypt();
+        let enc_key = p
+            .pubkey
+            .encrypt(&mut self.rng, padding, &key[..])
+            .expect("failed to encrypt");
+
+        // encrypt pppk with key
+        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
+        self.rng.fill_bytes(&mut iv[..]);
+        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
+        let plaintext = serialize_to_bytes(pks);
+        let encrypted = cipher.encrypt_vec(&plaintext);
+        let enc_pppk = EncData {
+            enc_key: enc_key,
+            enc_data: encrypted,
+            iv: iv,
+        };
+        // insert the encrypted pppk into locating capability
+        match self.enc_privkeys_map.get_mut(lc) {
+            Some(ts) => {
+                ts.push(enc_pppk);
+            }
+            None => {
+                self.enc_privkeys_map.insert(*lc, vec![enc_pppk]);
+            }
+        }
+        warn!("EdnaBatch: Saved {} pk tokens for {}", pks.len(), uid);
     }
 
     pub fn get_user_pseudoprincipals(
@@ -1253,8 +1309,7 @@ impl TokenCtrler {
                     for (new_uid, pk) in new_uids {
                         warn!("Getting tokens of pseudoprincipal {}", new_uid);
                         if let Some(pp) = self.principal_data.get(&new_uid) {
-                            let ppuids =
-                                self.get_user_pseudoprincipals(&pk, &pp.loc_caps);
+                            let ppuids = self.get_user_pseudoprincipals(&pk, &pp.loc_caps);
                             uids.extend(ppuids.iter().cloned());
                         }
                     }
