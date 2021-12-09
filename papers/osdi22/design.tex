@@ -193,6 +193,10 @@ This informs \sys to complete any record encryption operations and return two
 locators \lcapa{pd} that will allow \sys to later locate the (encrypted) diff and
 speaks-for records stored during disguise $d$.
 %
+\sys maintains the map from locators to encrypted record bags, but importantly
+forgets which principal and disguise produced the locator.
+\lyt{added}
+%
 WebSubmit emails these locators to the client, and then forgets them to ensure
 that attackers cannot learn that $d$ was applied to $p$.
 %
