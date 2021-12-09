@@ -9,15 +9,7 @@ use std::sync::{Arc, RwLock};
 
 const ROLE_PC: u64 = 1;
 
-pub fn apply(
-    edna: &mut EdnaClient,
-) -> Result<
-    (
-        HashMap<(UID, DID), tokens::LocCap>,
-        HashMap<(UID, DID), tokens::LocCap>,
-    ),
-    mysql::Error,
-> {
+pub fn apply(edna: &mut EdnaClient) -> Result<HashMap<(UID, DID), tokens::LocCap>, mysql::Error> {
     let anon_disguise = get_disguise();
     edna.apply_disguise(Arc::new(anon_disguise), vec![], vec![])
 }
