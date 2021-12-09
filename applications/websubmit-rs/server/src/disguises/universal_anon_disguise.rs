@@ -21,12 +21,9 @@ pub fn get_did() -> DID {
 pub fn apply(
     bg: &MySqlBackend,
     is_baseline: bool,
-) -> Result<(
-    HashMap<(UID, DID), tokens::LocCap>,
-    HashMap<(UID, DID), tokens::LocCap>,
-)> {
+) -> Result<HashMap<(UID, DID), tokens::LocCap>> {
     // DECOR ANSWERS
-    let mut locators = (HashMap::new(), HashMap::new());
+    let mut locators = HashMap::new();
     
     // TODO prevent new users from joining
     
@@ -159,8 +156,7 @@ pub fn apply(
             let edna = bg.edna.lock().unwrap();
             let res = edna.end_disguise(); 
             drop(edna);
-            locators.0.extend(&mut res.0.into_iter());
-            locators.1.extend(&mut res.1.into_iter());
+            locators.extend(&mut res.into_iter());
         }
         info!(
             bg.log,

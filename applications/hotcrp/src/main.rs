@@ -117,39 +117,38 @@ fn run_edna(args: &Cli) {
 
         // delete
         let start = time::Instant::now();
-        let (gdpr_diff_locs, gdpr_own_locs) =
+        let gdpr_locs =
             disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), vec![]).unwrap();
         delete_durations_preanon.push(start.elapsed());
 
         // restore
         let start = time::Instant::now();
-        let dl = vec![*gdpr_diff_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
-        let ol = vec![*gdpr_own_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
-        disguises::gdpr_disguise::reveal(&mut edna, dc, dl, ol).unwrap();
+        let l = vec![*gdpr_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
+        disguises::gdpr_disguise::reveal(&mut edna, dc, l).unwrap();
         restore_durations_preanon.push(start.elapsed());
     }
 
     // anonymize
     let start = time::Instant::now();
     // anonymization doesn't produce diff tokens that we'll reuse later
-    let (_diff_locs, own_locs) = disguises::conf_anon_disguise::apply(&mut edna).unwrap();
+    let anon_locs = disguises::conf_anon_disguise::apply(&mut edna).unwrap();
     anon_durations.push(start.elapsed());
 
     // edit/delete/restore for pc members 
     for u in args.nusers_nonpc+2..args.nusers_nonpc+2 + 10 {
         let dc = decrypt_caps.get(&u).unwrap().to_vec();
-        let ol = vec![*own_locs
+        let ol = *anon_locs
             .get(&(
                 u.to_string(),
                 disguises::conf_anon_disguise::get_disguise_id(),
             ))
-            .unwrap()];
+            .unwrap();
 
         // edit after anonymization, for fairness only edit the one review 
         let rid = user2rid.get(&u).unwrap();
         let start = time::Instant::now();
         let mut db = edna.get_conn().unwrap();
-        let pps = edna.get_pseudoprincipals(dc.clone(), ol.clone());
+        let pps = edna.get_pseudoprincipals(dc.clone(), vec![ol]);
         for pp in pps {
             let rids = datagen::reviews::get_reviews(u64::from_str(&pp).unwrap(), &mut db).unwrap();
             if rids.len() > 0 && rids[0] == *rid {
@@ -160,15 +159,14 @@ fn run_edna(args: &Cli) {
 
         // delete
         let start = time::Instant::now();
-        let (gdpr_diff_locs, _gdpr_own_locs) =
-            disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), ol.clone()).unwrap();
+        let gdpr_locs =
+            disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), vec![ol]).unwrap();
         delete_durations.push(start.elapsed());
 
         // restore
         let start = time::Instant::now();
-        let dl = vec![*gdpr_diff_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
-        //let ol = gdpr_own_locs.into_iter().map(|p| p.1).collect();
-        disguises::gdpr_disguise::reveal(&mut edna, dc, dl, ol).unwrap();
+        let dl = *gdpr_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap();
+        disguises::gdpr_disguise::reveal(&mut edna, dc, vec![dl, ol]).unwrap();
         restore_durations.push(start.elapsed());
     }
     print_stats(

@@ -342,19 +342,19 @@ fn test_compose_anon_gdpr_disguises() {
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    let (_dlcs, olcs) = edna
+    let lcs = edna
         .apply_disguise(anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
     // APPLY GDPR DISGUISES
     for u in 1..USER_ITERS {
         // get private key diffs
-        let olc = olcs.get(&(u.to_string(), 1)).unwrap();
+        let lc = lcs.get(&(u.to_string(), 1)).unwrap();
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         edna.apply_disguise(
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
-            vec![*olc],
+            vec![*lc],
         )
         .unwrap();
     }

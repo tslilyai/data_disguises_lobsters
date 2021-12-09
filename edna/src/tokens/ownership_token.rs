@@ -4,7 +4,6 @@ use crate::tokens::*;
 use crate::{RowVal, DID, UID};
 use log::warn;
 use rand::{thread_rng, Rng};
-use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};
@@ -16,7 +15,6 @@ pub struct OwnershipTokenWrapper {
     pub old_uid: UID,
     pub new_uid: UID,
     pub did: DID,
-    pub priv_key: Vec<u8>,
     pub nonce: u64,
     pub token_data: Vec<u8>,
 }
@@ -54,7 +52,6 @@ pub fn new_generic_ownership_token_wrapper(
     new_uid: UID,
     did: DID,
     data: Vec<u8>,
-    priv_key: &RsaPrivateKey,
 ) -> OwnershipTokenWrapper {
     let mut token: OwnershipTokenWrapper = Default::default();
     token.token_id = thread_rng().gen();
@@ -62,7 +59,6 @@ pub fn new_generic_ownership_token_wrapper(
     token.new_uid = new_uid;
     token.old_uid = old_uid;
     token.did = did;
-    token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
     token.nonce = thread_rng().gen();
     token.token_data = data;
     token

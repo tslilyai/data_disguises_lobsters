@@ -15,7 +15,7 @@ pub async fn test_lobsters_disguise() {
         true,
         "127.0.0.1",
         "testdb",
-        "lobsters_disguises/schema.sql",
+        "src/lobsters_disguises/schema.sql",
         true,
         10,
         LOBSTERS_APP,
@@ -75,7 +75,7 @@ pub async fn test_lobsters_disguise() {
         let decryptcap = user2decryptcap.get(&u).unwrap();
         let postdata = json!({
             "decrypt_cap": base64::decode(&decryptcap).unwrap(),
-            "ownership_locators": [],
+            "locators": [],
         });
 
         let endpoint = format!("/apply_disguise/{}/0/{}", LOBSTERS_APP, u);
@@ -88,10 +88,10 @@ pub async fn test_lobsters_disguise() {
         let strbody = response.into_string().await.unwrap();
         warn!("Delete strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
-        if let Some(dl) = body.diff_locators.get(&u.to_string()) {
+        if let Some(dl) = body.locators.get(&u.to_string()) {
             user2diffcap.insert(u, *dl);
         }
-        if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
+        if let Some(ol) = body.locators.get(&u.to_string()) {
             user2owncap.insert(u, *ol);
         }
         warn!("Deleted account of {}", u);
@@ -140,8 +140,7 @@ pub async fn test_lobsters_disguise() {
         let diffcap = user2diffcap.get(&u).unwrap();
         let postdata = json!({
             "decrypt_cap": base64::decode(&decryptcap).unwrap(),
-            "diff_locators": [diffcap],
-            "ownership_locators": [owncap],
+            "locators": [diffcap],
         });
 
         client
@@ -194,7 +193,7 @@ pub async fn test_lobsters_disguise() {
         let decryptcap = user2decryptcap.get(&u).unwrap();
         let postdata = json!({
             "decrypt_cap": base64::decode(&decryptcap).unwrap(),
-            "ownership_locators": [],
+            "locators": [],
         });
 
         let endpoint = format!("/apply_disguise/{}/1/{}", LOBSTERS_APP, u);
@@ -207,10 +206,10 @@ pub async fn test_lobsters_disguise() {
         let strbody = response.into_string().await.unwrap();
         warn!("Decay strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
-        if let Some(dl) = body.diff_locators.get(&u.to_string()) {
+        if let Some(dl) = body.locators.get(&u.to_string()) {
             user2diffcap.insert(u, *dl);
         }
-        if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
+        if let Some(ol) = body.locators.get(&u.to_string()) {
             user2owncap.insert(u, *ol);
         }
         warn!("Decayed account of {}", u);
@@ -265,7 +264,7 @@ pub async fn test_hotcrp_disguise() {
         true,
         "127.0.0.1",
         "testdb",
-        "hotcrp_disguises/schema.sql",
+        "src/hotcrp_disguises/schema.sql",
         true,
         10,
         HOTCRP_APP,
@@ -309,7 +308,7 @@ pub async fn test_hotcrp_disguise() {
         let decryptcap = user2decryptcap.get(&u).unwrap();
         let postdata = json!({
             "decrypt_cap": base64::decode(&decryptcap).unwrap(),
-            "ownership_locators": [],
+            "locators": [],
         });
 
         let endpoint = format!("/apply_disguise/{}/0/{}", HOTCRP_APP, u);
@@ -322,10 +321,10 @@ pub async fn test_hotcrp_disguise() {
         let strbody = response.into_string().await.unwrap();
         warn!("Delete strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
-        if let Some(dl) = body.diff_locators.get(&u.to_string()) {
+        if let Some(dl) = body.locators.get(&u.to_string()) {
             user2diffcap.insert(u, *dl);
         }
-        if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
+        if let Some(ol) = body.locators.get(&u.to_string()) {
             user2owncap.insert(u, *ol);
         }
         warn!("Deleted account of {}", u);
@@ -353,8 +352,7 @@ pub async fn test_hotcrp_disguise() {
         let diffcap = user2diffcap.get(&u).unwrap();
         let postdata = json!({
             "decrypt_cap": base64::decode(&decryptcap).unwrap(),
-            "diff_locators": [diffcap],
-            "ownership_locators": [],
+            "locators": [diffcap],
         });
 
         client
@@ -387,7 +385,7 @@ pub async fn test_hotcrp_disguise() {
         let decryptcap = user2decryptcap.get(&u).unwrap();
         let postdata = json!({
             "decrypt_cap": base64::decode(&decryptcap).unwrap(),
-            "ownership_locators": [],
+            "locators": [],
         });
 
         let endpoint = format!("/apply_disguise/{}/1/{}", HOTCRP_APP, u);
@@ -400,10 +398,10 @@ pub async fn test_hotcrp_disguise() {
         let strbody = response.into_string().await.unwrap();
         warn!("Anon strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
-        if let Some(dl) = body.diff_locators.get(&u.to_string()) {
+        if let Some(dl) = body.locators.get(&u.to_string()) {
             user2diffcap.insert(u, *dl);
         }
-        if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
+        if let Some(ol) = body.locators.get(&u.to_string()) {
             user2owncap.insert(u, *ol);
         }
         warn!("Anon account of {}", u);

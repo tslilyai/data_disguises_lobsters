@@ -116,22 +116,23 @@ impl Disguiser {
         &mut self,
         did: DID,
         decrypt_cap: tokens::DecryptCap,
-        diff_loc_caps: Vec<tokens::LocCap>,
-        own_loc_caps: Vec<tokens::LocCap>,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
         let mut db = self.pool.get_conn()?;
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
 
         // XXX revealing all global tokens when a disguise is reversed
         let start = time::Instant::now();
-        let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
-        let (dts, own_tokens) = locked_token_ctrler.get_user_tokens(
-            did,
-            &decrypt_cap,
-            &HashSet::from_iter(diff_loc_caps.iter().cloned()),
-            &HashSet::from_iter(own_loc_caps.iter().cloned()),
-        );
-        diff_tokens.extend(dts.iter().cloned());
+        let mut diff_tokens = vec![];
+        let mut own_tokens = vec![];
+        for lc in &loc_caps {
+            let (dts, ots) = locked_token_ctrler.get_user_tokens(
+                &decrypt_cap,
+                lc,
+            );
+            diff_tokens.extend(dts.iter().cloned());
+            own_tokens.extend(ots.iter().cloned());
+        }
         warn!(
             "Edna: Get tokens for reveal: {}",
             start.elapsed().as_micros()
@@ -147,13 +148,6 @@ impl Disguiser {
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                 if revealed {
                     warn!("Remove Token reversed!\n");
-                    /*locked_token_ctrler.mark_diff_token_revealed(
-                        did,
-                        dwrapper,
-                        &decrypt_cap,
-                        &diff_loc_caps,
-                        &own_loc_caps,
-                    );*/
                 } else {
                     failed = true;
                     warn!("Failed to reverse remove token");
@@ -169,13 +163,6 @@ impl Disguiser {
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                 if revealed {
                     warn!("NonRemove Diff Token reversed!\n");
-                    /*locked_token_ctrler.mark_diff_token_revealed(
-                        did,
-                        dwrapper,
-                        &decrypt_cap,
-                        &diff_loc_caps,
-                        &own_loc_caps,
-                    );*/
                 } else {
                     failed = true;
                     warn!("Failed to reverse non-remove token");
@@ -195,12 +182,6 @@ impl Disguiser {
                             d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                         if revealed {
                             warn!("Decor Ownership Token reversed!\n");
-                            /*locked_token_ctrler.mark_ownership_token_revealed(
-                                did,
-                                owrapper,
-                                &decrypt_cap,
-                                &own_loc_caps,
-                            );*/
                         } else {
                             failed = true;
                         }
@@ -209,13 +190,15 @@ impl Disguiser {
             }
         }
         if !failed {
-            locked_token_ctrler.cleanup_user_tokens(
-                did,
-                &decrypt_cap,
-                &HashSet::from_iter(diff_loc_caps.iter().cloned()),
-                &HashSet::from_iter(own_loc_caps.iter().cloned()),
-                &mut db,
-            );
+            // NOTE: could also do everythign per-loc-cap granualrity
+            for lc in &loc_caps {
+                locked_token_ctrler.cleanup_user_tokens(
+                    did,
+                    &decrypt_cap,
+                    lc,
+                    &mut db,
+                );
+            }
         }
 
         warn!("Reveal tokens: {}", start.elapsed().as_micros());
@@ -229,14 +212,9 @@ impl Disguiser {
         &mut self,
         disguise: Arc<disguise::Disguise>,
         decrypt_cap: tokens::DecryptCap,
-        ownership_loc_caps: Vec<tokens::LocCap>,
-    ) -> Result<
-        (
-            HashMap<(UID, DID), tokens::LocCap>,
-            HashMap<(UID, DID), tokens::LocCap>,
-        ),
-        mysql::Error,
-    > {
+        loc_caps: Vec<tokens::LocCap>,
+    ) -> Result<HashMap<(UID, DID), tokens::LocCap>, mysql::Error> 
+    {
         let mut db = self.pool.get_conn()?;
 
         //let mut threads = vec![];
@@ -244,12 +222,14 @@ impl Disguiser {
         let start = time::Instant::now();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
-        let (_, ownership_tokens) = locked_token_ctrler.get_user_tokens(
-            disguise.did,
-            &decrypt_cap,
-            &HashSet::new(),
-            &HashSet::from_iter(ownership_loc_caps.iter().cloned()),
-        );
+        let mut ownership_tokens = vec![];
+        for lc in &loc_caps {
+            let (_, mut ots) = locked_token_ctrler.get_user_tokens(
+                &decrypt_cap,
+                lc,
+            );
+            ownership_tokens.append(&mut ots);
+        }
         drop(locked_token_ctrler);
         warn!(
             "Edna: Get all user tokens for disguise: {}",
@@ -263,7 +243,7 @@ impl Disguiser {
         for (table, transforms) in disguise.table_disguises.clone() {
             let mystats = self.stats.clone();
             let my_global_diff_tokens_to_modify = self.global_diff_tokens_to_modify.clone();
-            let my_diff_tokens = global_diff_tokens.clone();
+            let my_diff_tokens : Vec<DiffTokenWrapper> = vec![];//global_diff_tokens.clone();
             let my_own_tokens = ownership_tokens.clone();
             let my_token_ctrler = self.token_ctrler.clone();
 

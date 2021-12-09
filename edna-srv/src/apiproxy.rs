@@ -15,12 +15,11 @@ use log::error;
 #[derive(Deserialize)]
 pub struct ApplyDisguise {
     decrypt_cap: edna::tokens::DecryptCap,
-    ownership_locators: Vec<edna::tokens::LocCap>,
+    locators: Vec<edna::tokens::LocCap>,
 }
 #[derive(Serialize, Deserialize)]
 pub struct ApplyDisguiseResponse {
-    pub diff_locators: HashMap<edna::UID, edna::tokens::LocCap>,
-    pub ownership_locators: HashMap<edna::UID, edna::tokens::LocCap>,
+    pub locators: HashMap<edna::UID, edna::tokens::LocCap>,
 }
 
 #[post("/<app>/<did>/<uid>", format = "json", data = "<data>")]
@@ -42,21 +41,16 @@ pub(crate) fn apply_disguise(
         .apply_disguise(
             disguise,
             data.decrypt_cap.clone(),
-            data.ownership_locators.clone(),
+            data.locators.clone(),
         )
         .unwrap();
-    let mut diff_locators = HashMap::new();
-    let mut own_locators = HashMap::new();
-    for ((uid, _), dl) in locators.0.iter() {
-        diff_locators.insert(uid.clone(), *dl);
-    }
-    for ((uid, _), ol) in locators.1.iter() {
-        own_locators.insert(uid.clone(), *ol);
+    let mut to_return_locators = HashMap::new();
+    for ((uid, _), dl) in locators.iter() {
+        to_return_locators.insert(uid.clone(), *dl);
     }
     warn!("Applying disguise return response {:?}", locators);
     let json = Json(ApplyDisguiseResponse {
-        diff_locators: diff_locators,
-        ownership_locators: own_locators,
+        locators: to_return_locators,
     });
     return json;
 }
@@ -64,8 +58,7 @@ pub(crate) fn apply_disguise(
 #[derive(Deserialize)]
 pub struct RevealDisguise {
     decrypt_cap: edna::tokens::DecryptCap,
-    diff_locators: Vec<edna::tokens::LocCap>,
-    ownership_locators: Vec<edna::tokens::LocCap>,
+    locators: Vec<edna::tokens::LocCap>,
 }
 
 #[post("/<did>", format = "json", data = "<data>")]
@@ -79,8 +72,7 @@ pub(crate) fn reveal_disguise(
     e.reverse_disguise(
         did,
         data.decrypt_cap.clone(),
-        data.diff_locators.clone(),
-        data.ownership_locators.clone(),
+        data.locators.clone(),
     ).unwrap();
 }
 
@@ -115,8 +107,7 @@ pub(crate) fn start_disguise(did: edna::DID, edna: &State<Arc<Mutex<EdnaClient>>
 
 #[derive(Serialize)]
 pub struct EndDisguiseResponse {
-    diff_locators: HashMap<edna::UID, edna::tokens::LocCap>,
-    ownership_locators: HashMap<edna::UID, edna::tokens::LocCap>,
+    locators: HashMap<edna::UID, edna::tokens::LocCap>,
 }
 
 #[get("/<did>")]
@@ -127,17 +118,12 @@ pub(crate) fn end_disguise(
     let _ = did;
     let e = edna.lock().unwrap();
     let locators = e.end_disguise();
-    let mut diff_locators = HashMap::new();
-    let mut own_locators = HashMap::new();
-    for ((uid, _), dl) in locators.0.iter() {
-        diff_locators.insert(uid.clone(), *dl);
-    }
-    for ((uid, _), ol) in locators.1.iter() {
-        own_locators.insert(uid.clone(), *ol);
+    let mut to_return_locators = HashMap::new();
+    for ((uid, _), dl) in locators.iter() {
+        to_return_locators.insert(uid.clone(), *dl);
     }
     return Json(EndDisguiseResponse {
-        diff_locators: diff_locators,
-        ownership_locators: own_locators,
+        locators: to_return_locators,
     });
 }
 
@@ -163,8 +149,7 @@ pub(crate) fn get_pseudoprincipals_of(
 pub struct GetTokensOfDisguise {
     did: edna::DID,
     decrypt_cap: edna::tokens::DecryptCap,
-    diff_locators: Vec<edna::tokens::LocCap>,
-    ownership_locators: Vec<edna::tokens::LocCap>,
+    locators: Vec<edna::tokens::LocCap>,
 }
 
 #[derive(Serialize)]
@@ -182,8 +167,7 @@ pub(crate) fn get_tokens_of_disguise(
     let tokens = e.get_tokens_of_disguise(
         data.did,
         data.decrypt_cap.clone(),
-        data.diff_locators.clone(),
-        data.ownership_locators.clone(),
+        data.locators.clone(),
     );
     return Json(GetTokensOfDisguiseResponse {
         diff_tokens: tokens.0,
@@ -195,8 +179,7 @@ pub(crate) fn get_tokens_of_disguise(
 pub struct CleanupTokensOfDisguise {
     did: edna::DID,
     decrypt_cap: edna::tokens::DecryptCap,
-    diff_locators: Vec<edna::tokens::LocCap>,
-    ownership_locators: Vec<edna::tokens::LocCap>,
+    locators: Vec<edna::tokens::LocCap>,
 }
 #[post("/", format = "json", data = "<data>")]
 pub(crate) fn cleanup_tokens_of_disguise(
@@ -207,8 +190,7 @@ pub(crate) fn cleanup_tokens_of_disguise(
     e.cleanup_tokens_of_disguise(
         data.did,
         data.decrypt_cap.clone(),
-        data.diff_locators.clone(),
-        data.ownership_locators.clone(),
+        data.locators.clone(),
     );
 }
 
