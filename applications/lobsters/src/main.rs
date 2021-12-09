@@ -6,7 +6,7 @@ extern crate rand;
 
 use chrono::Local;
 use edna::{helpers, EdnaClient};
-use log::{error, warn};
+use log::{error};
 use mysql::prelude::*;
 use rand::Rng;
 use rsa::pkcs1::ToRsaPrivateKey;
@@ -75,8 +75,8 @@ fn main() {
         &dbname,
         SCHEMA,
         true,
-        nusers as usize * 200, // assume each user has 200 pieces of data
-        disguises::get_guise_gen(),      /*in-mem*/
+        nusers as usize * 200,      // assume each user has 200 pieces of data
+        disguises::get_guise_gen(), /*in-mem*/
     );
 
     let mut user2decryptcap = HashMap::new();
@@ -86,9 +86,11 @@ fn main() {
     // create private keys, save in file jic if we've primed already
     //if prime {
     let mut db = edna.get_conn().unwrap();
-    db.query_drop("DELETE FROM EdnaPrincipals WHERE uid >= 0").unwrap();
+    db.query_drop("DELETE FROM EdnaPrincipals WHERE uid >= 0")
+        .unwrap();
     // clear extra pseudoprincipals
-    db.query_drop("DELETE FROM users WHERE id >= 10000").unwrap();
+    db.query_drop("DELETE FROM users WHERE id >= 10000")
+        .unwrap();
     for u in 0..nusers {
         let user_id = u as u64 + 1;
         let private_key = edna.register_principal(&user_id.to_string());
@@ -121,7 +123,7 @@ fn main() {
     let mut user_stories = 0;
     let mut user_comments = 0;
     let mut user_votes = 0;
-    let user_to_disguise = if args.disguiser  == "cheap" {
+    let user_to_disguise = if args.disguiser == "cheap" {
         1 as u64
     } else if args.disguiser == "expensive" {
         nusers as u64
@@ -131,7 +133,7 @@ fn main() {
     let res = db
         .query_iter(format!(
             r"SELECT COUNT(*) FROM stories WHERE user_id={};",
-          user_to_disguise 
+            user_to_disguise
         ))
         .unwrap();
     for row in res {
@@ -142,7 +144,7 @@ fn main() {
     let res = db
         .query_iter(format!(
             r"SELECT COUNT(*) FROM votes WHERE user_id={};",
-           user_to_disguise
+            user_to_disguise
         ))
         .unwrap();
     for row in res {
@@ -153,7 +155,7 @@ fn main() {
     let res = db
         .query_iter(format!(
             r"SELECT COUNT(*) FROM comments WHERE user_id={};",
-           user_to_disguise
+            user_to_disguise
         ))
         .unwrap();
     for row in res {
@@ -161,7 +163,13 @@ fn main() {
         assert_eq!(vals.len(), 1);
         user_comments = helpers::mysql_val_to_u64(&vals[0]).unwrap();
     }
-    error!("Going to disguise user with {} stories, {} comments, {} votes ({} total)", user_stories, user_comments, user_votes, user_stories+user_votes+user_comments);
+    error!(
+        "Going to disguise user with {} stories, {} comments, {} votes ({} total)",
+        user_stories,
+        user_comments,
+        user_votes,
+        user_stories + user_votes + user_comments
+    );
 
     let mut threads = vec![];
     let arc_sampler = Arc::new(sampler);
@@ -241,7 +249,7 @@ fn run_normal_thread(
         };
 
         let mut res = vec![];
-        let mut op = "read_story"; 
+        let mut op = "read_story";
         if pick(55842) {
             // XXX: we're assuming here that stories with more votes are viewed more
             let story = sampler.story_for_vote(&mut rng) as u64;
@@ -326,7 +334,7 @@ fn run_disguising_thread(
     // UNSUB
     let start = time::Instant::now();
     let mut edna_locked = edna.lock().unwrap();
-    let (dlcs, olcs) =
+    let lcs =
         disguises::gdpr_disguise::apply(&mut edna_locked, uid, decryption_cap.clone(), vec![])
             .unwrap();
     my_delete_durations.push((overall_start.elapsed(), start.elapsed()));
@@ -340,15 +348,11 @@ fn run_disguising_thread(
     // RESUB
     let start = time::Instant::now();
     let mut edna_locked = edna.lock().unwrap();
-    let dls = match dlcs.get(&(uid.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
+    let ls = match lcs.get(&(uid.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
         Some(dl) => vec![*dl],
         None => vec![],
     };
-    let ols = match olcs.get(&(uid.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
-        Some(ol) => vec![*ol],
-        None => vec![],
-    };
-    disguises::gdpr_disguise::reveal(&mut edna_locked, decryption_cap.clone(), dls, ols).unwrap();
+    disguises::gdpr_disguise::reveal(&mut edna_locked, decryption_cap.clone(), ls).unwrap();
     drop(edna_locked);
     my_restore_durations.push((overall_start.elapsed(), start.elapsed()));
 
@@ -372,7 +376,7 @@ fn run_disguising_sleeps(
 ) -> Result<u64, mysql::Error> {
     let overall_start = time::Instant::now();
     let mut nexec = 0;
-    let mut rng = rand::thread_rng();
+    //let mut rng = rand::thread_rng();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         // wait between each round
         thread::sleep(time::Duration::from_millis(args.nsleep));
@@ -467,7 +471,7 @@ fn run_stats_test(
             //disguises::baseline::apply_decay(user_id, edna).unwrap();
             file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
                 .unwrap();
-            continue; 
+            continue;
         }
 
         // sample every 50 users
@@ -519,11 +523,11 @@ fn run_stats_test(
 
         // DECAY
         let start = time::Instant::now();
-        let (dlcs, olcs) =
+        let lcs =
             disguises::data_decay::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
-        
+
         // checks
         let res = db
             .query_iter(format!(
@@ -550,24 +554,17 @@ fn run_stats_test(
 
         // UNDECAY
         let start = time::Instant::now();
-        let dls = match dlcs.get(&(
-            user_id.to_string(),
-            disguises::data_decay::get_disguise_id(),
-        )) {
-            Some(dl) => vec![*dl],
-            None => vec![],
-        };
-        let ols = match olcs.get(&(
+        let ls = match lcs.get(&(
             user_id.to_string(),
             disguises::data_decay::get_disguise_id(),
         )) {
             Some(ol) => vec![*ol],
             None => vec![],
         };
-        disguises::data_decay::reveal(edna, decryption_cap.clone(), dls, ols).unwrap();
+        disguises::data_decay::reveal(edna, decryption_cap.clone(), ls).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
-        
+
         // checks
         let res = db
             .query_iter(format!(
@@ -593,10 +590,9 @@ fn run_stats_test(
             assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), user_comments);
         }
 
-
         // UNSUB
         let start = time::Instant::now();
-        let (dlcs, olcs) =
+        let lcs =
             disguises::gdpr_disguise::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
@@ -626,21 +622,14 @@ fn run_stats_test(
 
         // RESUB
         let start = time::Instant::now();
-        let dls = match dlcs.get(&(
-            user_id.to_string(),
-            disguises::gdpr_disguise::get_disguise_id(),
-        )) {
-            Some(dl) => vec![*dl],
-            None => vec![],
-        };
-        let ols = match olcs.get(&(
+        let ls = match lcs.get(&(
             user_id.to_string(),
             disguises::gdpr_disguise::get_disguise_id(),
         )) {
             Some(ol) => vec![*ol],
             None => vec![],
         };
-        disguises::gdpr_disguise::reveal(edna, decryption_cap.clone(), dls, ols).unwrap();
+        disguises::gdpr_disguise::reveal(edna, decryption_cap.clone(), ls).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
         // checks
@@ -667,7 +656,6 @@ fn run_stats_test(
             assert_eq!(vals.len(), 1);
             assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), user_comments);
         }
-
 
         file.write(format!("\n").as_bytes()).unwrap();
     }
