@@ -154,7 +154,7 @@ pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &Edna
     if t.guise_name != name {
         return false;
     }
-    if predicate_applies_to_row(pred, &t.old_value) || predicate_applies_to_row(pred, &t.new_value)
+    if predicate_applies_to_val(pred, &t.col, &t.old_val) || predicate_applies_to_val(pred, &t.col, &t.new_val)
     {
         //debug!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
         return true;
@@ -258,6 +258,51 @@ pub fn predicate_applies_to_row(p: &Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> 
     }
     debug!("Predicate {:?} applies to row {:?}? {}\n", p, row, found_true);
     found_true
+}
+
+pub fn predicate_applies_to_val(p: &Vec<Vec<PredClause>>, col: &str, val: &str) -> bool {
+    let mut found_true = false;
+    for and_clauses in p {
+        let mut all_true = true;
+        for clause in and_clauses {
+            if !clause_applies_to_val(clause, col, val) {
+                all_true = false;
+                break;
+            }
+        }
+        if all_true {
+            found_true = true;
+            break;
+        }
+    }
+    debug!("Predicate {:?} applies to val {:?}? {}\n", p, val, found_true);
+    found_true
+}
+
+pub fn clause_applies_to_val(p: &PredClause, column: &str, value: &str) -> bool {
+    use PredClause::*;
+    let matches = match p {
+        ColInList { col, vals, neg } => {
+            if col == column {
+                vals.iter().find(|v| &v.to_string() == value).is_some() != *neg
+            } else {
+                false
+            }
+        }
+        ColColCmp { .. } => {
+            unimplemented!("oops");
+        }
+        ColValCmp { col, val, op } => {
+            if col == column {
+                vals_satisfy_cmp(value, &val, &op)
+            } else {
+                false
+            }
+        }
+        Bool(b) => *b,
+    };
+    debug!("PredClause {:?} matches {:?}: {} {}\n", p, column, value, matches);
+    matches
 }
 
 pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
