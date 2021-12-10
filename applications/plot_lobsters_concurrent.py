@@ -6,12 +6,18 @@ import sys
 from collections import defaultdict
 
 plt.style.use('seaborn-deep')
+def add_labels(x,y,ax,color,offset):
+    for i in range(len(x)):
+        ax.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color)
 
-sleeps = [100000, 0]
-maxts = 150
+
+barwidth = 0.25
+# positions
+X = np.arange(3)
+labels = ['1 User', '30 Users', '50 Users']
 
 # collect all results
-op_results = {}
+op_results = defaultdict(list)
 fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(6,4))
 
 def get_yerr(durs):
@@ -22,7 +28,7 @@ def get_yerr(durs):
         maxes.append(np.percentile(durs[i], 95)-statistics.median(durs[i]))
     return [mins, maxes]
 
-def get_data(filename, results, i):
+def get_data(filename, results, i, u):
     vals = []
     with open(filename,'r') as csvfile:
         rows = csvfile.readlines()
@@ -32,29 +38,81 @@ def get_data(filename, results, i):
         for x in oppairs:
             val = float(x[1])/1000
             vals.append(val)
-        results[ndisguises] = vals
+        results[u].append(vals)
 
-for s in sleeps:
-    get_data('results/lobsters_results/concurrent_disguise_stats_{}sleep_batch.csv'.format(s),
-            op_results, 1)
+users = [1, 30, 50]
+disguiser = ['none', 'cheap', 'expensive']
+for u in users:
+    for d in disguiser:
+        get_data('results/lobsters_results/concurrent_disguise_stats_{}users_{}.csv'.format(u, d),
+                op_results, 1, u)
 
-durs = []
-xs = []
-meds = []
-for (ndisguises, results) in op_results.items():
-    xs.append((ndisguises/maxts))
-    meds.append(statistics.median(results))
-    durs.append(results)
+offset = 2
 
-myyerr = get_yerr(durs)
-plt.plot(xs, meds)
-plt.errorbar(xs, meds, yerr=myyerr, fmt="o")
+################ none
+plt.bar((X-barwidth), [
+    statistics.median(op_results[1][0]),
+    statistics.median(op_results[30][0]),
+    statistics.median(op_results[50][0]),
+],
+yerr=get_yerr([
+    op_results[1][0],
+    op_results[30][0],
+    op_results[50][0],
+]),
+color='g', capsize=5, width=barwidth, label="No Disguiser")
+add_labels((X-barwidth),
+[
+    statistics.median(op_results[1][0]),
+    statistics.median(op_results[30][0]),
+    statistics.median(op_results[50][0]),
+], plt, 'g', offset)
 
-plt.xlabel('Disguises/Sec')
+
+################ cheap
+plt.bar((X), [
+    statistics.median(op_results[1][1]),
+    statistics.median(op_results[30][1]),
+    statistics.median(op_results[50][1]),
+],
+yerr=get_yerr([
+    op_results[1][1],
+    op_results[30][1],
+    op_results[50][1],
+]),
+color='b', capsize=5, width=barwidth, label="Cheap Disguiser")
+add_labels((X),
+[
+    statistics.median(op_results[1][1]),
+    statistics.median(op_results[30][1]),
+    statistics.median(op_results[50][1]),
+], plt, 'b', offset)
+
+################ expensive
+plt.bar((X+barwidth), [
+    statistics.median(op_results[1][2]),
+    statistics.median(op_results[30][2]),
+    statistics.median(op_results[50][2]),
+],
+yerr=get_yerr([
+    op_results[1][2],
+    op_results[30][2],
+    op_results[50][2],
+]),
+color='m', capsize=5, width=barwidth, label="Expensive Disguiser")
+add_labels((X+barwidth),
+[
+    statistics.median(op_results[1][2]),
+    statistics.median(op_results[30][2]),
+    statistics.median(op_results[50][2]),
+], plt, 'm', offset)
+
+plt.ylabel('Time (ms)')
+plt.ylim(ymin=0, ymax=(np.percentile(op_results[50][2], 95)*1.15))
+plt.xticks(X, labels=labels)
+
 plt.ylabel('Latency (ms)')
-plt.ylim(ymin=0)
-plt.xlim(xmin=0)
-plt.title("Lobsters Op Latency vs. Disguises/Second")
-
+plt.title("Lobsters Op Latency")
+plt.legend()
 plt.tight_layout(h_pad=4)
 plt.savefig('lobsters_concurrent_results.pdf')
