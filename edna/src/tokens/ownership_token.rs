@@ -1,12 +1,11 @@
 use crate::helpers::*;
-use crate::stats::QueryStat;
+use mysql::prelude::*;
 use crate::tokens::*;
 use crate::{RowVal, DID, UID};
 use log::warn;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
-use std::sync::{Arc, Mutex};
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct OwnershipTokenWrapper {
@@ -87,11 +86,10 @@ pub fn new_edna_ownership_token(
 }
 
 impl EdnaOwnershipToken {
-    pub fn reveal(
+    pub fn reveal<Q:Queryable>(
         &self,
         token_ctrler: &mut TokenCtrler,
-        db: &mut mysql::PooledConn,
-        stats: Arc<Mutex<QueryStat>>,
+        db: &mut Q,
     ) -> Result<bool, mysql::Error> {
         // TODO we need to transfer the principal's tokens to the original principal's bag, and
         // reencrypt
@@ -104,10 +102,9 @@ impl EdnaOwnershipToken {
             op: BinaryOperator::Eq,
             right: Box::new(Expr::Value(Value::Number(self.uid.to_string()))),
         };
-        let selected = get_query_rows_str(
+        let selected = get_query_rows_str_q::<Q>(
             &str_select_statement(&self.pprincipal_name, &selection.to_string()),
             db,
-            stats.clone(),
         )?;
         if selected.is_empty() {
             warn!(
@@ -119,10 +116,9 @@ impl EdnaOwnershipToken {
 
         // if foreign key is rewritten, don't reverse anything
         let token_guise_selection = get_select_of_ids(&self.child_ids);
-        let selected = get_query_rows_str(
+        let selected = get_query_rows_str_q::<Q>(
             &str_select_statement(&self.child_name, &token_guise_selection.to_string()),
             db,
-            stats.clone(),
         )?;
         if selected.len() > 0 {
             assert_eq!(selected.len(), 1);
@@ -142,19 +138,17 @@ impl EdnaOwnershipToken {
             id: Ident::new(self.fk_col.clone()),
             value: Expr::Value(Value::Number(self.uid.to_string())),
         }];
-        query_drop(
+        db.query_drop(
             Statement::Update(UpdateStatement {
                 table_name: string_to_objname(&self.child_name),
                 assignments: updates,
                 selection: Some(token_guise_selection),
             })
             .to_string(),
-            db,
-            stats.clone(),
         )?;
 
         // remove the pseudoprincipal
-        query_drop(
+        db.query_drop(
             Statement::Delete(DeleteStatement {
                 table_name: string_to_objname(&self.pprincipal_name),
                 selection: Some(Expr::BinaryOp {
@@ -166,12 +160,10 @@ impl EdnaOwnershipToken {
                 }),
             })
             .to_string(),
-            db,
-            stats.clone(),
         )?;
         // remove the principal from being registered by the token ctrler
         //XXX LYT keep principal around for now until all locators are gone
-        token_ctrler.remove_principal(&self.new_uid, db);
+        token_ctrler.remove_principal::<Q>(&self.new_uid, db);
         Ok(true)
     }
 }

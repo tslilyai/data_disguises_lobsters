@@ -49,6 +49,7 @@ fn get_disguise(user_email: UID) -> Disguise {
         user: user_email.clone(),
         table_disguises: get_table_disguises(user_email),
         table_info: get_table_info(),
+        use_txn: true,
     }
 }
 

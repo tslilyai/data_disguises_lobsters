@@ -42,6 +42,7 @@ pub fn get_disguise(user_id: u64) -> Disguise {
         user: user_id.to_string(),
         table_disguises: get_table_disguises(user_id),
         table_info: disguises::get_table_info(),
+        use_txn: true,
     }
 }
 

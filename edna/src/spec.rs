@@ -37,6 +37,7 @@ pub struct Disguise {
     pub user: String,
     pub table_disguises: HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>>,
     pub table_info: Arc<RwLock<HashMap<String, TableInfo>>>,
+    pub use_txn: bool,
 }
 
 

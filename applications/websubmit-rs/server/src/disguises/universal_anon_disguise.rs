@@ -37,6 +37,8 @@ pub fn apply(
     }
    
     for u in users {
+        // XXX transaction
+        let mut txn = db.start_transaction(TxOpts::default()).unwrap();
         let beginning_start = time::Instant::now();
         // TODO lock user account
        
@@ -49,7 +51,7 @@ pub fn apply(
         
         // get all answers sorted by user and lecture
         let mut user_lec_answers: HashMap<u64, Vec<u64>> = HashMap::new();
-        let res = db.query_iter(&format!("SELECT lec, q FROM answers WHERE `user` = '{}';", u))?;
+        let res = txn.query_iter(&format!("SELECT lec, q FROM answers WHERE `user` = '{}';", u))?;
         for r in res {
             let r = r.unwrap().unwrap();
             let key: u64 = from_value(r[0].clone());
@@ -124,7 +126,7 @@ pub fn apply(
 
         if !pps.is_empty() {
             let start = time::Instant::now();
-            db.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
+            txn.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
             debug!(
                 bg.log,
                 "WSAnon: INSERT INTO `users` VALUES {};: {}",
@@ -132,7 +134,7 @@ pub fn apply(
                 start.elapsed().as_micros()
             );
             let start = time::Instant::now();
-            db.exec_batch(
+            txn.exec_batch(
                 r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
                 updates.iter().map(|u| {
                     params! {
@@ -163,6 +165,7 @@ pub fn apply(
             "WSAnon: total: {}",
             beginning_start.elapsed().as_micros()
         );
+        txn.commit().unwrap();
     }
     Ok(locators)
 }

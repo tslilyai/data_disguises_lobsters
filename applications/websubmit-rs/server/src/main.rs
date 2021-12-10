@@ -591,11 +591,11 @@ fn print_stats(
 ) {
     let filename = if is_baseline {
         format!(
-            "disguise_stats_{}lec_{}users_batch_baseline.csv",
+            "disguise_stats_{}lec_{}users_batch_baseline_txn.csv",
             args.nlec, args.nusers
         )
     } else {
-        format!("disguise_stats_{}lec_{}users_batch.csv", args.nlec, args.nusers)
+        format!("disguise_stats_{}lec_{}users_txn.csv", args.nlec, args.nusers)
     };
 
     // print out stats

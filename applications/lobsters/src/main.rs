@@ -27,7 +27,7 @@ mod disguises;
 mod queriers;
 include!("statistics.rs");
 
-const TOTAL_TIME: u128 = 100000;
+const TOTAL_TIME: u128 = 50000;
 const SCHEMA: &'static str = include_str!("../schema.sql");
 
 #[derive(StructOpt)]

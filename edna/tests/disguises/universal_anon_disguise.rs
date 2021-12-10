@@ -9,6 +9,7 @@ pub fn get_disguise() -> Disguise {
         user: String::new(),
         table_disguises: get_table_disguises(),
         table_info: get_table_info(),
+        use_txn: true,
     }
 }
 
