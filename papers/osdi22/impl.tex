@@ -104,10 +104,11 @@ single class, and multiply this by the maximum number of answers each user can s
 \head{What does \sys do with pseudoprincipal locators?}
 \sys stores $q$'s encrypted records from disguise $d$ at some locator \lcapa{qd}.  However, we again
 observe that the application and \sys cannot send \lcapa{qd} to some email address when $q$ is a
-pseudoprincipal! Instead, \sys saves \lcapa{qd} as part of $q$'s metadata (which also contains $\pubk{q}$).
+pseudoprincipal! Instead, \sys saves \lcapa{qd} as part of $q$'s metadata (which also contains
+$\pubk{q}$).  To protect pseudoprincipal locators \lcapa{qd}, \sys encrypts \lcapa{qd} with the
+pseudoprincipal's public key \pubk{q} and stores $\enc(\pubk{q}, \lcapa{qd}$) in \sys's metadata for
+$q$ (which also includes \pubk{q}). 
 
-%To protect pseudoprincipal locators \lcapa{qd}, \sys encrypts \lcapa{qd} with the
-%pseudoprincipal's public key \pubk{q} and stores $\enc(\pubk{q}, \lcapa{qd}$) in \sys's metadata for $q$ (which also includes \pubk{q}). This contrasts with how \sys returns locators to the application when storing records for natural principals.
 
 We illustrate in Figure~\ref{f:recursive} how a client that provides private key \privk{p} for
 natural principal $p$ and locator \lcapa{pd} may access \emph{both} $p$'s records for disguise $d$
@@ -126,13 +127,11 @@ $p$'s corresponding principal object.
 However, \sys cannot simply remove pseudoprincipal $q$'s metadata when $q$ is removed: this metadata
 includes \lcapa{qd} ciphertexts. Removing \lcapa{qd} removes the ability to find $q$'s encrypted
 record bags efficiently.
-%If \sys wanted to access $q$'s records for \eg disguise reversal, \sys would need
-%to attempt to decrypt every encrypted record bag at every location.
 
 Without knowing natural principal-pseudoprincipal correspondences, and thus without any way to send
 \lcapa{qd} to a natural principal, \sys has only two choices when $q$ is removed by the application:
 (1) delete $q$'s metadata at the cost of losing (efficient) access to $q$'s records, or (2) retain
-$q$'s metadata at the cost of slightly weaker security (an adversary learns that a pseudoprincipal
+$q$'s metadata at the cost of slightly weaker security (an attacker learns that a pseudoprincipal
 existed and some data had been decorrelated at some point, even if the corresponding user or data
 has since been deleted). \sys currently does the latter and retains pseudoprincipal metadata.
 %If a pseudoprincipal is often deleted while \sys has knowledge of the link between $q$ and original
