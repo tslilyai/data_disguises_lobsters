@@ -6,9 +6,9 @@
 Web applications today handle copious personal information, much of it
 sensitive, and store it for a long time.
 %
-For example, booking with a hotel once can cause information like passport
-and phone numbers to be compromised by an attacker years
-later~\cite{starwood-hack}.
+For example, a user who books a room at a hotel once can find that their
+sensitive information like passport and phone numbers was compromised by
+an attacker years later~\cite{starwood-hack}.
 %
 %Users' privacy and their rights to exercise control over their data in these
 %applications thus are an increasingly important concern for application
@@ -24,7 +24,7 @@ doing so.
 But doing a good job at data privacy is hard: it requires extensive manual
 implementation work today, and it is easy to get wrong.
 %
-As a result, application lack desirable privacy features, like \eg ways to
+As a result, applications lack desirable privacy features, like \eg ways to
 remove or anonymize a user's account, or for old data to ``decay'' into
 lower-fidelity, less identifying representations over time.
 %
@@ -39,64 +39,169 @@ lower-fidelity, less identifying representations over time.
 %% Our key idea: data disguising
 %
 This paper describes \emph{data disguising}, a new systematic framework that
-provides developers with abstractions that help them implement correct,
+provides abstractions that help developers implement correct,
 expressive, and end-user-friendly privacy functionality.
 %
 Data disguises transform a user's data in a web application in
 privacy-preserving ways, and thus reduce the damage done when database contents
-are exposed to attacker.
+are exposed to an attacker.
 %
 Crucially, our framework allows the application to maintain key functionality even
 when a user has disguised their data, and supports reversible disguises for users
-who want to return.
+who want to return to an identity-revealing state.
 %
 
 %
-To understand the need for data disguising, consider the task an application
-developer who wishes to implement \ms{... continue here with problem setting.}
+% Motivation
 %
-\ms{add challenges + how we overcome them.}
+To understand the need for data disguising, consider Lobsters, a Reddit-like
+discussion forum~\cite{lobsters}.
 %
-%Beyond simply transforming data, data disguising enables data decay (gradual
-%anonymization over time); revealing of disguises (restoration of deleted data
-%by the user, while providing strong privacy guarantees when deleted); and
-%decorrelation and temporary recorrelation of users with their data for the
-%purpose of editing anonymized data, or further disguising it.
+The Lobsters developers already provide an option for a user to delete their own
+account, but also permit users to change their mind and reclaim their
+account later.
 %
-%Furthermore, data disguising generalizes across web applications, handles the
-%technical challenges of securing private data, and integrates with
-%applications' database schemas and semantics.
+As a result, Lobster's account deletion actually merely hides data (\eg user
+details, comments, private messages) by marking it as deleted, and optionally
+reassigns contributions to a ``inactive user'' placeholder.
 %
-To address this, we introduce \emph{pseudoprincipals}, which are first-class anonymous
-users that serve as stand-ins for disguised users.
+This allows the user to return, but provides them with no privacy against an
+attacker who compromises the server while the user is in deleted state.
 %
-An disguised principal typically---depending on the level of security and anonymity
-desired---has many pseudoprincipals, up to one for each application data object.
+Providing this privacy would impose a high burden on the
+Lobsters developers: they would need to devise their own cryptographic
+server-side storage for deleted users' data,
+%or have the user
+%export their account data, delete it in the database, and then
+%cryptographically verify on re-import that the data has not been tampered
+%with.
+%
+%In addition, the Lobsters developers would also need to
+ensure that the application continues to work for the remaining users, and
+protect against attacks that leverage leftover metadata (such as the tags on
+deleted users' posts) to infer a deleted user's identity.
+%
+Worse, developers must solve these challenges anew for each application
+today.
 %
 
 %
-\sys protects users' data against an attacker who completely compromises the
-application server, and thus gains access to the full database contents, the server's
-memory, and can act with full administrator privileges in the application.
+% Overview and key ideas
+%
+Data disguising provides a clean set of reusable abstractions that web
+applications use to implement secure and expressive privacy transformations,
+based on two key idas.
+%
+% Two key ideas: encrypted data storage and pseudoprincipals
+%
+First, an application can \emph{disguise} data at any point, replacing it with
+less identity-revealing information in the application database.
+%
+The original data under disguise remains on the server, but in encrypted form,
+managed by the data disguising library.
+%
+After disguising, only the original application principal associated with the
+encrypted data can ever \emph{reveal} it again through explicit action.
+%
+Second, the application uses \emph{pseudoprincipals}, which are first-class
+anonymous users that serve as stand-ins for disguised application users, to
+preserve functionality even after it has disguised user data.
+%
+Pseudoprincipals cannot be de-anonymized even by an attacker who has full
+access to the server, but the original user can prove their ownership of
+pseudoprincipals to access data under disguise or lift the disguse.
+%
+A disguised user typically---depending on the level of security and anonymity
+desired---has many pseudoprincipals, up to one for each of their application
+data objects under disguise.
+%
+
+%
+We implemented data disguising in \sys, a reusable library that
+web applications use to express, apply, and reveal data disguises.
+%
+Applications may have a wide range of privacy goals and policies, and they
+use \sys's APIs to realize these.
+%
+\sys itself is agnostic to the specific disguise implemented, and the
+application interacts with it through the abstractions of application-managed
+principals, database diffs, and speaks-for relationships between principals.
+%
+Importantly, the application can rest assured that any database diff
+and speaks-for relationship provided to \sys for secure storage is protected
+until the original owner actively chooses to reveal it.
+%
+\sys uses only standard public-private key cryptography to achieve this, and
+hides the cryptographic details from application developers.
+%
+
+%
+% Threat model
+%
+\sys protects users' data under disguise against an attacker who completely
+compromises the application server, and thus gains access to the full database
+contents, the server's memory, and can act with full administrator privileges
+in the application.
 %
 Data disguised prior to compromise remains secure as long as the principal
-originally associated with the data does not interact with their disguised
-data.
+originally associated with the data does not interact with the data under
+disguise stored in \sys or explicitly reveals it.
 %
 Further, \sys's metadata---\eg whose data has been disguised in which way---is
 hidden from the attacker under the same assumption.
 %
 
+%
+% Prototype
+%
+We end-to-end integrated \sys with two real-world web applications to demonstrate
+its practicality.
+%
+\sys helps Lobsters~\cite{lobsters} support GDPR-compliant account deletion with
+the option to return, as well as anonymization of old contributions after some
+time of user inactivity; and \sys anyonmizes a homework submission
+system~\cite{websubmit-rs-anon} after the end of a class while preserving
+students' ability to view and edit their homework.
+%
 
 %
-\sys, our prototype data disguising library, provides data disguising APIs for
-database-backed web applications.
+% Contributions
 %
-For example, \sys helps Lobsters~\cite{lobsters}, a Reddit-like discussion platform,
-support GDPR-compliant account deletion and anonymization of old contributions; and it
-anyonmizes a homework submission system used by the authors~\cite{websubmit-rs-anon}
-after the end of course while preserving students' ability to view and edit their
-homework.
+In summary, our key contributions are:
+%
+\begin{enumerate}[nosep]
+ \item Data disguising, a systematic framework for privacy transformations on
+   user data in web applications that protects the user privacy against server
+   compromise in the absence of actively data-revealing operations.
+ \item The abstractions and APIs needed to realize data disguising in a
+  practical system, including pseudoprincipals and secure server-side storage
+  of data under disguise.
+ \item A prototype implementation of data disguising in \sys, a reusable
+  library for data disguising, and its integration in two web applications.
+ \item A qualitative and quantitative evaluation of \sys's expressivity,
+  security, and performance.
+\end{enumerate}
+%
+Our empirical evaluation shows that \sys's operations have reasonable cost
+and complete with sub-second latency in most cases, and that normal application
+request latency remains stable even in the presence of disguise and reveal
+operations.
+%
+
+%
+% Limitations
+%
+Our prototype has some limitations, however.
+%
+\note{add limitations.}
+%
+It does not yet adapt revealed data if the application database schema has
+changed while the data was disguised; we plan to use standard schema upgrade
+techniques~\cite{xxx-from-noria} to address this.
+%
+
+%
+We will make \sys available as open-source software.
 %
 
 
