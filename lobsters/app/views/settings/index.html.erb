@@ -335,6 +335,10 @@
       </ul>
 
       <div class="boxline">
+        <%= f.label :password, "Verify Password:", :class => "required" %>
+        <%= f.password_field :password, :size => 40, :autocomplete => "off" %>
+      </div>
+      <div class="boxline">
         <%= f.label :i_am_sure, "I am sure:", :class => "required" %>
         <%= f.check_box :i_am_sure %>
         <br />
@@ -343,8 +347,8 @@
         <br />
         <%= f.label :pkey, "Private Key:" %>
         <%= f.text_field :pkey %>
-    </div>
-    <%= f.submit "Yes, Delete My Account", :class => "deletion" %>
+      </div>
+      <%= f.submit "Yes, Delete My Account", :class => "deletion" %>
     <% end %>
   </div>
 </div>

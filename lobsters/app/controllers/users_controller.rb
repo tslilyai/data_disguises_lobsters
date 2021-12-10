@@ -157,14 +157,12 @@ class UsersController < ApplicationController
       .includes(:user, :hat, :story => :user)
       .joins(:story)
   end
-  
+
   def recover_account
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::RevealDisguise.new # RevealDisguise |
     body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
-    body.diff_locators = [params[:difflocator].to_i]
-    body.ownership_locators = [params[:ownershiplocator].to_i]
-    # ^ Might need to change; sometimes no OLs are emitted. should default to []
+    body.locators = [params[:locator].to_i]
     did = 0 # Integer |
 
     puts body.decrypt_cap
@@ -174,6 +172,24 @@ class UsersController < ApplicationController
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_reveal_disguise: #{e}"
     end
+    return redirect_to "/"
+  end
+
+  def undecay_account
+    api_instance = SwaggerClient::DefaultApi.new
+    body = SwaggerClient::RevealDisguise.new # RevealDisguise |
+    body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
+    body.locators = [params[:locator].to_i]
+    did = 1 # Integer |
+
+    puts body.decrypt_cap
+
+    begin
+      api_instance.apiproxy_reveal_disguise(body, did)
+    rescue SwaggerClient::ApiError => e
+      puts "Exception when calling DefaultApi->apiproxy_reveal_disguise: #{e}"
+    end
+    return redirect_to "/"
   end
 
 private

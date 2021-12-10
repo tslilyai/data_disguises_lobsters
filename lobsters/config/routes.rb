@@ -138,6 +138,8 @@ Rails.application.routes.draw do
         :as => "user_enable_invite"
   get "/users/recover_account" => "users#recover_account_form"
   post "/users/recover_account" => "users#recover_account"
+  get "/users/undecay_account" => "users#undecay_account_form"
+  post "/users/undecay_account" => "users#undecay_account"
 
   get "/settings" => "settings#index"
   post "/settings" => "settings#update"

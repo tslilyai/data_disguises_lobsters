@@ -29,25 +29,27 @@ class SettingsController < ApplicationController
     #  disown_text = " and disowned your stories and comments."
     #  InactiveUser.disown_all_by_author! @user
     #end
-
+    
     # Edna: disguise user.
     uid = @user.id.to_s
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
     body.decrypt_cap = Base64.decode64(params[:user][:pkey]).bytes
-    body.ownership_locators = []
+    body.locators = []
     app = 'lobsters' # String |
     did = 0 # Integer |
     uid = "#{uid}" # String |
+    locator = 0
     begin
       result = api_instance.apiproxy_apply_disguise(body, app, did, uid)
-      p result
+      p result.locators
+      locator = result.locators
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
 
     reset_session
-    flash[:success] = "You have deleted your account#{disown_text}. Bye."
+    flash[:success] = "You have deleted your account and disowned your stories and comments. You can come back by going to /users/recover_account with your locator #{locator}. Bye."
     return redirect_to "/"
   end
 
