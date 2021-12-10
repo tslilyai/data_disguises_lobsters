@@ -19,7 +19,7 @@ for u in 1 10; do
 			--nsleep 0\
 			--nconcurrent $u \
 			--disguiser $d \
-			--filename "${u}users_${d}_txn" \
+			--filename "${u}users_${d}" \
 		&> output/users-$u-${d}.out
 		echo "Ran concurrent test for $u users 0 sleep ${d}"
 	done

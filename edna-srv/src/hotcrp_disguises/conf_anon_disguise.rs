@@ -30,6 +30,7 @@ pub fn get_disguise() -> Disguise {
         user: 0.to_string(),
         table_disguises: get_table_disguises(),
         table_info: get_table_info(),
+        use_txn: false,
     }
 }
 

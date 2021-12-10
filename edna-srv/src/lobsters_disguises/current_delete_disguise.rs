@@ -83,6 +83,7 @@ pub fn get_disguise(user_id: u64) -> Disguise {
         user: user_id.to_string(),
         table_disguises: get_table_disguises(user_id),
         table_info: lobsters_disguises::get_table_info(),
+        use_txn: false,
     }
 }
 fn gen_timestamp(_: &str) -> String {

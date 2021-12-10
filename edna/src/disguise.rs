@@ -120,7 +120,7 @@ impl Disguiser {
     ) -> Result<(), mysql::Error> {
         // USE TXN FOR NOW 
         let mut db = self.pool.get_conn()?;
-        let mut txn = db.start_transaction(TxOpts::default())?;
+        //let mut txn = db.start_transaction(TxOpts::default())?;
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
 
         // XXX revealing all global tokens when a disguise is reversed
@@ -147,7 +147,8 @@ impl Disguiser {
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
             if dwrapper.did == did && !dwrapper.revealed && (d.update_type == REMOVE_GUISE || d.update_type == REMOVE_PRINCIPAL) {
                 warn!("Reversing remove token {:?}\n", d);
-                let revealed = d.reveal::<mysql::Transaction>(&mut locked_token_ctrler, &mut txn)?;
+                let revealed = d.reveal::<mysql::PooledConn>(&mut locked_token_ctrler, &mut db)?;
+                //let revealed = d.reveal::<mysql::Transaction>(&mut locked_token_ctrler, &mut txn)?;
                 if revealed {
                     warn!("Remove Token reversed!\n");
                 } else {
@@ -162,7 +163,8 @@ impl Disguiser {
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
             if dwrapper.did == did && !dwrapper.revealed && d.update_type != REMOVE_GUISE && d.update_type != REMOVE_PRINCIPAL {
                 warn!("Reversing token {:?}\n", d);
-                let revealed = d.reveal(&mut locked_token_ctrler, &mut txn)?;
+                let revealed = d.reveal(&mut locked_token_ctrler, &mut db)?;
+                //let revealed = d.reveal(&mut locked_token_ctrler, &mut txn)?;
                 if revealed {
                     warn!("NonRemove Diff Token reversed!\n");
                 } else {
@@ -181,7 +183,8 @@ impl Disguiser {
                     if d.did == did {
                         warn!("Reversing token {:?}\n", d);
                         let revealed =
-                            d.reveal(&mut locked_token_ctrler, &mut txn)?;
+                            d.reveal(&mut locked_token_ctrler, &mut db)?;
+                            //d.reveal(&mut locked_token_ctrler, &mut txn)?;
                         if revealed {
                             warn!("Decor Ownership Token reversed!\n");
                         } else {
@@ -191,7 +194,7 @@ impl Disguiser {
                 }
             }
         }
-        txn.commit().unwrap();
+        //txn.commit().unwrap();
 
         if !failed {
             // NOTE: could also do everythign per-loc-cap granualrity
@@ -438,7 +441,10 @@ impl Disguiser {
         drop(locked_token_ctrler);
         self.end_disguise_action();
         warn!("Edna: apply disguise: {}", start.elapsed().as_micros());
+
+        // NOTE: hopefully this does absolutely nothing if we never use txn
         txn.commit()?;
+
         Ok(loc_caps)
     }
 

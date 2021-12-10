@@ -401,7 +401,7 @@ fn print_stats(
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
-    let filename = format!("concurrent_{}users_{}sleep_{}disguisers_txn.csv", args.nusers, args.nsleep, ndisguising);
+    let filename = format!("concurrent_{}users_{}sleep_{}disguisers.csv", args.nusers, args.nsleep, ndisguising);
 
     // print out stats
     let mut f = OpenOptions::new()
