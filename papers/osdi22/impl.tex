@@ -53,6 +53,22 @@ Locators are drawn randomly from a large domain, so their values give
 the attacker no additional information.
 %
 
+\subsection{Pre-generated Pseudoprincipal Keypairs}
+%
+Generating a single private-public keypair is expensive ($\approx$300ms), but
+decorrelating disguises require creating many pseudoprincipals.
+%
+To make pseudoprincipal creation cheap, \sys maintains a pool of
+pregenerated keypairs for pseudoprincipals that it periodically refreshes.
+%
+The application can tell \sys an appropriate size for the pool (\eg a reasonable
+upper bound on how much data a user might have).
+%
+\ms{Need to discuss security implications. No guarantees from point of
+compromise; bounded period of vulnerability to attacker who gets keys and
+uses them later.}
+%
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{High-Level Disguise Specifications.}
 \sys's high-level disguising API can be used for a restricted set of disguises in applications that
