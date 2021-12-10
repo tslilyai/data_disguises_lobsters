@@ -29,8 +29,9 @@ at the application level.
 %
 
 %
-When they invoke \sys's disguise and reveal APIs, they cause \sys to encrypt,
-store, and retrieve \emph{diff records} and \emph{speaks-for records}.
+When the application invokes \sys's disguise and reveal APIs, it causes
+\sys to encrypt, store, and retrieve \emph{diff records} and
+\emph{speaks-for records}.
 %
 A diff record stores a set of database changes that the disguise made.
 %
@@ -54,8 +55,8 @@ use in a reveal operation.
 The application only handles locators transiently and should not store them;
 instead, its role is to communicate the locators to clients.
 %
-Locators are strictly a performance optimization, and \sys's security
-properties are unaffected by their existence.
+Locators are strictly a performance optimization (\S\ref{s:impl-locators}
+describes the details), and \sys's security is unaffected by their existence.
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

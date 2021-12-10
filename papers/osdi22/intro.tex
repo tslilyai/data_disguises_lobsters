@@ -97,11 +97,11 @@ based on two key idas.
 First, an application can \emph{disguise} data at any point, replacing it with
 less identity-revealing information in the application database.
 %
-The original data remains on the server, but in encrypted form, managed by the
-data disguising library.
+The original data under disguise remains on the server, but in encrypted form,
+managed by the data disguising library.
 %
 After disguising, only the original application principal associated with the
-encrypted data can ever, interactively, \emph{reveal} it again.
+encrypted data can ever \emph{reveal} it again through explicit action.
 %
 Second, the application uses \emph{pseudoprincipals}, which are first-class
 anonymous users that serve as stand-ins for disguised application users, to
@@ -112,8 +112,8 @@ access to the server, but the original user can prove their ownership of
 pseudoprincipals to access data under disguise or lift the disguse.
 %
 A disguised user typically---depending on the level of security and anonymity
-desired---has many pseudoprincipals, up to one for each application data
-object the user originally owned.
+desired---has many pseudoprincipals, up to one for each of their application
+data objects under disguise.
 %
 
 %
@@ -138,13 +138,14 @@ hides the cryptographic details from application developers.
 %
 % Threat model
 %
-\sys protects users' data against an attacker who completely compromises the
-application server, and thus gains access to the full database contents, the server's
-memory, and can act with full administrator privileges in the application.
+\sys protects users' data under disguise against an attacker who completely
+compromises the application server, and thus gains access to the full database
+contents, the server's memory, and can act with full administrator privileges
+in the application.
 %
 Data disguised prior to compromise remains secure as long as the principal
-originally associated with the data does not interact with the data stored in
-\sys or explicitly reveals it.
+originally associated with the data does not interact with the data under
+disguise stored in \sys or explicitly reveals it.
 %
 Further, \sys's metadata---\eg whose data has been disguised in which way---is
 hidden from the attacker under the same assumption.
@@ -174,15 +175,15 @@ In summary, our key contributions are:
    compromise in the absence of actively data-revealing operations.
  \item The abstractions and APIs needed to realize data disguising in a
   practical system, including pseudoprincipals and secure server-side storage
-  of data currently disguised in the application database.
+  of data under disguise.
  \item A prototype implementation of data disguising in \sys, a reusable
   library for data disguising, and its integration in two web applications.
  \item A qualitative and quantitative evaluation of \sys's expressivity,
   security, and performance.
 \end{enumerate}
 %
-Our empirical evaluation shows that \sys's operations have reasonable cost,
-completing with sub-second latency in most cases, and that normal application
+Our empirical evaluation shows that \sys's operations have reasonable cost
+and complete with sub-second latency in most cases, and that normal application
 request latency remains stable even in the presence of disguise and reveal
 operations.
 %
