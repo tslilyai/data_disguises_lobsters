@@ -134,7 +134,7 @@ Clients who create a WebSubmit account generate a fresh public/private key pair
 in their web browser, and provide the public key to WebSubmit.
 %
 WebSubmit then invokes \fn{RegisterPrincipal} with the new principal's UID $p$
-and public key \pubk{p}, which \sys saves.
+and public key, which \sys saves.
 %
 
 \head{(2) Start a Disguise.}
@@ -310,5 +310,5 @@ private key to locate and decrypt records to reveal.
 %
 Finally, \fn{ApplyDisguise} takes optional locators and decryption capabilities
 to support disguise composition (\eg deletion after anonymization), which
-we discuss in \S\ref{s:composition}.
+we discuss next.
 %

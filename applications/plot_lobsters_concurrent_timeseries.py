@@ -29,7 +29,7 @@ def get_opdata(filename, results, i, u):
             opdata[bucket].append(val)
         results[u].append(opdata)
 
-def get_all_points(filename, results, i):
+def get_all_points(filename, results, i, u):
     with open(filename,'r') as csvfile:
         rows = csvfile.readlines()
         oppairs = [x.split(':') for x in rows[i].strip().split(',')]
@@ -40,26 +40,35 @@ def get_all_points(filename, results, i):
             opdata[key] = val
         results.append(opdata)
 
-users = [1, 30, 50]
+users = [1, 30]
 disguiser = ['none', 'cheap', 'expensive']
 for u in users:
     for d in disguiser:
         get_opdata('results/lobsters_results/concurrent_disguise_stats_{}users_{}.csv'.format(u, d),
                 op_results, 1, u)
 
-for u in users:
+for u in [30]:
     for index in range(3):
         xs = list(op_results[u][index].keys())
         order = np.argsort(xs)
         xs = np.array(xs)[order]
-        ys = [statistics.mean(x) for x in op_results[u][index].values()]
+        ys = [np.percentile(x, 95) for x in op_results[u][index].values()]
         ys = np.array(ys)[order]
-        label ='{} Normal Users: {}'.format(u, disguiser[index])
+        label ='95 {} Normal Users: {}'.format(u, disguiser[index])
         plt.plot(xs, ys, label=label)
+
+        xs = list(op_results[u][index].keys())
+        order = np.argsort(xs)
+        xs = np.array(xs)[order]
+        ys = [np.percentile(x, 5) for x in op_results[u][index].values()]
+        ys = np.array(ys)[order]
+        label ='5 {} Normal Users: {}'.format(u, disguiser[index])
+        plt.plot(xs, ys, label=label)
+
 
 plt.xlabel('Benchmark Time (s)')
 plt.ylabel('Latency (ms)')
-plt.ylim(ymin=0, ymax=40)
+plt.ylim(ymin=0, ymax=200)
 plt.xlim(xmin=0, xmax=50)
 plt.legend(loc="upper right")
 plt.title("Lobsters Op Latency vs. Number Normal Users")

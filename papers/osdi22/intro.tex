@@ -100,36 +100,34 @@ homework.
 %
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Motivation}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-To motivate data disguising, we consider how HotCRP, a popular application for conference paper and
-review management, can improve user privacy.  HotCRP currently retains data from past conferences
-indefinitely, and many conferences often enforce single- or double-blind reviews, meaning that no
-one but the reviewer should be able to correlate their reviews or paper comments with their
-identity. However, HotCRP's stores reviews indefinitely linked to the identity of the reviewer,
-leaving reviewers succeptible to unblinding in case of a data breach.
-
-To improve upon HotCRP's provided user privacy, HotCRP implement the follow disguises using \sys:
-\begin{enumerate}[nosep]
-    \item Per-user GDPR Account Deletion: removing all of a particular user's data such as reviews and papers.
-    \item Universal Decorrelation: decorrelating users from
-        their authored reviews and papers by (1) generating an
-        anonymous user, and (2) relinking the paper or review
-        to the newly created anonymous user.
-    \item Universal Comment Removal: removing all comments on papers.
-\end{enumerate}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Importantly, these disguises place low burden on application developers and end users.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%\subsection{Motivation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%To motivate data disguising, we consider how HotCRP, a popular application for conference paper and
+%review management, can improve user privacy.  HotCRP currently retains data from past conferences
+%indefinitely, and many conferences often enforce single- or double-blind reviews, meaning that no
+%one but the reviewer should be able to correlate their reviews or paper comments with their
+%identity. However, HotCRP's stores reviews indefinitely linked to the identity of the reviewer,
+%leaving reviewers succeptible to unblinding in case of a data breach.
 %
-When HotCRP disguises a user's data for universal decorrelation or comment removal, HotCRP emails
-the user a unique URL that it gets via invoking \sys's API.  When the user
-wants to ask for permission to view (or edit, if permitted) the undisguised paper or review, the
-user simply has to click the URL link and log into the application. Thus, application of universal
-disguises should not require a user to be online in order to gain the capability to apply further
-disguises or view their disguised data.
-
-Similarly, when HotCRP disguises a user's data for GDPR deletion, the invoking user receives a URL
-that allows the user to reveal the disguise, restoring their account.
-
-
+%To improve upon HotCRP's provided user privacy, HotCRP implement the follow disguises using \sys:
+%\begin{enumerate}[nosep]
+%    \item Per-user GDPR Account Deletion: removing all of a particular user's data such as reviews and papers.
+%    \item Universal Decorrelation: decorrelating users from
+%        their authored reviews and papers by (1) generating an
+%        anonymous user, and (2) relinking the paper or review
+%        to the newly created anonymous user.
+%    \item Universal Comment Removal: removing all comments on papers.
+%\end{enumerate}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Importantly, these disguises place low burden on application developers and end users.
+%%
+%When HotCRP disguises a user's data for universal decorrelation or comment removal, HotCRP emails
+%the user a unique URL that it gets via invoking \sys's API.  When the user
+%wants to ask for permission to view (or edit, if permitted) the undisguised paper or review, the
+%user simply has to click the URL link and log into the application. Thus, application of universal
+%disguises should not require a user to be online in order to gain the capability to apply further
+%disguises or view their disguised data.
+%
+%Similarly, when HotCRP disguises a user's data for GDPR deletion, the invoking user receives a URL
+%that allows the user to reveal the disguise, restoring their account.
