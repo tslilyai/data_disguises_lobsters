@@ -13,7 +13,7 @@ use rsa::pkcs1::ToRsaPrivateKey;
 use serde_json;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-//use std::io::BufReader;
+use std::io::BufReader;
 use std::io::Write;
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
@@ -85,31 +85,32 @@ fn main() {
         datagen::gen_data(&sampler, &mut edna.get_conn().unwrap());
     }
     // create private keys, save in file jic if we've primed already
-    //if prime {
     let mut db = edna.get_conn().unwrap();
-    db.query_drop("DELETE FROM EdnaPrincipals WHERE uid >= 0")
+    db.query_drop("DELETE FROM EdnaPrincipals WHERE uid >= 10000")
         .unwrap();
     // clear extra pseudoprincipals
     db.query_drop("DELETE FROM users WHERE id >= 10000")
         .unwrap();
-    for u in 0..nusers {
-        let user_id = u as u64 + 1;
-        let private_key = edna.register_principal(&user_id.to_string());
-        let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        user2decryptcap.insert(user_id, privkey_str);
-    }
-    serde_json::to_writer(
-        &File::create("decrypt_caps.json").unwrap(),
-        &user2decryptcap,
-    )
-    .unwrap();
-    error!("Got {} decrypt caps", user2decryptcap.len());
-    /*} else {
+
+    if prime {
+        for u in 0..nusers {
+            let user_id = u as u64 + 1;
+            let private_key = edna.register_principal(&user_id.to_string());
+            let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
+            user2decryptcap.insert(user_id, privkey_str);
+        }
+        serde_json::to_writer(
+            &File::create("decrypt_caps.json").unwrap(),
+            &user2decryptcap,
+        )
+        .unwrap();
+        error!("Got {} decrypt caps", user2decryptcap.len());
+    } else {
         let file = File::open("decrypt_caps.json").unwrap();
         let reader = BufReader::new(file);
         user2decryptcap = serde_json::from_reader(reader).unwrap();
         error!("Got {} decrypt caps", user2decryptcap.len());
-    }*/
+    }
 
     if args.stats {
         run_stats_test(&mut edna, &sampler, &user2decryptcap, prime);
@@ -239,7 +240,7 @@ fn run_normal_thread(
     let overall_start = time::Instant::now();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         let start = time::Instant::now();
-        // XXX: assume a uniform distribution of assuming high-use users mostly 
+        // XXX: assume a uniform distribution instead of assuming high-use users mostly 
         // submit requests
         //let user_id = sampler.user(&mut rng) as u64;
         let mut user_id = rng.gen_range(0, nusers);
