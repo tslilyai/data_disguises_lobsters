@@ -47,7 +47,31 @@ impl EncData {
         let cipher = Aes128Cbc::new_from_slices(&key, &self.iv).unwrap();
         let mut edata = self.enc_data.clone();
         let plaintext = cipher.decrypt_vec(&mut edata).unwrap();
+        let size = plaintext.len();
         (key.to_vec(), plaintext)
+    } 
+    pub fn encrypt_with_pubkey(pubkey: &RsaPublicKey, bytes: &Vec<u8>) -> EncData {
+        let mut rng = rand::thread_rng();
+        // generate key
+        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
+        rng.fill_bytes(&mut key[..]);
+
+        // encrypt key with pubkey
+        let padding = PaddingScheme::new_pkcs1v15_encrypt();
+        let enc_key = pubkey
+            .encrypt(&mut rng, padding, &key[..])
+            .expect("failed to encrypt");
+
+        // encrypt pppk with key
+        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
+        rng.fill_bytes(&mut iv[..]);
+        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
+        let encrypted = cipher.encrypt_vec(bytes);
+        EncData {
+            enc_key: enc_key,
+            enc_data: encrypted,
+            iv: iv,
+        }
     }
 }
 
@@ -206,17 +230,11 @@ impl TokenCtrler {
         for ((uid, _), c) in lcs.iter() {
             let p = self
                 .principal_data
-                .get(uid)
+                .get_mut(uid)
                 .expect(&format!("no user with uid {} when saving?", uid));
-            let pubkey = p.pubkey.clone();
             // save to principal data if no email (pseudoprincipal)
             if p.is_anon {
-                let enc_lc = self
-                    .encrypt_with_pubkey(&pubkey, &c.to_be_bytes().to_vec())
-                    .clone();
-
-                // hack because of mut borrow stuff...
-                let p = self.principal_data.get_mut(uid).unwrap();
+                let enc_lc = EncData::encrypt_with_pubkey(&p.pubkey, &c.to_be_bytes().to_vec()).clone();
                 p.loc_caps.insert(enc_lc);
 
                 // update persistence
@@ -483,7 +501,7 @@ impl TokenCtrler {
             .expect("no user with uid found?")
             .clone();
         let plaintext = serialize_to_bytes(pks);
-        let enc_pppk = self.encrypt_with_pubkey(&p.pubkey, &plaintext);
+        let enc_pppk = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
         // insert the encrypted pppk into locating capability
         match self.enc_privkeys_map.get_mut(lc) {
             Some(ts) => {
@@ -516,14 +534,13 @@ impl TokenCtrler {
                 .principal_data
                 .get(uid)
                 .expect("no user with uid found?");
-            let pubkey = p.pubkey.clone();
             let pppks = self
                 .tmp_own_tokens
                 .get(&(uid.to_string(), *did))
                 .unwrap()
                 .clone();
             let plaintext = serialize_to_bytes(&pppks);
-            let enc_pppk = self.encrypt_with_pubkey(&pubkey, &plaintext);
+            let enc_pppk = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
 
             // insert the encrypted pppk into locating capability
             match self.enc_ownership_map.get_mut(&lc) {
@@ -543,14 +560,13 @@ impl TokenCtrler {
                 .principal_data
                 .get(uid)
                 .expect(&format!("no user with uid {} found?", uid));
-            let pubkey = p.pubkey.clone();
             let dts = self
                 .tmp_diff_tokens
                 .get(&(uid.to_string(), *did))
                 .unwrap()
                 .clone();
             let plaintext = serialize_to_bytes(&dts);
-            let enctoken = self.encrypt_with_pubkey(&pubkey, &plaintext);
+            let enctoken = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
             match self.enc_diffs_map.get_mut(&cap) {
                 Some(ts) => {
                     ts.push(enctoken);
@@ -591,10 +607,9 @@ impl TokenCtrler {
         }
 
         let p = p.unwrap();
-        let pubk = p.pubkey.clone();
         // encrypt pppk with key
         let plaintext = serialize_to_bytes(&pppk);
-        let enc_pppk = self.encrypt_with_pubkey(&pubk, &plaintext);
+        let enc_pppk = EncData::encrypt_with_pubkey(&p.pubkey.clone(), &plaintext);
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_loc_cap(&pppk.old_uid, pppk.did);
@@ -634,9 +649,8 @@ impl TokenCtrler {
         }
 
         let p = p.unwrap();
-        let pubk = p.pubkey.clone();
         let plaintext = serialize_to_bytes(&pppk);
-        let enc_pppk = self.encrypt_with_pubkey(&pubk, &plaintext);
+        let enc_pppk = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_loc_cap(&pppk.old_uid, pppk.did);
@@ -677,9 +691,8 @@ impl TokenCtrler {
             .principal_data
             .get(uid)
             .expect("no user with uid found?");
-        let pubk = p.pubkey.clone();
         let plaintext = serialize_to_bytes(&token);
-        let enctoken = self.encrypt_with_pubkey(&pubk, &plaintext);
+        let enctoken = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
         match self.enc_diffs_map.get_mut(&cap) {
             Some(ts) => {
                 ts.push(enctoken);
