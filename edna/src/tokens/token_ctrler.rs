@@ -598,16 +598,16 @@ impl TokenCtrler {
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_loc_cap(&pppk.old_uid, pppk.did);
-        match self.enc_ownership_map.get_mut(&lc) {
+        match self.enc_privkey_map.get_mut(&lc) {
             Some(ts) => {
                 ts.push(enc_pppk);
             }
             None => {
-                self.enc_ownership_map.insert(lc, vec![enc_pppk]);
+                self.enc_privkey_map.insert(lc, vec![enc_pppk]);
             }
         }
         warn!(
-            "Edna: encrypt and insert ownership token: {}",
+            "Edna: encrypt and insert privkey token: {}",
             start.elapsed().as_micros()
         );
     }

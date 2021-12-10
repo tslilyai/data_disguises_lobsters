@@ -86,7 +86,7 @@ pub fn main() {
 
     let postdata = json!({
         "decrypt_cap": [],
-        "ownership_locators": [],
+        "locators": [],
     });
 
     for (u, email) in &users {
