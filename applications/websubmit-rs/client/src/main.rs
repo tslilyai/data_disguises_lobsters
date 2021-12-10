@@ -28,7 +28,7 @@ pub fn new_logger() -> slog::Logger {
     Logger::root(Mutex::new(term_full()).fuse(), o!())
 }
 
-const TOTAL_TIME: u128 = 100000;
+const TOTAL_TIME: u128 = 50000;
 const SERVER: &'static str = "http://localhost:8000";
 const APIKEY_FILE: &'static str = "apikey.txt";
 const DECRYPT_FILE: &'static str = "decrypt.txt";

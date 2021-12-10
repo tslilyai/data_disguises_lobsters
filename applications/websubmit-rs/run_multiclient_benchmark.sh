@@ -9,7 +9,7 @@ mkdir output
 set -e
 l=20
 
-for u in 1 30 100; do
+for u in 1 30 ; do
 	for nd in 0 1; do
 	    ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
 
