@@ -61,7 +61,7 @@ pub fn apply(
                 }
             };
         }
-        info!(bg.log, "WSAnon: get answers: {}", start.elapsed().as_micros());
+        debug!(bg.log, "WSAnon: get answers: {}", start.elapsed().as_micros());
 
         let mut updates = vec![];
         let mut pps = vec![];
@@ -75,7 +75,7 @@ pub fn apply(
                 drop(edna);
                 new_uid = p.0;
                 let rowvals = p.1;
-                info!(
+                debug!(
                     bg.log,
                     "WSAnon: create pseudoprincipal: {}",
                     start.elapsed().as_micros()
@@ -97,7 +97,7 @@ pub fn apply(
                     vec![],
                 );
                 drop(edna);
-                info!(
+                debug!(
                     bg.log,
                     "WSAnon: save pseudoprincipals: {}",
                     start.elapsed().as_micros()
@@ -125,7 +125,7 @@ pub fn apply(
         if !pps.is_empty() {
             let start = time::Instant::now();
             db.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
-            info!(
+            debug!(
                 bg.log,
                 "WSAnon: INSERT INTO `users` VALUES {};: {}",
                 pps.join(","),
@@ -143,7 +143,7 @@ pub fn apply(
                     }
                 }),
             )?;
-            info!(
+            debug!(
                 bg.log,
                 "WSAnon: update {} fks: {}",
                 updates.len(),
@@ -158,7 +158,7 @@ pub fn apply(
             drop(edna);
             locators.extend(&mut res.into_iter());
         }
-        info!(
+        debug!(
             bg.log,
             "WSAnon: total: {}",
             beginning_start.elapsed().as_micros()

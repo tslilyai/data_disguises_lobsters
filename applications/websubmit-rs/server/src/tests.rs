@@ -127,7 +127,6 @@ fn test_disguise() {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
-    
        
         // set ownership capability as cookie
         let response = client.get(format!("/edit/{}", owncap)).dispatch();

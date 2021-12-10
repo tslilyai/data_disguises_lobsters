@@ -27,7 +27,7 @@ mod disguises;
 mod queriers;
 include!("statistics.rs");
 
-const TOTAL_TIME: u128 = 50000;
+const TOTAL_TIME: u128 = 100000;
 const SCHEMA: &'static str = include_str!("../schema.sql");
 
 #[derive(StructOpt)]
@@ -310,10 +310,8 @@ fn run_normal_thread(
         }
         res.sort();
         my_op_durations.push((overall_start.elapsed(), start.elapsed()));
-        let dur = start.elapsed().as_micros();
-        if dur > 50000 {
-            error!("user{} {}: {}", user_id, op, dur);
-        }
+        //let dur = start.elapsed().as_micros();
+        //error!("user{} {}: {}", user_id, op, dur);
     }
     op_durations.lock().unwrap().append(&mut my_op_durations);
 }
@@ -449,11 +447,7 @@ fn run_stats_test(
     prime: bool,
 ) {
     let mut db = edna.get_conn().unwrap();
-    let filename = if prime {
-        format!("lobsters_disguise_stats_batch.csv")
-    } else {
-        format!("lobsters_disguise_stats_baseline_batch.csv")
-    };
+    let filename = format!("lobsters_disguise_stats.csv");
     let mut file = File::create(filename).unwrap();
     file.write(
         "uid, ndata, create_baseline, create_edna, decay, undecay, delete, restore, baseline\n"
@@ -463,16 +457,6 @@ fn run_stats_test(
     let mut rng = rand::thread_rng();
 
     for u in 0..sampler.nusers() {
-        // baseline delete
-        // only measure this if we're not priming, so we don't mess up the DB again...
-        let start = time::Instant::now();
-        if !prime {
-            disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
-            //disguises::baseline::apply_decay(user_id, edna).unwrap();
-            file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
-                .unwrap();
-            continue;
-        }
 
         // sample every 50 users
         if u % 50 != 0 {
@@ -657,7 +641,13 @@ fn run_stats_test(
             assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), user_comments);
         }
 
-        file.write(format!("\n").as_bytes()).unwrap();
+        // baseline delete
+        // only measure this if we're not priming, so we don't mess up the DB again...
+        let start = time::Instant::now();
+        disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
+        //disguises::baseline::apply_decay(user_id, edna).unwrap();
+        file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
+            .unwrap();
     }
 
     file.flush().unwrap();
