@@ -128,25 +128,6 @@ the disguise---and at that point, $q$'s private key will be available,
 as the principal who speaks-for $q$ can unwrap it.
 %
 
-\head{Putting It Together.}
-%
-Figure~\ref{f:recursive} shows an example of how a client that provides
-the private key natural principal $p$ and locator \lcapa{pd_1} accesses
-\emph{both} $p$'s records for disguise $d_1$, the private
-keys of all pseudoprincipals ${q_0, \dots, q_k}$ created during disguise
-$d$, and all records encrypted for these pseudoprincipals during disguise
-$d_2$.
-%
-\sys accesses $q_i$'s private key by decrypting (with $p$'s private key) the
-bag that contains the wrapped private key.
-%
-With $q_i$'s private key, \sys decrypts \lcapa{q_id_2} from $q_i$'s metadata,
-and uses it to locates $q_i$'s encrypted records, decrypting the records
-with $q_i$'s private key.
-%
-
-\lyt{TODO clearing of records, $d' \neq d$}
-
 \head{Pseudoprincipal Metadata.}
 %
 \sys removes any metadata about a principal $p$ when the application
@@ -175,6 +156,26 @@ even if the corresponding user or data has since been deleted).
 %If a pseudoprincipal is often deleted while \sys has knowledge of the link between $q$ and original
 %principal $p$ (\eg, when a client deletes $p$'s account and provides speaks-for records
 %to \sys to delete $p$'s anoymized data). In these scenarios, \sys can .
+
+\lyt{TODO clearing of records, $d' \neq d$}
+
+\head{Putting It Together.}
+%
+Figure~\ref{f:recursive} shows an example of how a client that provides
+the private key natural principal $p$ and locator \lcapa{pd_1} accesses
+\emph{both} $p$'s records for disguise $d_1$, the private
+keys of all pseudoprincipals ${q_0, \dots, q_k}$ created during disguise
+$d$, and all records encrypted for these pseudoprincipals during disguise
+$d_2$.
+%
+\sys accesses $q_i$'s private key by decrypting (with $p$'s private key) the
+bag that contains the wrapped private key.
+%
+With $q_i$'s private key, \sys decrypts \lcapa{q_id_2} from $q_i$'s metadata,
+and uses it to locates $q_i$'s encrypted records, decrypting the records
+with $q_i$'s private key.
+%
+
 
 %%% OLD
 \begin{comment}
