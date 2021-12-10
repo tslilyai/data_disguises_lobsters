@@ -107,6 +107,6 @@ pub fn main() {
             0.to_string()
         };
         // TODO send email with locators
-        warn!("Sending email to {} with l {}", email, l);
+        warn!("Sending email to {}: Undecay your account with l {} at /users/undecay_account", email, l);
     }
 }

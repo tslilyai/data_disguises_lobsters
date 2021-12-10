@@ -1,15 +1,15 @@
 use crate::helpers::*;
 use crate::tokens::*;
 use crate::{RowVal, DID, UID};
-use log::{warn};
+use log::warn;
+use mysql::prelude::*;
 use rand::{thread_rng, Rng};
 use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::time;
-use std::collections::{HashSet};
-use mysql::prelude::*;
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
@@ -48,7 +48,9 @@ pub struct EdnaDiffToken {
     pub old_value: Vec<RowVal>,
 
     // MODIFY: store new blobs
-    pub new_value: Vec<RowVal>,
+    pub col: String,
+    pub old_val: String,
+    pub new_val: String,
 
     // REMOVE/MODIFY
     pub old_token_blob: String,
@@ -210,8 +212,9 @@ pub fn new_modify_token_wrapper(
     did: DID,
     guise_name: String,
     guise_ids: Vec<RowVal>,
-    old_value: Vec<RowVal>,
-    new_value: Vec<RowVal>,
+    old_value: String,
+    new_value: String,
+    col: String,
     is_global: bool,
 ) -> DiffTokenWrapper {
     let mut token: DiffTokenWrapper = Default::default();
@@ -225,8 +228,9 @@ pub fn new_modify_token_wrapper(
     edna_token.update_type = MODIFY_GUISE;
     edna_token.guise_name = guise_name;
     edna_token.guise_ids = guise_ids;
-    edna_token.old_value = old_value;
-    edna_token.new_value = new_value;
+    edna_token.col = col;
+    edna_token.old_val = old_value;
+    edna_token.new_val = new_value;
     edna_token.token_id = token.token_id;
 
     token.token_data = edna_diff_token_to_bytes(&edna_token);
@@ -234,8 +238,7 @@ pub fn new_modify_token_wrapper(
 }
 
 impl EdnaDiffToken {
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn reveal<Q:Queryable>(
+    pub fn reveal<Q: Queryable>(
         &self,
         token_ctrler: &mut TokenCtrler,
         db: &mut Q,
@@ -301,13 +304,15 @@ impl EdnaDiffToken {
                     })
                     .collect();
                 let valstr = vals.join(",");
-                db.query_drop(
-                    format!(
-                        "INSERT INTO {} ({}) VALUES ({})",
-                        self.guise_name, colstr, valstr
-                    ),
-                )?;
-                warn!("Reveal removed data for {}: {}", self.guise_name, start.elapsed().as_micros());
+                db.query_drop(format!(
+                    "INSERT INTO {} ({}) VALUES ({})",
+                    self.guise_name, colstr, valstr
+                ))?;
+                warn!(
+                    "Reveal removed data for {}: {}",
+                    self.guise_name,
+                    start.elapsed().as_micros()
+                );
             }
             MODIFY_GUISE => {
                 // get current guise in db
@@ -318,31 +323,29 @@ impl EdnaDiffToken {
                 )?;
 
                 // if field hasn't been modified, return it to original
-                if selected.is_empty() || selected[0] != self.new_value {
-                    warn!(
-                    "DiffTokenWrapper Reveal: Modified value {:?} not equal to new value {:?}\n",
-                    selected[0], self.new_value
-                );
-                    return Ok(false);
+                if selected.is_empty() {
+                    warn!("DiffTokenWrapper Reveal: Modified value no longer exists\n",);
+                }
+                for rv in &selected[0] {
+                    if rv.column == self.col {
+                        if rv.value != self.new_val {
+                            warn!(
+                                "DiffTokenWrapper Reveal: Modified value {:?} not equal to new value {:?}\n",
+                                rv.value, self.new_val
+                            );
+                            return Ok(false);
+                        }
+                    }
                 }
 
                 // ok, we can actually update this!
-                let mut updates = vec![];
-                for (i, newrv) in self.new_value.iter().enumerate() {
-                    let new_val = newrv.value.clone();
-                    let old_val = self.old_value[i].value.clone();
-                    if new_val != old_val {
-                        updates.push(Assignment {
-                            id: Ident::new(newrv.column.clone()),
-                            // XXX problem if it's not a string?
-                            value: Expr::Value(Value::String(newrv.value.clone())),
-                        })
-                    }
-                }
                 db.query_drop(
                     Statement::Update(UpdateStatement {
                         table_name: string_to_objname(&self.guise_name),
-                        assignments: updates,
+                        assignments: vec![Assignment {
+                            id: Ident::new(self.col.clone()),
+                            value: Expr::Value(Value::String(self.old_val.clone())),
+                        }],
                         selection: Some(token_guise_selection),
                     })
                     .to_string(),

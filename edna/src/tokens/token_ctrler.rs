@@ -195,7 +195,7 @@ impl TokenCtrler {
         self.tmp_loc_caps.get(&(uid.to_string(), did))
     }
 
-    pub fn save_and_clear<Q:Queryable>(&mut self, db: &mut Q) -> HashMap<(UID, DID), LocCap> {
+    pub fn save_and_clear<Q: Queryable>(&mut self, db: &mut Q) -> HashMap<(UID, DID), LocCap> {
         // this creates dlcs and olcs btw, so we have to do it first
         if self.batch {
             self.insert_batch_tokens();
@@ -269,7 +269,7 @@ impl TokenCtrler {
     /*
      * REGISTRATION
      */
-    pub fn register_saved_principal<Q:Queryable>(
+    pub fn register_saved_principal<Q: Queryable>(
         &mut self,
         uid: &UID,
         is_anon: bool,
@@ -418,7 +418,7 @@ impl TokenCtrler {
         );
     }
 
-    pub fn remove_principal<Q:Queryable>(&mut self, uid: &UID, db: &mut Q) {
+    pub fn remove_principal<Q: Queryable>(&mut self, uid: &UID, db: &mut Q) {
         // actually remove
         let start = time::Instant::now();
         let pdata = self.principal_data.get_mut(uid);
@@ -598,12 +598,12 @@ impl TokenCtrler {
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_loc_cap(&pppk.old_uid, pppk.did);
-        match self.enc_privkey_map.get_mut(&lc) {
+        match self.enc_privkeys_map.get_mut(&lc) {
             Some(ts) => {
                 ts.push(enc_pppk);
             }
             None => {
-                self.enc_privkey_map.insert(lc, vec![enc_pppk]);
+                self.enc_privkeys_map.insert(lc, vec![enc_pppk]);
             }
         }
         warn!(
@@ -1275,7 +1275,8 @@ mod tests {
         let old_fk_value = 5;
         let fk_col = "fk_col".to_string();
 
-        let private_key = ctrler.register_principal::<mysql::PooledConn>(&uid.to_string(), false, &mut db, true);
+        let private_key =
+            ctrler.register_principal::<mysql::PooledConn>(&uid.to_string(), false, &mut db, true);
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
 
         let mut remove_token = new_delete_token_wrapper(
@@ -1346,7 +1347,12 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal::<mysql::PooledConn>(&u.to_string(), false, &mut db, true);
+            let private_key = ctrler.register_principal::<mysql::PooledConn>(
+                &u.to_string(),
+                false,
+                &mut db,
+                true,
+            );
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1434,7 +1440,12 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal::<mysql::PooledConn>(&u.to_string(), false, &mut db, true);
+            let private_key = ctrler.register_principal::<mysql::PooledConn>(
+                &u.to_string(),
+                false,
+                &mut db,
+                true,
+            );
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
