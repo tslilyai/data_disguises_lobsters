@@ -2,3 +2,12 @@
 
 \lyt{Should we note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric
 crypto; otherwise, we could just send the symmetric key to the original user being disguised?}
+
+\lyt{
+An alternative design might remove encrypted records completely (and \eg store them in external per-user
+vaults or email them to the client).
+This leaves no trace in \sys or the application, and would prevent the attacker from learning
+anything. However, this places a large burden on the client.
+Maybe put this in future work?
+}
+
