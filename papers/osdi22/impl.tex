@@ -5,6 +5,10 @@
 %
 We implemented our \sys prototype in \note{XXX} lines of Rust.
 %
+The prototype relies on a MySQL database for encrypted record storage, and
+its high-level API assumes that the application database is also a MySQL
+database, though the low-level API works with any application DB.
+%
 We also provide an API server that exposes a JSON-HTTP API that applications
 can use to invoke \sys.
 %
