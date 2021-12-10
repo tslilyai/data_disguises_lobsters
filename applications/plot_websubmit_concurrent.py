@@ -13,7 +13,7 @@ def add_labels(x,y,ax,color,offset):
 barwidth = 0.25
 # positions
 X = np.arange(2)
-labels = ['1 User (<10% load)', '30 Users (~75% load)']#, '100 Users', '100 Users Txn']
+labels = ['Low Load', 'High Load']#, '100 Users', '100 Users Txn']
 
 # collect all results
 op_results = defaultdict(list)
