@@ -38,6 +38,8 @@ def get_data(filename, results, i, u):
         for x in oppairs:
             val = float(x[1])/1000
             vals.append(val)
+        if len(vals) == 0:
+            results[u].append(0)
         results[u].append(vals)
 
 users = [1, 10]

@@ -270,12 +270,16 @@ the form of URLs that allow for account restoration or post-anonymization editin
     \centering
         \includegraphics[width=0.45\textwidth]{figs/lobsters_concurrent_results}
         \includegraphics[width=0.45\textwidth]{figs/websubmit_concurrent_results}
-    \caption{Impact of disguising (account deletion and revealing) on 100 users concurrently running
-    normal application answer edits. We show the median latency; ranges indicate the 5th to 95th
+    \caption{Impact of continuously applying and revealing account deletion disguises (non-transactional and transactional) on users concurrently running
+    normal application operations. We show the median latency; ranges indicate the 5th to 95th
     percentile latencies.    
-    \textbf{Left (Lobsters)} TODO.
-    \textbf{Right (WebSubmit)} tests with an adversarial,
-    write-only user workload of edits that modify the same table.
+    \textbf{Left (Lobsters)} tests the normal Lobsters traffic in the presence of an expensive
+    disguiser (owning >6000 data objects) and a cheap disguiser (ownering <10 data objects). Even an expensive disguiser has minimal impact when user load is low; however, the impact increases as the server load increases, and if the
+    disguise is transactional.
+    \textbf{Right (WebSubmit)} tests an adversarial, write-only user workload of edits that
+    modify the same table. All users have approximately the same amount of data (4 answers for 20
+    lectures), and one user is chosen to continuously delete and restore their account. Here,
+    disguising has minimal impact on latency even at high load.
     }
     \label{fig:concurrent}
 \end{figure*}

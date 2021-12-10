@@ -36,8 +36,11 @@ def get_data(filename, results, i, u):
         oppairs = [x.split(':') for x in rows[i].strip().split(',')]
         opdata = defaultdict(list)
         for x in oppairs:
-            val = float(x[1])/1000
-            vals.append(val)
+            if len(x) < 2:
+                vals.append(0)
+            else:
+                val = float(x[1])/1000
+                vals.append(val)
         results[u].append(vals)
 
 users = [1, 30]
