@@ -44,6 +44,16 @@ describe 'DefaultApi' do
     end
   end
 
+  # unit tests for apiproxy_cleanup_tokens_of_disguise
+  # @param body 
+  # @param [Hash] opts the optional parameters
+  # @return [nil]
+  describe 'apiproxy_cleanup_tokens_of_disguise test' do
+    it 'should work' do
+      # assertion here. ref: https://www.relishapp.com/rspec/rspec-expectations/docs/built-in-matchers
+    end
+  end
+
   # unit tests for apiproxy_create_pseudoprincipal
   # @param [Hash] opts the optional parameters
   # @return [CreatePseudoprincipalResponse]
