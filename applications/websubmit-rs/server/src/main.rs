@@ -595,7 +595,7 @@ fn print_stats(
             args.nlec, args.nusers
         )
     } else {
-        format!("disguise_stats_{}lec_{}users_batch.csv", args.nlec, args.nusers)
+        format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
     };
 
     // print out stats

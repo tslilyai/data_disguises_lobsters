@@ -1,5 +1,4 @@
 use crate::helpers::*;
-use crate::stats::QueryStat;
 use crate::tokens::*;
 use crate::{RowVal, DID, UID};
 use log::{warn};
@@ -8,9 +7,9 @@ use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
 use std::time;
 use std::collections::{HashSet};
+use mysql::prelude::*;
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
@@ -236,11 +235,10 @@ pub fn new_modify_token_wrapper(
 
 impl EdnaDiffToken {
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn reveal(
+    pub fn reveal<Q:Queryable>(
         &self,
         token_ctrler: &mut TokenCtrler,
-        db: &mut mysql::PooledConn,
-        stats: Arc<Mutex<QueryStat>>,
+        db: &mut Q,
     ) -> Result<bool, mysql::Error> {
         match self.update_type {
             REMOVE_PRINCIPAL => {
@@ -252,7 +250,7 @@ impl EdnaDiffToken {
                     loc_caps: self.loc_caps.clone(),
                 };
                 warn!("Going to reveal principal {}", self.uid);
-                token_ctrler.register_saved_principal(
+                token_ctrler.register_saved_principal::<Q>(
                     &self.uid,
                     pdata.is_anon,
                     pdata.should_remove,
@@ -268,10 +266,9 @@ impl EdnaDiffToken {
                 let start = time::Instant::now();
                 // get current guise in db
                 let token_guise_selection = get_select_of_ids(&self.guise_ids);
-                let selected = get_query_rows_str(
+                let selected = get_query_rows_str_q::<Q>(
                     &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
                     db,
-                    stats.clone(),
                 )?;
 
                 // XXX data can be revealed even if it should've been disguised in the interim
@@ -304,23 +301,20 @@ impl EdnaDiffToken {
                     })
                     .collect();
                 let valstr = vals.join(",");
-                query_drop(
+                db.query_drop(
                     format!(
                         "INSERT INTO {} ({}) VALUES ({})",
                         self.guise_name, colstr, valstr
                     ),
-                    db,
-                    stats.clone(),
                 )?;
                 warn!("Reveal removed data for {}: {}", self.guise_name, start.elapsed().as_micros());
             }
             MODIFY_GUISE => {
                 // get current guise in db
                 let token_guise_selection = get_select_of_ids(&self.guise_ids);
-                let selected = get_query_rows_str(
+                let selected = get_query_rows_str_q(
                     &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
                     db,
-                    stats.clone(),
                 )?;
 
                 // if field hasn't been modified, return it to original
@@ -345,15 +339,13 @@ impl EdnaDiffToken {
                         })
                     }
                 }
-                query_drop(
+                db.query_drop(
                     Statement::Update(UpdateStatement {
                         table_name: string_to_objname(&self.guise_name),
                         assignments: updates,
                         selection: Some(token_guise_selection),
                     })
                     .to_string(),
-                    db,
-                    stats.clone(),
                 )?;
             }
             REMOVE_TOKEN => {
@@ -383,7 +375,7 @@ impl EdnaDiffToken {
                 // if token has been revealed, attempt to reveal old value of token
                 if revealed {
                     let edna_old_token = edna_diff_token_from_bytes(&old_token.token_data);
-                    return edna_old_token.reveal(token_ctrler, db, stats.clone());
+                    return edna_old_token.reveal::<Q>(token_ctrler, db);
                 }
             }
             _ => unimplemented!("Bad diff token update type?"), // do nothing for PRIV_KEY

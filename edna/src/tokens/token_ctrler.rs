@@ -142,7 +142,7 @@ impl TokenCtrler {
             let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[3].value).unwrap();
             let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
             let locs = serde_json::from_str(&row[4].value).unwrap();
-            tctrler.register_saved_principal(
+            tctrler.register_saved_principal::<mysql::PooledConn>(
                 &row[0].value,
                 is_anon,
                 should_remove,
@@ -195,7 +195,7 @@ impl TokenCtrler {
         self.tmp_loc_caps.get(&(uid.to_string(), did))
     }
 
-    pub fn save_and_clear(&mut self, db: &mut mysql::PooledConn) -> HashMap<(UID, DID), LocCap> {
+    pub fn save_and_clear<Q:Queryable>(&mut self, db: &mut Q) -> HashMap<(UID, DID), LocCap> {
         // this creates dlcs and olcs btw, so we have to do it first
         if self.batch {
             self.insert_batch_tokens();
@@ -235,9 +235,9 @@ impl TokenCtrler {
 
         // actually remove the principals supposed to be removed
         for uid in self.tmp_remove_principals.clone().iter() {
-            self.remove_principal(&uid, db);
+            self.remove_principal::<Q>(&uid, db);
         }
-        self.persist_principals(db);
+        self.persist_principals::<Q>(db);
         self.clear_tmp();
         lcs
     }
@@ -269,7 +269,7 @@ impl TokenCtrler {
     /*
      * REGISTRATION
      */
-    pub fn register_saved_principal(
+    pub fn register_saved_principal<Q:Queryable>(
         &mut self,
         uid: &UID,
         is_anon: bool,
@@ -277,7 +277,7 @@ impl TokenCtrler {
         pubkey: &RsaPublicKey,
         lc: HashSet<EncData>,
         persist: bool,
-        db: &mut mysql::PooledConn,
+        db: &mut Q,
     ) {
         warn!("Re-registering saved principal {}", uid);
         let pdata = PrincipalData {
@@ -288,16 +288,16 @@ impl TokenCtrler {
         };
         if persist {
             self.mark_principal_to_insert(uid, &pdata);
-            self.persist_principals(db);
+            self.persist_principals::<Q>(db);
         }
         self.principal_data.insert(uid.clone(), pdata);
     }
 
-    pub fn register_principal(
+    pub fn register_principal<Q: Queryable>(
         &mut self,
         uid: &UID,
         is_anon: bool,
-        db: &mut mysql::PooledConn,
+        db: &mut Q,
         persist: bool,
     ) -> RsaPrivateKey {
         warn!("Registering principal {}", uid);
@@ -311,19 +311,19 @@ impl TokenCtrler {
 
         self.mark_principal_to_insert(uid, &pdata);
         if persist {
-            self.persist_principals(db);
+            self.persist_principals::<Q>(db);
         }
         self.principal_data.insert(uid.clone(), pdata);
         private_key
     }
 
-    pub fn register_anon_principal(
+    pub fn register_anon_principal<Q: Queryable>(
         &mut self,
         uid: &UID,
         anon_uid: &UID,
         did: DID,
         ownership_token_data: Vec<u8>,
-        db: &mut mysql::PooledConn,
+        db: &mut Q,
     ) {
         let start = time::Instant::now();
         let uidstr = uid.trim_matches('\'');
@@ -331,7 +331,7 @@ impl TokenCtrler {
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        let private_key = self.register_principal(&anon_uidstr.to_string(), true, db, false);
+        let private_key = self.register_principal::<Q>(&anon_uidstr.to_string(), true, db, false);
         warn!(
             "Edna: ownership token from anon principal {} to original {}",
             anon_uid, uid
@@ -361,7 +361,7 @@ impl TokenCtrler {
             .push((uid.clone(), pdata.clone()));
     }
 
-    fn persist_principals(&mut self, db: &mut mysql::PooledConn) {
+    fn persist_principals<Q: Queryable>(&mut self, db: &mut Q) {
         if self.tmp_principals_to_insert.is_empty() {
             return;
         }
@@ -418,7 +418,7 @@ impl TokenCtrler {
         );
     }
 
-    pub fn remove_principal(&mut self, uid: &UID, db: &mut mysql::PooledConn) {
+    pub fn remove_principal<Q:Queryable>(&mut self, uid: &UID, db: &mut Q) {
         // actually remove
         let start = time::Instant::now();
         let pdata = self.principal_data.get_mut(uid);
@@ -1107,7 +1107,7 @@ impl TokenCtrler {
                             } else if removed {
                                 warn!("Updating metadata of {}", new_uid);
                                 self.mark_principal_to_insert(&new_uid, &new_pp);
-                                self.persist_principals(db);
+                                self.persist_principals::<mysql::PooledConn>(db);
                                 self.principal_data.insert(new_uid.clone(), new_pp.clone());
                             }
 
@@ -1275,7 +1275,7 @@ mod tests {
         let old_fk_value = 5;
         let fk_col = "fk_col".to_string();
 
-        let private_key = ctrler.register_principal(&uid.to_string(), false, &mut db, true);
+        let private_key = ctrler.register_principal::<mysql::PooledConn>(&uid.to_string(), false, &mut db, true);
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
 
         let mut remove_token = new_delete_token_wrapper(
@@ -1346,7 +1346,7 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal(&u.to_string(), false, &mut db, true);
+            let private_key = ctrler.register_principal::<mysql::PooledConn>(&u.to_string(), false, &mut db, true);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1365,7 +1365,7 @@ mod tests {
                     remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token_wrapper(&mut remove_token);
                 }
-                let lcs = ctrler.save_and_clear(&mut db);
+                let lcs = ctrler.save_and_clear::<mysql::PooledConn>(&mut db);
                 caps.extend(lcs);
             }
         }
@@ -1434,7 +1434,7 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal(&u.to_string(), false, &mut db, true);
+            let private_key = ctrler.register_principal::<mysql::PooledConn>(&u.to_string(), false, &mut db, true);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1472,7 +1472,7 @@ mod tests {
                     own_token_bytes,
                     &mut db,
                 );
-                let lc = ctrler.save_and_clear(&mut db);
+                let lc = ctrler.save_and_clear::<mysql::PooledConn>(&mut db);
                 caps.extend(lc);
             }
         }

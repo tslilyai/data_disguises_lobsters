@@ -113,6 +113,38 @@ pub fn get_query_rows_str(
     Ok(rows)
 }
 
+pub fn get_query_rows_str_q<Q:Queryable>(
+    q: &str,
+    conn: &mut Q,
+) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
+    let mut rows = vec![];
+    let res = conn.query_iter(q)?;
+    let cols: Vec<String> = res
+        .columns()
+        .as_ref()
+        .iter()
+        .map(|c| c.name_str().to_string())
+        .collect();
+
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let mut i = 0;
+        let vals: Vec<RowVal> = rowvals
+            .iter()
+            .map(|v| {
+                let index = i;
+                i += 1;
+                RowVal {
+                    column: cols[index].clone(),
+                    value: mysql_val_to_string(v),
+                }
+            })
+            .collect();
+        rows.push(vals);
+    }
+    Ok(rows)
+}
+
 pub fn get_query_rows(
     q: &Statement,
     conn: &mut mysql::PooledConn,

@@ -49,126 +49,69 @@ This is the role of \sys's locators: each \lcapa{pd} points to a bag of
 encrypted records, and \sys maintains an index from locators to bags,
 but---crucially---forgets which $(p, d)$ produced the locator.
 %
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Recursive Disguising: Disguising Pseudoprincipals}
-\label{s:composition}
-
-\begin{figure}[t]
-    \centering
-    %\includegraphics[width=0.5\textwidth]{figs/client_op_stats}
-    \caption{Accessing recursively disguised pseudoprincipal records.}
-    \label{f:recursive}
-\end{figure}
-
-\sys should support disguises that transform data belonging to pseudoprincipals and thus produce
-records for pseudoprincipals. For example, pseudoprincipals own every answers after the WebSubmit
-admin applies class anonymization. If WebSubmit then performs account deletion of these anonymized
-answers, the corresponding answer-removal diff record would be associated with pseudoprincipals.
-
-One might argue that the WebSubmit could associate the answer-removal diff with the original natural
-principal owning the answer. However, \sys stll needs to allow disguises to be applied to the data
-of pseudoprincipals \emph{even without} knowing the original natural principal who owned the data.
-For example, application disguises may have mistakes that require additional disguises to remedy:
-the WebSubmit admin might later wish to scrub identifying keywords from answers in addition to
-anonymizing them.
-
-\head{How does \sys securely encrypt pseudoprincipal locators?}
-\sys must store pseudoprincipal-associated records securely such that only a client with natural
-principal $p$'s private key can access $p$'s pseudoprincipals' records. The simplest way would be
-to use \pubk{p} to encrypt pseudoprincipal $q$'s records; however, \sys may not know which original principal
-$p$ links to $q$.
+Locators are drawn randomly from a large domain, so their values give
+the attacker no additional information.
 %
-Instead, when \sys creates a new pseudoprincipal for $p$, \sys generates a keypair
-\pubk{q} and \privk{q} for pseudoprincipal $q$.
-Just like with natural principals, \sys stores \pubk{q} and uses it to encrypt $q$'s records.
 
-\sys then stores \privk{q} such that access to \privk{q} and thus also $q$'s records requires
-\privk{p} by
-\begin{enumerate}[nosep]
-    \item encrypting \privk{q} with \pubk{p} to produce $\enc(\pubk{p}, \privk{q})$, and
-    \item storing $\enc(\pubk{p}, \privk{q})$ at location \lcapa{pd} along with $p$'s encrypted diff
-records from disguise $d$.
-\end{enumerate}
-
-Because of the recursive nature of disguises, $p$ itself may be a pseudoprincipal and not a natural
-principal! Thus, the application cannot simply send \privk{q} via \eg email to principal $p$ when it
-creates a pseudoprincipal $q$ for $p$.
-
-Generating a single private-public keypair is prohibitively expensive (requiring over 300ms). To
-make pseudoprincipal creation---a common operation in disguising---cheap, \sys maintains a
-fixed-size pool of pregenerated keys that is periodically refreshed offline. The application tells
-\sys an appropriate size of the pool (\eg WebSubmit can estimate the maximum number of users in any
-single class, and multiply this by the maximum number of answers each user can submit).
-
-\head{What does \sys do with pseudoprincipal locators?}
-\sys stores $q$'s encrypted records from disguise $d$ at some locator \lcapa{qd}.  However, we again
-observe that the application and \sys cannot send \lcapa{qd} to some email address when $q$ is a
-pseudoprincipal! Instead, \sys saves \lcapa{qd} as part of $q$'s metadata (which also contains
-$\pubk{q}$).  To protect pseudoprincipal locators \lcapa{qd}, \sys encrypts \lcapa{qd} with the
-pseudoprincipal's public key \pubk{q} and stores $\enc(\pubk{q}, \lcapa{qd}$) in \sys's metadata for
-$q$ (which also includes \pubk{q}). 
-
-
-We illustrate in Figure~\ref{f:recursive} how a client that provides private key \privk{p} for
-natural principal $p$ and locator \lcapa{pd} may access \emph{both} $p$'s records for disguise $d$
-\emph{and} all records of all pseudoprincipals $q$ created during disguise $d$ to decorrelate data
-from $p$.  \sys accesses \privk{q} by decrypting \enc(\pubk{p}, \privk{q}) with \privk{p}. With
-\privk{q} and \lcapa{qd'} from $q$'s metadata, \sys locates all $q$'s encrypted records,
-and then decrypts these records with \privk{q}.
-\lyt{TODO clearing of records, $d' \neq d$}
-
-\lyt{Should we note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric
-crypto; otherwise, we could just send the symmetric key to the original user being disguised?}
-
-\head{What does \sys do with metadata of deleted pseudoprincipals?}
-Recall that \sys removes any metadata (\eg \pubk{p}) about principal $p$ when a disguise removes
-$p$'s corresponding principal object.
-However, \sys cannot simply remove pseudoprincipal $q$'s metadata when $q$ is removed: this metadata
-includes \lcapa{qd} ciphertexts. Removing \lcapa{qd} removes the ability to find $q$'s encrypted
-record bags efficiently.
-
-Without knowing natural principal-pseudoprincipal correspondences, and thus without any way to send
-\lcapa{qd} to a natural principal, \sys has only two choices when $q$ is removed by the application:
-(1) delete $q$'s metadata at the cost of losing (efficient) access to $q$'s records, or (2) retain
-$q$'s metadata at the cost of slightly weaker security (an attacker learns that a pseudoprincipal
-existed and some data had been decorrelated at some point, even if the corresponding user or data
-has since been deleted). \sys currently does the latter and retains pseudoprincipal metadata.
-%If a pseudoprincipal is often deleted while \sys has knowledge of the link between $q$ and original
-%principal $p$ (\eg, when a client deletes $p$'s account and provides speaks-for records
-%to \sys to delete $p$'s anoymized data). In these scenarios, \sys can .
+\subsection{Pre-generated Pseudoprincipal Keypairs}
+%
+Generating a single private-public keypair is expensive ($\approx$300ms), but
+decorrelating disguises require creating many pseudoprincipals.
+%
+To make pseudoprincipal creation cheap, \sys maintains a pool of
+pregenerated keypairs for pseudoprincipals that it periodically refreshes.
+%
+The application can tell \sys an appropriate size for the pool (\eg a reasonable
+upper bound on how much data a user might have).
+%
+\ms{Need to discuss security implications. No guarantees from point of
+compromise; bounded period of vulnerability to attacker who gets keys and
+uses them later.}
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{High-Level Disguise Specifications.}
-\sys's high-level disguising API can be used for a restricted set of disguises in applications that
-use SQL databases, represent objects as database rows and express principal data ownership via
-foreign-key relationships.
+\subsection{High-Level Disguise Specifications}
+%
+\sys's high-level disguising API works for a restricted set of common-case
+disguises in applications that use SQL databases, represent objects as
+database rows and express principal data ownership via foreign-key
+relationships.
+%
 
-Disguises specifications consist of predicated disguise operation specifications and a
-pseudoprincipal-generation specification.
-\sys performs each operation by selecting database objects that satisfy the predicate; performing SQL queries to modify the objects; and automatically generating and storing records corresponding to the operation performed using \sys's lower-level API.  \sys supports three high-level disguise specification
-operations:
-\begin{enumerate}[nosep]
-    \item Modify: change an attribute of the data object.
-    \item Remove: delete the data object.
-    \item Decorrelate: generate a pseudoprincipal $q$, and rewrite the foreign key to original
-        principal $p$ from the data object to instead point to $q$.
-\end{enumerate}
-Decorrelation creates a speaks-for record \town{pd} containing the created pseudoprincipal's
-ID; removal produces a diff record \tdiff{pd} with the removed object's value; and modification
-produces a diff record \tdiff{pd} containing the old and new values of the modified object.
+%
+Disguise specifications consist of predicated disguise operations
+and a pseudoprincipal-generation template.
+%
+For each disguise operation, \sys selects the database rows that satisfy
+the predicate; runs SQL queries to modify the objects; and generates and
+stores database diffs for the operation performed via \fn{StoreDiff} in
+\sys's lower-level API.
+%
+Our prototype supports modification and removal of rows, and decorrelation
+by foreign key.
+%
+Decorrelation generates a pseudoprincipal $q$, and rewrites the foreign
+key from original principal $p$ to instead point to $q$.
+%
+Decorrelation creates a speaks-for record that contains the new
+pseudoprincipal's ID; removal and modification produce diffs that contain
+the removed object's value and, for modification, the new value.
+%
+The pseudoprincipal generation template specifies how to generate a row
+that describes a pseudoprincipal in the application database.
+%
 
-Pseudoprincipal generation specifications consist of a list of per-column policies that each
-include the column name, and the selected policy on how to generate values for that column.
-\sys supports policies to set values as constants, or to generate random and/or unique strings, emails, past timestamps, phone
-numbers, and numbers (in a range).
-
-When revealing disguise $d$, \sys retrieves all records accessible with the provided decryption capability
-and locator, and restores the undisguised state by updating the relevant object rows in the database.
-To prevent accidental revealing of data that has been updated since $d$ was applied,
-\sys will first check that the data to restore is still in its disguised state. If the state of data does
-not match the recorded disguised state, then \sys knows the record corresponds to a stale and
-overwritten update, and will refuse to restore the undisguised state.
+When revealing disguise $d$, \sys retrieves all records accessible with
+the provided private key and locator, and restores the undisguised state
+by updating the relevant object rows in the database.
+%
+To prevent accidental revealing of data that the application updated
+since $d$ applied, \sys first checks that the disguised data in the
+application DB is unmodified.
+%
+If it does not match the recorded disguised state (stored in the diffs),
+\sys skips the diff and leaves the modified data in place.
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

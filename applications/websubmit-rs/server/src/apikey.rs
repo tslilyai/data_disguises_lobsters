@@ -19,7 +19,7 @@ use std::time;
 /// (username, apikey)
 pub(crate) struct ApiKey {
     pub user: String,
-    pub key: String,
+    key: String,
 }
 
 #[derive(Debug, FromForm)]
