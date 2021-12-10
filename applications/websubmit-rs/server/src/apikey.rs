@@ -71,8 +71,6 @@ pub(crate) fn generate(
 ) -> Template {
 
     // generate an API key from email address
-    #[cfg(feature = "flame_it")]
-    flame::start("generate_apikey");
     let start = time::Instant::now();
     let mut hasher = Sha256::new();
     hasher.input_str(&data.email);
@@ -80,8 +78,6 @@ pub(crate) fn generate(
     hasher.input_str(&config.secret);
     let hash = hasher.result_str();
     info!(bg.log, "apikey hash: {}", start.elapsed().as_micros());
-    #[cfg(feature = "flame_it")]
-    flame::end("generate_apikey");
 
     let is_admin = if config.admins.contains(&data.email) {
         1.into()
@@ -90,8 +86,6 @@ pub(crate) fn generate(
     };
 
     // insert into MySql if not exists
-    #[cfg(feature = "flame_it")]
-    flame::start("insert_user");
     let start = time::Instant::now();
     bg.insert(
         "users",
@@ -103,24 +97,16 @@ pub(crate) fn generate(
         ],
     );
     info!(bg.log, "user insert: {}", start.elapsed().as_micros());
-    #[cfg(feature = "flame_it")]
-    flame::end("insert_user");
     
     let mut privkey_str = String::new();
     if !config.is_baseline {
         // register user if not exists
-        #[cfg(feature = "flame_it")]
-        flame::start("register_principal");
         let start = time::Instant::now();
         let private_key = bg.edna.lock().unwrap().register_principal(&data.email);
         privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
         info!(bg.log, "register principal: {}", start.elapsed().as_micros());
-        #[cfg(feature = "flame_it")]
-        flame::end("register_principal");
     }
 
-    #[cfg(feature = "flame_it")]
-    flame::start("send_apikey_email");
     let start = time::Instant::now();
     if config.send_emails {
         email::send(
@@ -133,8 +119,6 @@ pub(crate) fn generate(
         .expect("failed to send API key email");
     }
     info!(bg.log, "send apikey email: {}", start.elapsed().as_micros());
-    #[cfg(feature = "flame_it")]
-    flame::end("send_apikey_email");
 
     // return to user
     let mut ctx = HashMap::new();

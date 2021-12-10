@@ -69,6 +69,7 @@ pub(crate) fn anonymize_answers(
     config: &State<Config>,
 ) -> Redirect {
     let olcs = disguises::universal_anon_disguise::apply(&*bg, config.is_baseline).unwrap();
+    debug!(bg.log, "olcs are {:?}", olcs);
     //let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
         email::send(
@@ -243,7 +244,7 @@ pub(crate) fn delete_submit(
     //assert!(dlcs.len() <= 1);
     //assert!(olcs.len() <= 1);
     debug!(bg.log, "Got LCS {:?}", lcs);
-    let dlc_str = match lcs.get(&(apikey.key.clone(), disguises::gdpr_disguise::get_did())) {
+    let dlc_str = match lcs.get(&(apikey.user.clone(), disguises::gdpr_disguise::get_did())) {
         Some(dlc) => format!("{}", dlc),
         None => 0.to_string(),
     };
