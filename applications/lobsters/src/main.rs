@@ -6,7 +6,7 @@ extern crate rand;
 
 use chrono::Local;
 use edna::{helpers, EdnaClient};
-use log::{error};
+use log::{warn, error};
 use mysql::prelude::*;
 use rand::Rng;
 use rsa::pkcs1::ToRsaPrivateKey;
@@ -21,6 +21,7 @@ use std::time;
 use std::time::Duration;
 use std::*;
 use structopt::StructOpt;
+use std::convert::TryInto;
 
 mod datagen;
 mod disguises;
@@ -123,53 +124,56 @@ fn main() {
     let mut user_stories = 0;
     let mut user_comments = 0;
     let mut user_votes = 0;
-    let user_to_disguise = if args.disguiser == "cheap" {
-        1 as u64
+    let user_to_disguise : i64 = if args.disguiser == "cheap" {
+        0 
     } else if args.disguiser == "expensive" {
-        nusers as u64
+        nusers as i64
     } else {
-        0
+        -1 
     };
-    let res = db
-        .query_iter(format!(
-            r"SELECT COUNT(*) FROM stories WHERE user_id={};",
-            user_to_disguise
-        ))
-        .unwrap();
-    for row in res {
-        let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 1);
-        user_stories = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+
+    if user_to_disguise > 0 {
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM stories WHERE user_id={};",
+                user_to_disguise
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            user_stories = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        }
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM votes WHERE user_id={};",
+                user_to_disguise
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            user_votes = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        }
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM comments WHERE user_id={};",
+                user_to_disguise
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            user_comments = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        }
+        error!(
+            "Going to expensive disguise user with {} stories, {} comments, {} votes ({} total)",
+            user_stories,
+            user_comments,
+            user_votes,
+            user_stories + user_votes + user_comments
+        );
     }
-    let res = db
-        .query_iter(format!(
-            r"SELECT COUNT(*) FROM votes WHERE user_id={};",
-            user_to_disguise
-        ))
-        .unwrap();
-    for row in res {
-        let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 1);
-        user_votes = helpers::mysql_val_to_u64(&vals[0]).unwrap();
-    }
-    let res = db
-        .query_iter(format!(
-            r"SELECT COUNT(*) FROM comments WHERE user_id={};",
-            user_to_disguise
-        ))
-        .unwrap();
-    for row in res {
-        let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 1);
-        user_comments = helpers::mysql_val_to_u64(&vals[0]).unwrap();
-    }
-    error!(
-        "Going to disguise user with {} stories, {} comments, {} votes ({} total)",
-        user_stories,
-        user_comments,
-        user_votes,
-        user_stories + user_votes + user_comments
-    );
 
     let mut threads = vec![];
     let arc_sampler = Arc::new(sampler);
@@ -180,18 +184,19 @@ fn main() {
         let mut db = edna.get_conn().unwrap();
         let my_arc_sampler = arc_sampler.clone();
         threads.push(thread::spawn(move || {
-            run_normal_thread(&mut db, my_arc_sampler, my_op_durations, c)
+            run_normal_thread(user_to_disguise, &mut db, my_arc_sampler, my_op_durations, c)
         }));
     }
     error!("Waiting for barrier!");
     barrier.wait();
 
     let arc_edna = Arc::new(Mutex::new(edna));
-    let ndisguises = if user_to_disguise > 0 {
+    let ndisguises = if user_to_disguise >= 0 {
         run_disguising_sleeps(
             &args,
             arc_edna,
-            user_to_disguise,
+            user_to_disguise.try_into().unwrap(),
+            nusers,
             &user2decryptcap,
             delete_durations.clone(),
             restore_durations.clone(),
@@ -215,6 +220,7 @@ fn main() {
 }
 
 fn run_normal_thread(
+    disguiser: i64,
     db: &mut mysql::PooledConn,
     sampler: Arc<datagen::Sampler>,
     op_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
@@ -222,6 +228,7 @@ fn run_normal_thread(
 ) {
     let nstories = sampler.nstories();
     let ncomments = sampler.ncomments();
+    let nusers = sampler.nusers() as u64;
 
     let mut rng = rand::thread_rng();
     let max_id = ncomments * 10000;
@@ -232,11 +239,13 @@ fn run_normal_thread(
     let overall_start = time::Instant::now();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         let start = time::Instant::now();
-        // XXX: we're assuming that basically all page views happen as a user, and that the users
-        // who are most active voters are also the ones that interact most with the site.
-        // XXX: we're assuming that users who vote a lot also comment a lot
-        // XXX: we're assuming that users who vote a lot also submit many stories
-        let user_id = sampler.user(&mut rng) as u64;
+        // XXX: assume a uniform distribution of assuming high-use users mostly 
+        // submit requests
+        //let user_id = sampler.user(&mut rng) as u64;
+        let mut user_id = rng.gen_range(0, nusers);
+        if disguiser > 0 && user_id as i64 == disguiser {
+            user_id = rng.gen_range(0, nusers);
+        }
         let user = Some(user_id);
 
         // randomly pick next request type based on relative frequency
@@ -311,7 +320,7 @@ fn run_normal_thread(
         res.sort();
         my_op_durations.push((overall_start.elapsed(), start.elapsed()));
         //let dur = start.elapsed().as_micros();
-        //error!("user{} {}: {}", user_id, op, dur);
+        warn!("user{} {}", user_id, op);
     }
     op_durations.lock().unwrap().append(&mut my_op_durations);
 }
@@ -368,13 +377,19 @@ fn run_disguising_sleeps(
     args: &Cli,
     edna: Arc<Mutex<EdnaClient>>,
     uid: u64,
+    nusers: u32,
     user2decryptcap: &HashMap<u64, Vec<u8>>,
     delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
 ) -> Result<u64, mysql::Error> {
     let overall_start = time::Instant::now();
     let mut nexec = 0;
-    //let mut rng = rand::thread_rng();
+    let mut rng = rand::thread_rng();
+    // if we're doing random
+    let mut uid = uid;
+    if uid == 0 {
+        uid = rng.gen_range(0, nusers) as u64;
+    }
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         // wait between each round
         thread::sleep(time::Duration::from_millis(args.nsleep));
@@ -644,8 +659,10 @@ fn run_stats_test(
         // baseline delete
         // only measure this if we're not priming, so we don't mess up the DB again...
         let start = time::Instant::now();
-        disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
-        //disguises::baseline::apply_decay(user_id, edna).unwrap();
+        if !prime {
+            //disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
+            //disguises::baseline::apply_decay(user_id, edna).unwrap();
+        }
         file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
             .unwrap();
     }

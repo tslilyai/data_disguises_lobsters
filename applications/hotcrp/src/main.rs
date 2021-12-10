@@ -82,7 +82,7 @@ fn run_edna(args: &Cli) {
         "127.0.0.1",
         DBNAME,
         SCHEMA,
-        true,
+        false,
         nusers * 100, 
         disguises::get_guise_gen(), 
     );
