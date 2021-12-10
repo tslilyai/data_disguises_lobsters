@@ -215,31 +215,12 @@ and to update objects to point to these new pseudopricipals (\eg updating foreig
 encrypting and storing these speaks-for records with the appropriate public keys.
 With record batching, encryption occurs once per account, rather than once per object.
 
-\begin{table*}[t!]
-\begin{center}
-\begin{tabular}{ c | c c }
-& \multicolumn{2}{c}{\textbf{Prior Applied Disguises}} \\
-    \textbf{Op} & None & Anonymization \\
-\hline
-WebSubmit Delete & 30 & 112 \\
-WebSubmit Restore & 250 & 372\\
-HotCRP Delete & 114 & 1612 \\
-HotCRP Restore & 629 & 1856 \\
-\end{tabular}
-\quad
-\begin{tabular}{ c | c c }
- & \multicolumn{2}{c}{\textbf{Prior Applied Disguises}} \\
-    \textbf{Op w/Batching} & None & Anonymization \\
-\hline
-WebSubmit Delete  & 3 & 30 \\
-WebSubmit Restore  & 18 & 86\\
-HotCRP Delete  & 51 & 880 \\
-HotCRP Restore  & 73 & 998
-\end{tabular}
-\end{center}
-\caption{Account delete and restore latencies before anonymization, and composed after anonymization.}
-\label{tab:composition}
-\end{table*}
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.45\textwidth]{figs/composition_stats}
+    \caption{Latency of account delete and restore before anonymization vs. composed after anonymization.}
+    \label{f:composition}
+\end{figure}
 
 \textbf{Composing Deletion After Anonymization.}
 \lyt{TODO}

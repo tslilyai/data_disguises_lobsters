@@ -13,7 +13,7 @@ def add_labels(x,y,ax,color,offset):
 barwidth = 0.15
 # positions
 X = np.arange(2)
-labels = ['1 User', '10 Users']
+labels = ['Low Load', 'High Load']
 
 # collect all results
 op_results = defaultdict(list)
@@ -81,7 +81,7 @@ yerr=get_yerr([
     op_results[10][1],
 
 ]),
-color='c', capsize=5, width=barwidth, label="Cheap Disguiser")
+color='c', capsize=5, width=barwidth, label="Random Disguiser")
 add_labels((X-barwidth),
 [
     statistics.median(op_results[1][1]),
@@ -98,7 +98,7 @@ yerr=get_yerr([
     op_results_txn[10][1],
 
 ]),
-color='b', capsize=5, width=barwidth, label="Cheap Disguiser (Txn)")
+color='b', capsize=5, width=barwidth, label="Random Disguiser (Txn)")
 add_labels((X),
 [
     statistics.median(op_results_txn[1][1]),
