@@ -74,6 +74,7 @@ class SignupController < ApplicationController
       begin
         result = api_instance.apiproxy_register_principal(body)
         p result
+        RegisterNotification.notify(@new_user, result.privkey).deliver_now
       rescue SwaggerClient::ApiError => e
         puts "Exception when calling DefaultApi->apiproxy_register_principal: #{e}"
       end

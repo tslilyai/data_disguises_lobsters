@@ -48,8 +48,9 @@ class SettingsController < ApplicationController
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
 
+    DeleteNotification.notify(@user, locator).deliver_now
     reset_session
-    flash[:success] = "You have deleted your account and disowned your stories and comments. You can come back by going to /users/recover_account with your locator #{locator}. Bye."
+    flash[:success] = "You have deleted your account and disowned your stories and comments. Bye."
     return redirect_to "/"
   end
 
