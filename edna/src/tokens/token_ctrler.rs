@@ -47,7 +47,6 @@ impl EncData {
         let cipher = Aes128Cbc::new_from_slices(&key, &self.iv).unwrap();
         let mut edata = self.enc_data.clone();
         let plaintext = cipher.decrypt_vec(&mut edata).unwrap();
-        let size = plaintext.len();
         (key.to_vec(), plaintext)
     } 
     pub fn encrypt_with_pubkey(pubkey: &RsaPublicKey, bytes: &Vec<u8>) -> EncData {
@@ -471,29 +470,6 @@ impl TokenCtrler {
     /*
      * PRINCIPAL TOKEN INSERT
      */
-    fn encrypt_with_pubkey(&mut self, pubkey: &RsaPublicKey, bytes: &Vec<u8>) -> EncData {
-        // generate key
-        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut key[..]);
-
-        // encrypt key with pubkey
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let enc_key = pubkey
-            .encrypt(&mut self.rng, padding, &key[..])
-            .expect("failed to encrypt");
-
-        // encrypt pppk with key
-        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut iv[..]);
-        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-        let encrypted = cipher.encrypt_vec(bytes);
-        EncData {
-            enc_key: enc_key,
-            enc_data: encrypted,
-            iv: iv,
-        }
-    }
-
     fn update_batch_privkeys_at_loc(&mut self, uid: UID, lc: &LocCap, pks: &Vec<PrivkeyToken>) {
         let p = self
             .principal_data
