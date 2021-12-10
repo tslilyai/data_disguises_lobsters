@@ -68,39 +68,71 @@ reassigns contributions to a ``inactive user'' placeholder.
 This allows the user to return, but provides them with no privacy against an
 attacker who compromises the server while the user is in deleted state.
 %
-How could the Lobsters developers try to provide this privacy?
+Providing this privacy would impose a high burden on the
+Lobsters developers: they would need to devise their own cryptographic
+server-side storage for deleted users' data,
+%or have the user
+%export their account data, delete it in the database, and then
+%cryptographically verify on re-import that the data has not been tampered
+%with.
 %
-One option might be to devise their own cryptographic server-side storage for
-deleted users' data; another might have the user export their account data,
-delete it in the database, and then cryptographically verify on re-import that
-the data has not been tampered with.
+%In addition, the Lobsters developers would also need to
+ensure that the application continues to work for the remaining users, and
+protect against attacks that leverage leftover metadata (such as the tags on
+deleted users' posts) to infer a deleted user's identity.
 %
-In either option, the Lobsters developers also need to ensure that the
-application continues to work for the remaining users, and protect against
-attacks that leverage leftover metadata (such as the tags on deleted users'
-posts) to infer the identity of deleted users.
-%
-These are tough challenges, and developers must solve them anew for each
-application today.
+Worse, developers must solve these challenges anew for each application
+today.
 %
 
 %
 % Overview and key ideas
 %
-Data disguising provides a clean set of abstractions that address these
-challenges, and a reusable library that web applications can link to gain
-secure and expressive privacy transformations.
+Data disguising provides a clean set of reusable abstractions that web
+applications use to implement secure and expressive privacy transformations,
+based on two key idas.
 %
 % Two key ideas: encrypted data storage and pseudoprincipals
-\note{old follows}
 %
-To address this, we introduce \emph{pseudoprincipals}, which are first-class anonymous
-users that serve as stand-ins for disguised users.
+First, an application can \emph{disguise} data at any point, replacing it with
+less identity-revealing information in the application database.
 %
-A disguised principal typically---depending on the level of security and anonymity
-desired---has many pseudoprincipals, up to one for each application data object.
+The original data remains on the server, but in encrypted form, managed by the
+data disguising library.
 %
-\sys uses only standard public-private key cryptography.
+After disguising, only the original application principal associated with the
+encrypted data can ever, interactively, \emph{reveal} it again.
+%
+Second, the application uses \emph{pseudoprincipals}, which are first-class
+anonymous users that serve as stand-ins for disguised application users, to
+preserve functionality even after it has disguised user data.
+%
+Pseudoprincipals cannot be de-anonymized even by an attacker who has full
+access to the server, but the original user can prove their ownership of
+pseudoprincipals to access data under disguise or lift the disguse.
+%
+A disguised user typically---depending on the level of security and anonymity
+desired---has many pseudoprincipals, up to one for each application data
+object the user originally owned.
+%
+
+%
+We implemented data disguising in \sys, a reusable library that
+web applications use to express, apply, and reveal data disguises.
+%
+Applications may have a wide range of privacy goals and policies, and they
+use \sys's APIs to realize these.
+%
+\sys itself is agnostic to the specific disguise implemented, and the
+application interacts with it through the abstractions of application-managed
+principals, database diffs, and speaks-for relationships between principals.
+%
+Importantly, the application can rest assured that any database diff
+and speaks-for relationship provided to \sys for secure storage is protected
+until the original owner actively chooses to reveal it.
+%
+\sys uses only standard public-private key cryptography to achieve this, and
+hides the cryptographic details from application developers.
 %
 
 %
@@ -111,8 +143,8 @@ application server, and thus gains access to the full database contents, the ser
 memory, and can act with full administrator privileges in the application.
 %
 Data disguised prior to compromise remains secure as long as the principal
-originally associated with the data does not interact with their disguised
-data.
+originally associated with the data does not interact with the data stored in
+\sys or explicitly reveals it.
 %
 Further, \sys's metadata---\eg whose data has been disguised in which way---is
 hidden from the attacker under the same assumption.
