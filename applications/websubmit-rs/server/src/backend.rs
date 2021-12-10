@@ -55,7 +55,7 @@ impl MySqlBackend {
             "127.0.0.1",
             dbname,
             &schema,
-            true,
+            false,
             nguises,
             disguises::get_guise_gen(), /*in-mem*/
         );

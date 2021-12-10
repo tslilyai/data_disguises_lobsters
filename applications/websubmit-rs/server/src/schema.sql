@@ -1,4 +1,4 @@
-CREATE TABLE users (email varchar(255), apikey text, is_admin tinyint, is_anon tinyint, PRIMARY KEY (apikey));
+CREATE TABLE users (email varchar(255), apikey varchar(255), is_admin tinyint, is_anon tinyint, PRIMARY KEY (apikey));
 CREATE TABLE lectures (id int, label varchar(255), PRIMARY KEY (id));
 CREATE TABLE questions (lec int, q int, question text, PRIMARY KEY (lec, q));
 CREATE TABLE answers (`user` varchar(255), lec int, q int, answer text, submitted_at datetime, PRIMARY KEY (`user`, lec, q), INDEX `user` (`user`));
