@@ -1,8 +1,155 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Interactions Between Disguises}
+\label{s:composition}
+
+\begin{figure}[t]
+    \centering
+    \note{Potential figure here.}
+    \caption{\sys composes disguises by recursively disguising
+             pseudoprincipal-owned records.}
+    \label{f:recursive}
+\end{figure}
+
+%
+We imagine that \sys-enabled applications will contain multiple
+disguises, and that developers will invent and implement new disguises
+over time.
+%
+For example, an application might start out with a disguise for account
+deletion only, then add a data decay disguise, and finally add a more
+fine-grained anonymization disguise that scrubs identifying keywords
+from content in addition to decorrelating them.
+%
+Or a disguise may have a bug that requires an additional disguise
+to remedy.
+%
+In all these cases, \sys must support disguises that potentially
+operate over already-disguised data.
+%
+
+%
+The application database changes for a disguise $d_2$ that applies
+to data already disguised by earlier disguise $d_1$ is fairly
+straightforward: $d_2$ modifies the data again, deletes it, or
+decorrelates it to pseudoprincipals.
+%
+However, if \sys is to permit revealing $d_2$---\ie let a natural
+principal $p$ restore the state after $d_1$ but before $d_2$---it must
+store encrypted records of $d_2$'s changes.
+%
+But now, a challenges arises: data decorrelated to pseudoprincipals
+by $d_1$ is associated with those pseudoprincipals in the application
+DB, rather than with a natural principal; indeed, the application
+and \sys \emph{must} have forgotten its association with a natural
+principal to be secure.
+%
+Consequently, \sys lacks a public key to encrypt $d_2$'s changes
+with, such that $p$ can reveal them.
+%
+Moreover, the application will struggle to convey the locators returned
+by \sys to the right client, since it cannot know which principal
+originally owned the data.
+%
+For example, after the instructor anonymizes a class in WebSubmit, all
+answers are associated with pseudoprincipals.
+%
+If a user now seeks to delete their account (but retains the power to
+restore it later), the corresponding answer-removal database diffs
+must be associated with pseudoprincipals.
+%
+\ms{This is not a good example; account removal is interactive, so
+the application and Edna know that the records need to be associated with
+$p$ at the time of disguising.}
+%
+%One might argue that the WebSubmit could associate the answer-removal diff with the original natural
+%principal owning the answer. However, \sys stll needs to allow disguises to be applied to the data
+%of pseudoprincipals \emph{even without} knowing the original natural principal who owned the data.
+
+%
+To solve this challenge, \sys stores data for pseudoprincipals,
+and establishes ways for a natural principal to prove a speaks-for
+relationship with these pseudoprincipals.
+%
+
+\head{Storing Locators for Pseudoprincipals.}
+%
+\sys must store data for pseudoprincipals in such a way that only a client
+with natural principal $p$'s private key can access the records of $p$'s
+pseudoprincipals.
+%
+Encrypting records for pseudoprincipal $q$ with $p$'s public key does not
+always work, as  \sys may not know which natural principal $p$ links to $q$.
+%
+Instead, when \sys creates a new pseudoprincipal for $p$, \sys generates
+a keypair for pseudoprincipal $q$.
+%
+Just like with natural principals, \sys stores $q$'s public key and uses it
+to encrypt $q$'s records.
+%
+
+\sys then stores \privk{q} such that access to \privk{q} and thus also $q$'s records requires
+\privk{p} by
+\begin{enumerate}[nosep]
+    \item encrypting \privk{q} with \pubk{p} to produce $\enc(\pubk{p}, \privk{q})$, and
+    \item storing $\enc(\pubk{p}, \privk{q})$ at location \lcapa{pd} along with $p$'s encrypted diff
+records from disguise $d$.
+\end{enumerate}
+
+Because of the recursive nature of disguises, $p$ itself may be a pseudoprincipal and not a natural
+principal! Thus, the application cannot simply send \privk{q} via \eg email to principal $p$ when it
+creates a pseudoprincipal $q$ for $p$.
+
+Generating a single private-public keypair is prohibitively expensive (requiring over 300ms). To
+make pseudoprincipal creation---a common operation in disguising---cheap, \sys maintains a
+fixed-size pool of pregenerated keys that is periodically refreshed offline. The application tells
+\sys an appropriate size of the pool (\eg WebSubmit can estimate the maximum number of users in any
+single class, and multiply this by the maximum number of answers each user can submit).
+
+\head{What does \sys do with pseudoprincipal locators?}
+\sys stores $q$'s encrypted records from disguise $d$ at some locator \lcapa{qd}.  However, we again
+observe that the application and \sys cannot send \lcapa{qd} to some email address when $q$ is a
+pseudoprincipal! Instead, \sys saves \lcapa{qd} as part of $q$'s metadata (which also contains $\pubk{q}$).
+
+%To protect pseudoprincipal locators \lcapa{qd}, \sys encrypts \lcapa{qd} with the
+%pseudoprincipal's public key \pubk{q} and stores $\enc(\pubk{q}, \lcapa{qd}$) in \sys's metadata for $q$ (which also includes \pubk{q}). This contrasts with how \sys returns locators to the application when storing records for natural principals.
+
+We illustrate in Figure~\ref{f:recursive} how a client that provides private key \privk{p} for
+natural principal $p$ and locator \lcapa{pd} may access \emph{both} $p$'s records for disguise $d$
+\emph{and} all records of all pseudoprincipals $q$ created during disguise $d$ to decorrelate data
+from $p$.  \sys accesses \privk{q} by decrypting \enc(\pubk{p}, \privk{q}) with \privk{p}. With
+\privk{q} and \lcapa{qd'} from $q$'s metadata, \sys locates all $q$'s encrypted records,
+and then decrypts these records with \privk{q}.
+\lyt{TODO clearing of records, $d' \neq d$}
+
+\lyt{Should we note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric
+crypto; otherwise, we could just send the symmetric key to the original user being disguised?}
+
+\head{What does \sys do with metadata of deleted pseudoprincipals?}
+Recall that \sys removes any metadata (\eg \pubk{p}) about principal $p$ when a disguise removes
+$p$'s corresponding principal object.
+However, \sys cannot simply remove pseudoprincipal $q$'s metadata when $q$ is removed: this metadata
+includes \lcapa{qd} ciphertexts. Removing \lcapa{qd} removes the ability to find $q$'s encrypted
+record bags efficiently.
+%If \sys wanted to access $q$'s records for \eg disguise reversal, \sys would need
+%to attempt to decrypt every encrypted record bag at every location.
+
+Without knowing natural principal-pseudoprincipal correspondences, and thus without any way to send
+\lcapa{qd} to a natural principal, \sys has only two choices when $q$ is removed by the application:
+(1) delete $q$'s metadata at the cost of losing (efficient) access to $q$'s records, or (2) retain
+$q$'s metadata at the cost of slightly weaker security (an adversary learns that a pseudoprincipal
+existed and some data had been decorrelated at some point, even if the corresponding user or data
+has since been deleted). \sys currently does the latter and retains pseudoprincipal metadata.
+%If a pseudoprincipal is often deleted while \sys has knowledge of the link between $q$ and original
+%principal $p$ (\eg, when a client deletes $p$'s account and provides speaks-for records
+%to \sys to delete $p$'s anoymized data). In these scenarios, \sys can .
+
+%%% OLD
+\begin{comment}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Disguising and Revealing Semantics}
 \label{sec:comp}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-This section describes the semantics of disguising provided by \sys. 
+This section describes the semantics of disguising provided by \sys.
 In particular, we describe the end state of a data object given some history of disguise
 applications and reveals.
 
@@ -18,21 +165,21 @@ $\dots$].
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Composing Multiple Disguise Applications.}}
 Let $d_1$ and $d_2$ be two disguises, where $d_1$ is applied after $d_2$.
-to produce disguise history [\app{d_1}, \app{d_2}]. 
+to produce disguise history [\app{d_1}, \app{d_2}].
 %
 Let $x$ be some application data object, where \xstart is its initial state, and
 \xhist{[\app{d_1}, \app{d_2}]} is the final state after \sys applies $d_1$ and $d_2$.
 %
 If both $d_1$ and $d_2$ update $x$, what is \xhist{[\app{d_1}, \app{d_2}]}?
-We consider two possible end states: 
+We consider two possible end states:
 %
 \begin{enumerate}
     \item[(\appcompone)] \xhist{[\app{d_1}, \app{d_2}]} reflects the application of
-        \emph{both $d_1$ and $d_2$} to \xstart. 
+        \emph{both $d_1$ and $d_2$} to \xstart.
 
         In other words, if an \op{d_2}'s predicate \texttt{pred} matches \xstart, then \op{d_2} is
         applied to \xhist[\app{d_1}], even if \texttt{pred} does not match
-        \xhist{[\app{d_1}]}. 
+        \xhist{[\app{d_1}]}.
 
     \op{d_2} updates are applied sequentially after $d_1$'s updates if the two modify the
         same object attribute.
@@ -57,17 +204,17 @@ pseudoprinicipal authors such as ``anonFox.'' \op{d_2} only knows the state of p
 \end{enumerate}
 
 The choice of whether \xhist{[\app{d_1}, \app{d_2}]} should result in \appcompone or \appcomptwo depends on the
-specific application and is left to the developer to specify. 
+specific application and is left to the developer to specify.
 
 In certain scenarios, however, \sys can only achieve end state \appcomptwo. In order to achieve \appcompone,
 $d_2$ must evalute predicates against \xstart, which requires knowing the value of \xstart.  To learn
 \xstart, \sys must know how $d_1$ modified $x$ (\eg knowing that a post with author ``anonFox''
 originally was a post with author ``Bea''); this information, however, is stored in in the diffs produced
-by $d_1$. 
+by $d_1$.
 
 \sys may not have access to these diffs when applying $d_2$: a client who invokes $d_2$ while authenticated as
-principal $q \neq p$, and who does not provide the relevant capabilities%y pairs \pcapa{pd_1}, 
-cannot access $p$'s diffs for $d_1$. 
+principal $q \neq p$, and who does not provide the relevant capabilities%y pairs \pcapa{pd_1},
+cannot access $p$'s diffs for $d_1$.
 
 In this case, $d_2$ can only match against \xhist{[\app{d_1}]} and achieve end state \appcomptwo.
 This is shown in Table~\ref{tab:composeapp}.
@@ -78,7 +225,7 @@ This is shown in Table~\ref{tab:composeapp}.
     & \multicolumn{2}{c}{\textbf{Access $d_1$'s diffs while \app{d_2}?}}\\
     & \textbf{Yes} & \textbf{No} \\
 \hline
-    \xhist{[\app{d_1},\app{d_2}]}& \appcompone or \appcomptwo & \appcomptwo 
+    \xhist{[\app{d_1},\app{d_2}]}& \appcompone or \appcomptwo & \appcomptwo
 \end{tabular}
 \vspace{6pt}
 
@@ -100,7 +247,7 @@ We now consider composition of disguises in the presence of disguise reversals.
 \end{tabular}
 \vspace{6pt}
 
-\caption{Possibilities for \xhist{[\app{d_i},\rev{d_i}]} depending on whether \sys has 
+\caption{Possibilities for \xhist{[\app{d_i},\rev{d_i}]} depending on whether \sys has
     access to diffs from $d_i$ regarding $x$.}
 \label{tab:composeapprev}
 \end{table}
@@ -114,7 +261,7 @@ inaccessible.
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-    \textbf{$d_1$ and $d_2$'s Updates} & \multicolumn{2}{c}{\textbf{Access 
+    \textbf{$d_1$ and $d_2$'s Updates} & \multicolumn{2}{c}{\textbf{Access
         to $d_1$'s diffs while \rev{d_1}?}}\\
     & \textbf{Yes} & \textbf{No} \\
     \hline
@@ -129,19 +276,19 @@ inaccessible.
 \end{table}
 
 We next consider \textbf{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]}}: the end state of $x$ when a disguise
-$d_1$ is revealed after a subsequent disguise $d_2$ has been applied. 
+$d_1$ is revealed after a subsequent disguise $d_2$ has been applied.
 Table~\ref{tab:composeapprev1} illustrates how the result
 depends on \sys's access to $d_1$ diffs, and whether $d_1$ and $d_2$ performed
 conflicting modifications to $x$'s attributes.
 
 When the client invoking \rev{d_1} provides no authorization to access to $d_1$'s diffs, then the
-updates applied by $d_1$ to $x$ cannot be revealed.  However, even if the client 
+updates applied by $d_1$ to $x$ cannot be revealed.  However, even if the client
 grants access to $d_1$'s diffs, \sys will fail to reveal $d_1$'s updates to $x$ if $d_2$ and $d_1$
 both modify $x$ in a conflicting manner: $\rev{d_1}$ must not restore data that was also disguised by
 $d_2$, and until $d_2$ is revealed, invocations of \rev{d_1} will not reveal \xstart.
 
 \subsection{Composition Implementation Techniques}
-\sys's algorithm for disguising and disguise reversal in most scenarios is straightforward. 
+\sys's algorithm for disguising and disguise reversal in most scenarios is straightforward.
 
 To apply disguise $d_i$, \sys applies each \op{d_i} to all
 data objects satisfying \op{d_i}'s predicate, while also taking into account the information in
@@ -170,12 +317,12 @@ stored in the diff.
 %
 A disguise may optionally store diffs in global storage, accessible to \sys without any client
 authorization.
-Such a global disguise provides no privacy guarantees against an adversary who compromises 
+Such a global disguise provides no privacy guarantees against an adversary who compromises
 the application server, but does transform the application database so external users see disguised
 data.
 
 If $d_1$ is a global disguise and $d_2$ a normal, privacy-preserving disguise,
-\op{d_2} may update a data object $x$ previously updated by \op{d_1}. 
+\op{d_2} may update a data object $x$ previously updated by \op{d_1}.
 
 \op{d_1} produces a global diff \tdiff{pd_1}; \op{d_2} produces a normal,
 encrypted and secured diff \tdiff{pd_2}.
@@ -188,10 +335,10 @@ updates the data in \tdiff{pd_1} with \op{d_2}'s update. An update to a diff suc
 \tdiff{pd_1} itself generates a (private) diff \tdiff{pd_2}, just as updating a data
 object generates a diff.
 
-Revealing $d_2$ uses \tdiff{pd_2} to reveal the modification to \tdiff{pd_1}. 
+Revealing $d_2$ uses \tdiff{pd_2} to reveal the modification to \tdiff{pd_1}.
 If $d_1$ has already been revealed, and the database state of $x$ updated to reflect the
 contents of \tdiff{pd_1} (which were updated by the application of $d_2$), then \sys
-simply uses \tdiff{pd_2} to reveal the current state of $x$ in the database. 
+simply uses \tdiff{pd_2} to reveal the current state of $x$ in the database.
 
 If a future $d_3$ has further updated \tdiff{pd_1} in a way that conflicts with $d_2$'s update, then
 upon reversal of $d_2$, \sys will notice that \tdiff{pd_2} records an overwritten update to
@@ -208,3 +355,4 @@ diff \tdiff{pd_2} stored in \lcapa{pd_2} that saves the removal of \tdiff{pd_1} 
 %This allows an earlier disguise to be revealed correctly.
 %An easy way to avoid needing to do this is to have all objects in the DB have unique, permanent
 %identifiers.
+\end{comment}
