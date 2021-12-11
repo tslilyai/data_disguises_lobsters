@@ -66,6 +66,7 @@ While an attacker can learn that $n$ records exist for \emph{some} $p$ and $d$ b
 inspecting the index and bags, they cannot identify \emph{which} $p$ or $d$.
 %
 
+%
 Because \sys stores locators from disguises over pseudoprincipal-owned data as part
 of its pseudoprincipal metadata, \sys's disguise composition leaks that \emph{some}
 number of disguises have applied to pseudoprincipal $q$.
@@ -75,24 +76,29 @@ by decrypting a bag protected by another principal's private key, a chain that e
 back to some natural principal $p$.
 %
 This prevents an attacker from finding out which bags belong to $q$, and therefore
-also protects the correspondence of bags to natural principals' data.
+also hides which bags correspond to natural principals' data.
 %
-Because $q$ is dissociated from the original natural principal $p$ that speaks for $q$
+Because $q$ is dissociated from the natural principal $p$ that speaks for $q$
 (possibly via intermediate principals), the attacker cannot determine if natural
-principal $p$ ever existed, or if they have any data in \sys.
+principal $p$ ever existed, nor if they have any data in \sys.
 %
 
 %
-If an attacker compromises the server at time $t$, they can harvest the private keys
+If an attacker compromises the server at time $t$, they can harvest any private key
 that a client provides for operations after $t$.
 %
-This lets the attacker reveal all data that \sys encrypted with this private key.
+The attacker can therefore reveal all current data under disguise stored in \sys and
+encrypted with this private key.
 %
 Likewise, when a client provides $(\lcapa{pd}, p, d)$ to operate over data under disguise,
 the attacker learns the correspondence between \lcapa{pd} and $(p, d)$.
 %
 But this merely makes the attack more efficient, as the attacker can already discover
 $p$'s disguise history by attempting to decrypt all bags with $p$'s private key.
+%
+However, provided that the application deletes ciphertexts from \sys after revealing
+the data, the attacker cannot gain access to any previously-revealed data that users
+subsequently deleted from the application database.
 %
 \sys makes no guarantees for users who actively use data under disguise after
 compromise, but always protects inactive users.
@@ -140,7 +146,6 @@ latencies for data-revealing operations (\eg a few seconds for account
 restoration).
 %
 
-\head{Latency of Disguise-Related Actions.}
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.5\textwidth]{figs/client_op_stats}
