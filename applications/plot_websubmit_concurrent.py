@@ -18,7 +18,7 @@ labels = ['Low Load', 'High Load']#, '100 Users', '100 Users Txn']
 # collect all results
 op_results = defaultdict(list)
 op_results_txn = defaultdict(list)
-fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(6,4))
+fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(6.66,3))
 
 def get_yerr(durs):
     mins = []
@@ -105,11 +105,10 @@ add_labels((X+barwidth),
 
 
 plt.ylabel('Time (ms)')
-plt.ylim(ymin=0, ymax=(np.percentile(op_results_txn[30][1], 95)*1.15))
+plt.ylim(ymin=0, ymax=8)
 plt.xticks(X, labels=labels)
 
 plt.ylabel('Latency (ms)')
-plt.title("WebSubmit Edit Latency")
-plt.legend()
+plt.legend(loc="upper left")
 plt.tight_layout(h_pad=4)
 plt.savefig('websubmit_concurrent_results.pdf')

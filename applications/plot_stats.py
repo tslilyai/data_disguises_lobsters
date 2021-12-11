@@ -92,7 +92,7 @@ for i in range(2):
                 delete_durs_baseline,
                 anon_durs_baseline,
             ]),
-            color='g', capsize=5, width=barwidth, label="Manual Privacy Transformation (No Edna)")
+            color='g', capsize=5, width=barwidth, label="Manual (No Edna)")
     add_labels((X-barwidth/2)[:4], [
         statistics.median(account_durs_baseline),
         statistics.median(edit_durs_baseline),
@@ -131,6 +131,7 @@ for i in range(2):
     plt.ylabel('Time (ms)')
     plt.ylim(ymin=0, ymax=(np.percentile(restore_durs_batch_noanon, 95)*1.15))
     plt.xticks(X, labels=labels)
+    plt.legend(loc='upper left');
     plt.tight_layout(h_pad=2)
     plt.savefig("{}_op_stats.pdf".format(app))
     plt.clf()
@@ -190,7 +191,7 @@ plt.bar((X-barwidth/2)[:3], [
     ],
     yerr=get_yerr([account_durs_baseline, delete_durs_baseline, decay_durs_baseline]),
     capsize=5,
-    color='g', width=barwidth, label="No Edna")
+    color='g', width=barwidth, label="Manual (No Edna)")
 add_labels((X-barwidth/2)[:3], [
         statistics.median(account_durs_baseline),
         statistics.median(delete_durs_baseline),
@@ -221,7 +222,6 @@ plt.ylabel('Time (ms)')
 plt.ylim(ymin=0, ymax=np.percentile(restore_durs_batch,95)*1.1)
 plt.xticks(X, labels=labels)
 
-# one legend per everything
 plt.legend(loc='upper left');
 plt.tight_layout(h_pad=2)
 plt.savefig('lobsters_op_stats.pdf', dpi=300)
