@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::RowVal;
 use crate::tokens::*;
-use log::debug;
+use log::{debug, warn};
 use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -35,8 +35,8 @@ impl ToString for PredClause {
         use PredClause::*;
         match self {
             ColInList { col, vals, neg } => match neg {
-                true => format!("{} IN ({})", col, vals.join(",")),
-                false => format!("{} NOT IN ({})", col, vals.join(",")),
+                true => format!("{} NOT IN ({})", col, vals.join(",")),
+                false => format!("{} IN ({})", col, vals.join(",")),
             },
 
             ColColCmp { col1, col2, op } => {
@@ -158,7 +158,7 @@ pub fn modify_predicate_with_owners(
                             });*/
                         }
                         changed = true;
-                        debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
+                        warn!("Modified pred val cmp to {:?}\n", new_and_clauses);
                     } else {
                         new_and_clauses.push(clause.clone())
                     }
