@@ -125,7 +125,7 @@ pub struct TokenCtrler {
 
     // (p,d) capability -> set of token ciphertext for principal+disguise
     pub enc_map: HashMap<LocCap, EncData>,
-    pub pp_remove_list: Vec<EncData>,
+    pub pps_to_remove: HashSet<EncData>,
 
     pub global_diff_tokens: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<DiffTokenWrapper>>>>>,
 
@@ -155,7 +155,7 @@ impl TokenCtrler {
             batch: batch,
             dbserver: dbserver.to_string(),
             enc_map: HashMap::new(),
-            pp_remove_list: Default::default(),
+            pps_to_remove: Default::default(),
             global_diff_tokens: HashMap::new(),
             rng: OsRng,
             hasher: Sha256::new(),
@@ -462,7 +462,7 @@ impl TokenCtrler {
             };
             let plaintext = serialize_to_bytes(&ppnonce);
             let enc_ppn = EncData::encrypt_with_pubkey(&pdata.pubkey, &plaintext);
-            self.pp_remove_list.push(enc_ppn);
+            self.pps_to_remove.insert(enc_ppn);
             // TODO persist this?
         } else {
             // actually remove metadata
@@ -900,10 +900,12 @@ impl TokenCtrler {
 
                         // check if we should remove the pp
                         let mut should_remove = false;
-                        for encppn in &self.pp_remove_list {
+                        let mut foundppn = None;
+                        for encppn in self.pps_to_remove.iter() {
                             let (succeeded, _) = encppn.decrypt_encdata(&pkt.priv_key);
                             if succeeded {
                                 should_remove = true;
+                                foundppn = Some(encppn.clone());
                                 break;
                             }
                         }
@@ -914,6 +916,7 @@ impl TokenCtrler {
                             // either remove the principal metadata
                             warn!("Removing metadata of {}", new_uid);
                             self.remove_principal(&new_uid, db);
+                            self.pps_to_remove.remove(&foundppn.unwrap());
                         } else if removed {
                             warn!("Updating metadata of {}", new_uid);
                             self.mark_principal_to_insert(&new_uid, &new_pp);
