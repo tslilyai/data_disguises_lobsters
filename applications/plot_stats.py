@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import csv
 import statistics
@@ -6,14 +7,24 @@ import numpy as np
 from textwrap import wrap
 
 plt.style.use('seaborn-deep')
-plt.figure(figsize = (6.66,3))
+plt.figure(figsize = (3.33, 1.5))
+
+# plot styling for paper
+matplotlib.rc('font', family='serif', size=9)
+matplotlib.rc('text.latex', preamble='\\usepackage{times,mathptmx}')
+matplotlib.rc('text', usetex=True)
+matplotlib.rc('legend', fontsize=8)
+matplotlib.rc('figure', figsize=(3.33,1.5))
+matplotlib.rc('axes', linewidth=0.5)
+matplotlib.rc('lines', linewidth=0.5)
+
 def add_labels(x,y,plt,color,offset):
     for i in range(len(x)):
-        plt.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color)
+        plt.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color, fontsize='x-small')
 
 def add_text_labels(x,y,plt,color,offset):
     for i in range(len(x)):
-        plt.text(x[i], offset, y[i], ha='center', color=color)
+        plt.text(x[i], offset, y[i], ha='center', color=color, fontsize='x-small')
 
 def get_yerr(durs):
     mins = []
@@ -28,10 +39,10 @@ barwidth = 0.25
 X = np.arange(6)
 labels = [
         'Create\nAccount',
-        'Edit\nUnanonymized\nData',
+        'Edit\nPublic\nData',
         'Delete\nAccount',
-        'Anonymize\nAccount',
-        'Edit\nAnonymized\nData',
+        'Anonym.\nAccount',
+        'Edit\nAnonym.\nData',
         'Restore\nDeleted\nAccount',
 ]
 
@@ -118,7 +129,7 @@ for i in range(2):
         edit_durs_batch,
         restore_durs_batch_noanon,
     ]),
-    color='m', capsize=5, width=barwidth, label="Edna")
+    color='m', capsize=3, width=barwidth, label="Edna")
     add_labels((X+barwidth/2),
     [
         statistics.median(account_durs),
@@ -129,9 +140,15 @@ for i in range(2):
         statistics.median(restore_durs_batch_noanon),
     ], plt, 'm', offset)
     plt.ylabel('Time (ms)')
-    plt.ylim(ymin=0, ymax=(np.percentile(restore_durs_batch_noanon, 95)*1.15))
+    #plt.ylim(ymin=0, ymax=(np.percentile(restore_durs_batch_noanon, 95)*1.15))
+    if app == "websubmit":
+      plt.ylim(ymin=0, ymax=30)
+      plt.yticks(range(0, 31, 10))
+    else:
+      plt.ylim(ymin=0, ymax=175)
+      plt.yticks(range(0, 175, 50))
     plt.xticks(X, labels=labels)
-    plt.legend(loc='upper left');
+    plt.legend(loc='upper left', frameon=False);
     plt.tight_layout(h_pad=2)
     plt.savefig("{}_op_stats.pdf".format(app))
     plt.clf()
@@ -190,7 +207,7 @@ plt.bar((X-barwidth/2)[:3], [
         statistics.median(decay_durs_baseline)
     ],
     yerr=get_yerr([account_durs_baseline, delete_durs_baseline, decay_durs_baseline]),
-    capsize=5,
+    capsize=3,
     color='g', width=barwidth, label="Manual (No Edna)")
 add_labels((X-barwidth/2)[:3], [
         statistics.median(account_durs_baseline),
@@ -208,7 +225,7 @@ plt.bar((X+barwidth/2), [
         statistics.median(undecay_durs_batch)
     ],
     yerr=get_yerr([account_durs, delete_durs_batch, decay_durs_batch, restore_durs_batch, undecay_durs_batch]),
-    capsize=5,
+    capsize=3,
     color='m', width=barwidth, label="Edna")
 add_labels((X+barwidth/2), [
         statistics.median(account_durs),
@@ -219,9 +236,10 @@ add_labels((X+barwidth/2), [
     ], plt, 'm', offset)
 
 plt.ylabel('Time (ms)')
-plt.ylim(ymin=0, ymax=np.percentile(restore_durs_batch,95)*1.1)
+#plt.ylim(ymin=0, ymax=np.percentile(restore_durs_batch,95)*1.1)
+plt.ylim(ymin=0, ymax=250)
 plt.xticks(X, labels=labels)
 
-plt.legend(loc='upper left');
+plt.legend(loc='upper left', frameon=False);
 plt.tight_layout(h_pad=2)
 plt.savefig('lobsters_op_stats.pdf', dpi=300)

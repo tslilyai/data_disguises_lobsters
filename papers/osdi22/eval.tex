@@ -156,15 +156,27 @@ restoration).
 %
 
 \begin{figure}[t]
-    \centering
-    \includegraphics[width=0.5\textwidth]{figs/websubmit_op_stats}
-    \includegraphics[width=0.5\textwidth]{figs/hotcrp_op_stats}
-    \includegraphics[width=0.5\textwidth]{figs/lobsters_op_stats}
-    \caption{Latencies of disguise-related actions when implemented manually by the
-    application developer without \sys, and with \sys.
-    Each bar shows the median latency; ranges indicate the 5th to 95th
-    percentile latencies.}
-    \label{fig:client_opstats}
+  \centering
+  \begin{subfigure}[b]{\columnwidth}
+    \includegraphics{figs/websubmit_op_stats}
+    \caption{WebSubmit (2k users, 80 answers/user).}
+    \label{f:ops-websubmit}
+  \end{subfigure}
+  \begin{subfigure}[b]{\columnwidth}
+    \includegraphics{figs/hotcrp_op_stats}
+    \caption{HotCRP (450 users, \note{150} records/user).}
+    \label{f:ops-hotcrp}
+  \end{subfigure}
+  \begin{subfigure}[b]{\columnwidth}
+    \includegraphics{figs/lobsters_op_stats}
+    \caption{Lobsters (\note{14.5k} users, Zipf-distributed data/user).}
+    \label{f:ops-lobsters}
+  \end{subfigure}
+  \caption{Latencies of disguise-related actions when implemented manually by the
+  application developer without \sys, and with \sys.
+  Each bar shows the median latency; ranges indicate the 5th to 95th
+  percentile latencies.}
+  \label{fig:client_opstats}
 \end{figure}
 
 \begin{table*}[h!]
@@ -209,7 +221,7 @@ low variance in the results.
 %
 
 %
-Figure~\ref{fig:websubmit-ops} shows the median latency for two normal operations
+Figure~\ref{fig:ops-websubmit} shows the median latency for two normal operations
 (creating an account and editing unanonymized data), two disguises (delete account
 and anonymizing an account), and two operations over data under disguise (editing
 anonymized data and restoring the account).
