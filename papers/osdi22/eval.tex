@@ -201,7 +201,9 @@ Encrypt Diff Record & 0.3\\
 Decrypt Diff Record & 3.0\\
 \end{tabular}
 \end{center}
-\caption{Amount of time required to run different operations required to apply and reveal disguises.}
+  \caption{\sys cryptographic operations are cheap( 0.3--3ms), except
+  for pseudoprincipal key generation, which \sys amortizes by via a
+  pre-generated key pool (\S\ref{s:impl}). \ms{Need to give record sizes.}}
 \label{f:opstats}
 \end{figure}
 
@@ -314,48 +316,60 @@ users---take several seconds if run ad-hoc, but an application can also apply
 these disguises incrementally by user in the background (as Lobsters's data decay
 does).
 %
+
+%
 \sys necessarily adds some latency compared to a manual privacy transformation
 as it must encrypt and store data, as well as maintain its metadata.
 %
 Next, we break down \sys's added latency.
 %
 
-\subsubsection{\sys Operation Cost Drill-Down}
+\subsubsection{\sys Per-Operation Drill-Down}
 %
-To explain these costs, we break them down into fine-grained operations shown in
-Figure~\ref{f:opstats}: every disguise action requires some DB operations and,
-if using \sys, may require cryptographic operations.
+\sys's API calls perform three classes of primitive operations: data encryption
+and decryption, store/retrieve accesses into \sys's store of encrypted bags,
+and metadata updates.
+%
+\sys's high-level API additionally also operates on the application database,
+while the application performs these queries when it uses \sys's low-level API.
+%
+\sys's store and metadata operations are fast; in our prototype, all of them
+take less than 0.1ms.
+%
+The cost of application database operations depends on the amount of data
+touched, but is in the single-digit milliseconds in our case studies.
+%
+\sys cryptographic operations are most expensive, and Figure~\ref{f:opstats}
+shows their cost.
+%
 
-\textbf{Creating an account} with or without \sys performs a database insert. Using \sys additionally
-requires registering the new user as a principal, which assigns the user a (pre-generated)
-private-public key pair, stores metadata about the new principal's key in \sys's storage, and
-returns the corresponding private key to the application.
-Using \sys thus incurs only the cost of an extra database operation, since the high cost of key
-generation is taken offline.
+%
+When disguises create pseudoprincipals, these pseudoprincipals need their
+own keypair in case their data later gets disguised again.
+%
+Key generation is expensive ($\approx$300ms), and disguises would be
+prohibitively slow if \sys incurred this latency for every pseudoprincipal
+created.
+%
+To avoid this cost, \sys keeps a pre-generated key pool that it draws on
+during disguises (\S\ref{s:impl}).
+%
 
-\textbf{Editing data} with or without \sys simply performs database updates. Editing anonymized
-data, however, requires \sys to decrypt (with the client-provided decryption capability) \emph{all}
-speaks-for records at the client-provided locator until it finds a speaks-for record linking the
-client to the currently-owning pseudoprincipal.  For example, if anonymization of a user account
-generates 20 speaks-for record ciphertexts at the same locator, then editing anonymized data may
-perform up to 20 decryptions to determine which pseudoprincipals the client can act for.
+%
+The cost of \sys's other cryptographic operations depends on the size of the
+stored data, but they are generally cheap.
+%
+However, a disguise or reveal operation may require multiple encryptions and
+decryptions.
+%
+\ms{Discuss examples. Cost of restore, edit data after decorrelation.}
+%
 
-\textbf{Account deletion or data decay} with or without \sys performs the same database operations
-to remove, modify, or anonymize data. \sys incurs increased costs by additionally encrypting and
-inserting one diff record for each deleted or modified object, and one speaks-for record for each
-anonymized object.
-
-\textbf{Account restoration} is only possible with \sys. \sys decrypts a record for each
-piece of modified/removed/anonymized data, and performs database checks to ensure the data can be restored
-(\eg that the corresponding lecture of an answer to reinsert still exists). If the checks pass
-(which they do in this benchmark), \sys restores the data stored in the diffs.
-
-\textbf{Anonymization} with or without \sys generates one pseudoprincipal per object to anonymize
-(\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
-to anonymize, generates new pseudoprincipals, and performs DB queries to insert new pseudoprincipals
-and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
-\sys incurs increased costs by additionally generating per-pseudoprincipal speaks-for records, and
-encrypting and storing these speaks-for records with the appropriate public keys.
+%
+The cost of these cryptographic primitives also affects \sys's latency when
+the application applies multiple disguises to the same data, which we
+evaluate next.
+%
 
 \begin{figure}[t]
     \centering
