@@ -23,22 +23,21 @@ pub type LocCap = u64;
 pub type DecryptCap = Vec<u8>; // private key
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
-const RSA_BYTES :usize = 256;
 const AES_BYTES :usize = 16;
 const PRINCIPAL_TABLE: &'static str = "EdnaPrincipals";
 const UID_COL: &'static str = "uid";
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
-pub struct BoolNonce {
-    pub nonce: u64,
-    pub b: bool,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash, Default)]
 pub struct EncData {
     pub enc_key: Vec<u8>,
     pub enc_data: Vec<u8>,
     pub iv: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct PPNonce {
+    pub uid: UID,
+    pub nonce: u64,
 }
 
 impl EncData {
@@ -89,7 +88,6 @@ impl EncData {
 pub struct PrincipalData {
     pub pubkey: RsaPublicKey,
     pub is_anon: bool,
-    pub should_remove: EncData,
 
     // only nonempty for pseudoprincipals!
     pub loc_caps: HashSet<EncData>,
@@ -127,6 +125,7 @@ pub struct TokenCtrler {
 
     // (p,d) capability -> set of token ciphertext for principal+disguise
     pub enc_map: HashMap<LocCap, EncData>,
+    pub pp_remove_list: Vec<EncData>,
 
     pub global_diff_tokens: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<DiffTokenWrapper>>>>>,
 
@@ -156,6 +155,7 @@ impl TokenCtrler {
             batch: batch,
             dbserver: dbserver.to_string(),
             enc_map: HashMap::new(),
+            pp_remove_list: Default::default(),
             global_diff_tokens: HashMap::new(),
             rng: OsRng,
             hasher: Sha256::new(),
@@ -169,7 +169,7 @@ impl TokenCtrler {
             .unwrap();
         //db.query_drop(&format!("DROP TABLE {};", PRINCIPAL_TABLE)).unwrap();
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove varchar(2048), pubkey varchar(1024), locs varchar(2048), PRIMARY KEY ({})) ENGINE = MEMORY;",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey varchar(1024), locs varchar(2048), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         db.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(
@@ -180,14 +180,12 @@ impl TokenCtrler {
         .unwrap();
         for row in selected {
             let is_anon: bool = row[1].value == "1";
-            let should_remove: EncData = serde_json::from_str(&row[2].value).unwrap();
-            let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[3].value).unwrap();
+            let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[2].value).unwrap();
             let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
-            let locs = serde_json::from_str(&row[4].value).unwrap();
+            let locs = serde_json::from_str(&row[3].value).unwrap();
             tctrler.register_saved_principal::<mysql::PooledConn>(
                 &row[0].value,
                 is_anon,
-                should_remove,
                 &pubkey,
                 locs,
                 false,
@@ -307,7 +305,6 @@ impl TokenCtrler {
         &mut self,
         uid: &UID,
         is_anon: bool,
-        should_remove: EncData,
         pubkey: &RsaPublicKey,
         lc: HashSet<EncData>,
         persist: bool,
@@ -318,7 +315,6 @@ impl TokenCtrler {
             pubkey: pubkey.clone(),
             is_anon: is_anon,
             loc_caps: lc,
-            should_remove: should_remove,
         };
         if persist {
             self.mark_principal_to_insert(uid, &pdata);
@@ -336,33 +332,10 @@ impl TokenCtrler {
     ) -> RsaPrivateKey {
         warn!("Registering principal {}", uid);
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
-        let should_remove = if is_anon {
-            // save a bunch of random bytes instead of actually encrypting anything
-            let mut key: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
-            self.rng.fill_bytes(&mut key[..]);
-            // encrypt key with pubkey
-            let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let enc_key = pubkey
-                .encrypt(&mut self.rng, padding, &key[..])
-                .expect("failed to encrypt");
-            // generate random bytes for other stuff
-            let mut encdata: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
-            let mut iv: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
-            self.rng.fill_bytes(&mut encdata[..]);
-            self.rng.fill_bytes(&mut iv[..]);
-            EncData {
-                enc_key: enc_key,
-                enc_data: encdata,
-                iv: iv,
-            }
-        } else {
-            Default::default()
-        };
         let pdata = PrincipalData {
             pubkey: pubkey,
             is_anon: is_anon,
             loc_caps: HashSet::new(),
-            should_remove: should_remove,
         };
 
         self.mark_principal_to_insert(uid, &pdata);
@@ -429,16 +402,15 @@ impl TokenCtrler {
             let empty_vec = serde_json::to_string(&v).unwrap();
             let uid = uid.trim_matches('\'');
             values.push(format!(
-                "(\'{}\', {}, \'{}\', \'{}\', \'{}\')",
+                "(\'{}\', {}, \'{}\', \'{}\')",
                 uid,
                 if pdata.is_anon { 1 } else { 0 },
-                serde_json::to_string(&pdata.should_remove).unwrap(),
                 serde_json::to_string(&pubkey_vec).unwrap(),
                 empty_vec
             ));
         }
         let insert_q = format!(
-            "INSERT INTO {} ({}, is_anon, should_remove, pubkey, locs) \
+            "INSERT INTO {} ({}, is_anon, pubkey, locs) \
                 VALUES {} ON DUPLICATE KEY UPDATE {} = VALUES({});",
             PRINCIPAL_TABLE,
             UID_COL,
@@ -481,17 +453,16 @@ impl TokenCtrler {
         if pdata.is_none() {
             return;
         }
-        let mut pdata = pdata.unwrap();
+        let pdata = pdata.unwrap();
         if !pdata.loc_caps.is_empty() {
-            // mark as to_remove
-            let should_remove = BoolNonce {
+            // save as to_remove
+            let ppnonce = PPNonce {
                 nonce: self.rng.gen(),
-                b: true,
+                uid: uid.clone(),
             };
-            let plaintext = serialize_to_bytes(&should_remove);
-            let enc_bn = EncData::encrypt_with_pubkey(&pdata.pubkey, &plaintext);
-            warn!("Should remove bytes set to {:?}", plaintext);
-            pdata.should_remove = enc_bn;
+            let plaintext = serialize_to_bytes(&ppnonce);
+            let enc_ppn = EncData::encrypt_with_pubkey(&pdata.pubkey, &plaintext);
+            self.pp_remove_list.push(enc_ppn);
             // TODO persist this?
         } else {
             // actually remove metadata
@@ -928,16 +899,14 @@ impl TokenCtrler {
                         }
 
                         // check if we should remove the pp
-                        let (succeeded, should_remove_bytes) = new_pp.should_remove.decrypt_encdata(&pkt.priv_key);
-                        let should_remove = if !succeeded {
-                            false 
-                        } else {
-                            warn!("Should remove bytes dec {:?}", should_remove_bytes);
-                            match serde_json::from_slice::<BoolNonce>(&should_remove_bytes) {
-                                Ok(bn) => bn.b,
-                                _ => false,
+                        let mut should_remove = false;
+                        for encppn in &self.pp_remove_list {
+                            let (succeeded, _) = encppn.decrypt_encdata(&pkt.priv_key);
+                            if succeeded {
+                                should_remove = true;
+                                break;
                             }
-                        };
+                        }
 
                         // remove the pp if it has no more bags and should be removed,
                         // otherwise update the pp's metadata in edna if changed
