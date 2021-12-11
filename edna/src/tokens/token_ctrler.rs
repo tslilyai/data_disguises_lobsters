@@ -100,7 +100,7 @@ pub struct Bag {
 impl Bag {
     pub fn new() -> Bag {
         let mut rng = rand::thread_rng();
-        let size = rng.gen_range(2048..8192); 
+        let size = rng.gen_range(512..4096); 
         let mut padding: Vec<u8> = repeat(0u8).take(size).collect();
         rng.fill_bytes(&mut padding[..]);
 
@@ -831,6 +831,7 @@ impl TokenCtrler {
         assert!(self.batch);
         if let Some(encbag) = self.enc_map.get(&lc) {
             let start = time::Instant::now();
+            let mut uid = String::new();
             no_diffs_at_loc = false;
             no_owns_at_loc = false;
             no_pks_at_loc = false;
@@ -845,6 +846,9 @@ impl TokenCtrler {
             );
             // remove if we found a matching token for the disguise
             if tokens.is_empty() || tokens[0].did == did {
+                if !tokens.is_empty() {
+                    uid = tokens[0].uid.clone();
+                }
                 changed = true;
                 no_diffs_at_loc = true;
                 bag.difftoks = vec![];
@@ -856,6 +860,9 @@ impl TokenCtrler {
                 start.elapsed().as_micros(),
             );
             if tokens.is_empty() || tokens[0].did == did {
+                if !tokens.is_empty() {
+                    uid = tokens[0].old_uid.clone();
+                }
                 changed = true;
                 no_owns_at_loc = true;
                 bag.owntoks = vec![];
@@ -870,8 +877,8 @@ impl TokenCtrler {
             // get ALL new_uids regardless of disguise that token came from
             for pk in &tokens {
                 new_uids.push((pk.new_uid.clone(), pk.clone()));
+                uid = pk.old_uid.clone();
             }
-            let uid = tokens[0].old_uid.clone();
             // remove matching tokens of pseudoprincipals
             // for each pseudoprincipal for which we hold a private key
             for (new_uid, pkt) in &new_uids {
@@ -1032,71 +1039,6 @@ mod tests {
             col_generation: Box::new(get_insert_guise_cols),
             val_generation: Box::new(get_insert_guise_vals),
         }))
-    }
-
-    #[test]
-    fn test_insert_user_token_single() {
-        init_logger();
-        let dbname = "testTokenCtrlerUser".to_string();
-        let edna = EdnaClient::new(
-            true,
-            true,
-            "127.0.0.1",
-            &dbname,
-            "",
-            true,
-            2,
-            get_guise_gen(),
-        );
-        let mut db = edna.get_conn().unwrap();
-        let stats = edna.get_stats();
-
-        // don't batch here bc token ctrler checks tmp_locators
-        let mut ctrler =
-            TokenCtrler::new(2, "mysql://tslilyai:pass@127.0.0.1", &mut db, stats, false);
-
-        let did = 1;
-        let uid = 11;
-        let guise_name = "guise".to_string();
-        let guise_ids = vec![];
-        let old_fk_value = 5;
-        let fk_col = "fk_col".to_string();
-
-        let private_key =
-            ctrler.register_principal::<mysql::PooledConn>(&uid.to_string(), false, &mut db, true);
-        let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-
-        let mut remove_token = new_delete_token_wrapper(
-            did,
-            guise_name,
-            guise_ids,
-            vec![RowVal {
-                column: fk_col.clone(),
-                value: old_fk_value.to_string(),
-            }],
-            false,
-        );
-        remove_token.uid = uid.to_string();
-        ctrler.insert_user_diff_token_wrapper(&mut remove_token);
-        let lc = ctrler
-            .get_tmp_capability(&uid.to_string(), did)
-            .unwrap()
-            .clone();
-        ctrler.clear_tmp();
-        assert_eq!(ctrler.global_diff_tokens.len(), 0);
-
-        // check principal data
-        let p = ctrler
-            .principal_data
-            .get(&uid.to_string())
-            .expect("failed to get user?");
-        assert!(p.loc_caps.is_empty());
-        assert!(ctrler.tmp_loc_caps.is_empty());
-
-        // get tokens
-        let (diff_tokens, _) = ctrler.get_user_tokens(&private_key_vec, &lc);
-        assert_eq!(diff_tokens.len(), 1);
-        assert_eq!(diff_tokens[0], remove_token);
     }
 
     #[test]
