@@ -156,7 +156,7 @@ impl TokenCtrler {
             .unwrap();
         //db.query_drop(&format!("DROP TABLE {};", PRINCIPAL_TABLE)).unwrap();
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove varchar(255), pubkey varchar(1024), locs varchar(2048), PRIMARY KEY ({})) ENGINE = MEMORY;",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove varchar(2048), pubkey varchar(1024), locs varchar(2048), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         db.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(
@@ -331,6 +331,7 @@ impl TokenCtrler {
                 b: false,
             };
             let plaintext = serialize_to_bytes(&bn);
+            warn!("Should remove bytes false is {:?}", plaintext);
             EncData::encrypt_with_pubkey(&pubkey, &plaintext)
         } else {
             Default::default()
@@ -406,7 +407,7 @@ impl TokenCtrler {
             let empty_vec = serde_json::to_string(&v).unwrap();
             let uid = uid.trim_matches('\'');
             values.push(format!(
-                "(\'{}\', {}, {}, \'{}\', \'{}\')",
+                "(\'{}\', {}, \'{}\', \'{}\', \'{}\')",
                 uid,
                 if pdata.is_anon { 1 } else { 0 },
                 serde_json::to_string(&pdata.should_remove).unwrap(),
@@ -467,7 +468,9 @@ impl TokenCtrler {
             };
             let plaintext = serialize_to_bytes(&should_remove);
             let enc_bn = EncData::encrypt_with_pubkey(&pdata.pubkey, &plaintext);
+            warn!("Should remove bytes set to {:?}", plaintext);
             pdata.should_remove = enc_bn;
+            // TODO persist this?
         } else {
             // actually remove metadata
             warn!("Removing principal {}\n", uid);
@@ -1110,7 +1113,9 @@ impl TokenCtrler {
                             }
 
                             let (_, should_remove_bytes) = new_pp.should_remove.decrypt_encdata(&pkt.priv_key);
-                            let should_remove = serde_json::from_slice(&should_remove_bytes).unwrap();
+                            warn!("Should remove bytes dec {:?}", should_remove_bytes);
+                            let bn: BoolNonce = serde_json::from_slice(&should_remove_bytes).unwrap();
+                            let should_remove = bn.b;
 
                             // remove the pp if it has no more bags and should be removed,
                             // otherwise update the pp's metadata in edna if changed
