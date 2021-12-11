@@ -270,6 +270,8 @@ touching 15 tables, and performing a mix of deletions, decorrelations, and modif
 to a higher latency as the amount of user data grows comparable to that of users in HotCRP and
 WebSubmit.
 
+\note{XXX old, unedited text follows. Malte is editing here.}
+
 \paragraph{Drill-Down.}
 %
 Latency-critical tasks such as editing (unanonymized) data or
@@ -291,22 +293,17 @@ data, however, requires \sys to decrypt (with the client-provided decryption cap
 speaks-for records at the client-provided locator until it finds a speaks-for record linking the
 client to the currently-owning pseudoprincipal.  For example, if anonymization of a user account
 generates 20 speaks-for record ciphertexts at the same locator, then editing anonymized data may
-perform up to 20 decryptions to determine which pseudoprincipals the client can act for.  Record
-batching drastically decreases this cost by performing only one decryption to decrypt all speaks-for
-records for a particular client and disguise.
+perform up to 20 decryptions to determine which pseudoprincipals the client can act for.
 
 \textbf{Account deletion or data decay} with or without \sys performs the same database operations
 to remove, modify, or anonymize data. \sys incurs increased costs by additionally encrypting and
 inserting one diff record for each deleted or modified object, and one speaks-for record for each
-anonymized object.  With record batching, encryption occurs once per account, rather than once per
-object.
+anonymized object.
 
 \textbf{Account restoration} is only possible with \sys. \sys decrypts a record for each
 piece of modified/removed/anonymized data, and performs database checks to ensure the data can be restored
 (\eg that the corresponding lecture of an answer to reinsert still exists). If the checks pass
 (which they do in this benchmark), \sys restores the data stored in the diffs.
-Record batching drastically decreases this cost by performing only one decryption to decrypt all
-records to restore.
 
 \textbf{Anonymization} with or without \sys generates one pseudoprincipal per object to anonymize
 (\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
@@ -314,7 +311,6 @@ to anonymize, generates new pseudoprincipals, and performs DB queries to insert 
 and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
 \sys incurs increased costs by additionally generating per-pseudoprincipal speaks-for records, and
 encrypting and storing these speaks-for records with the appropriate public keys.
-With record batching, encryption occurs once per account, rather than once per object.
 
 \begin{figure}[t]
     \centering
