@@ -309,11 +309,10 @@ But some highly active users have a lot of data, which raises the
 These results illustrate that data disguises are fast enough in absolute terms
 that most of them could be run interactively as part of a web request.
 %
-Some global disguises (such as HotCRP's conference anonymization) may take a
-few seconds to complete if run ad-hoc.
-%
-An application could also apply these disguises incrementally by user in the
-background (as Lobsters's data decay already does).
+Some global disguises---such as HotCRP's conference anonymization over many
+users---take several seconds if run ad-hoc, but an application can also apply
+these disguises incrementally by user in the background (as Lobsters's data decay
+does).
 %
 \sys necessarily adds some latency compared to a manual privacy transformation
 as it must encrypt and store data, as well as maintain its metadata.

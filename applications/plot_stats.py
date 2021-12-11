@@ -149,7 +149,7 @@ for i in range(2):
       plt.yticks(range(0, 175, 50))
     plt.xticks(X, labels=labels)
     plt.legend(loc='upper left', frameon=False);
-    plt.tight_layout(h_pad=2)
+    plt.tight_layout(h_pad=0)
     plt.savefig("{}_op_stats.pdf".format(app))
     plt.clf()
 
@@ -241,5 +241,5 @@ plt.ylim(ymin=0, ymax=250)
 plt.xticks(X, labels=labels)
 
 plt.legend(loc='upper left', frameon=False);
-plt.tight_layout(h_pad=2)
+plt.tight_layout(h_pad=0)
 plt.savefig('lobsters_op_stats.pdf', dpi=300)
