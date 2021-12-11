@@ -301,7 +301,7 @@ fn run_normal_thread(
             // we need to pick a comment that's on the chosen story
             // we know that every nth comment from prepopulation is to the same story
             let comments_per_story = ncomments / nstories;
-            let parent = story + nstories * rng.gen_range(0, comments_per_story);
+            let parent = story + rng.gen_range(0, comments_per_story);
             queriers::comment::post_comment(db, user, id.into(), story as u64, Some(parent as u64))
                 .unwrap();
         } else if pick(54) {
