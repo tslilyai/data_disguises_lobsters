@@ -35,6 +35,26 @@ store all databases on \fn{tmpfs} to avoid confounding factors related to persis
 \subsection{Security Evaluation}
 \label{s:eval-security}
 
+%
+An attacker who compromises the server can immediately observe all application
+database content, the public metadata in \sys, and the (encrypted) contents of
+\sys's store.
+%
+From this, the attacker can learn:
+\begin{enumerate}[nosep]
+  \item any undisguised data in the application database;
+  \item the number of encrypted bags in \sys and their sizes;
+  \item the number of active natural principals, via \sys's list of
+    registered principal public keys and the application DB;
+  \item the IDs of all pseudoprincipals in existence, from \sys's metadata
+    and the application DB;
+  \item the IDs of deleted pseudoprincipals who still have data in \sys,
+    by comparing the principals in the application DB to those in \sys; and
+  \item the number of disguises applied to each pseudoprincipal $q$,
+    by observing the size of the $q$'s encrypted locator set.
+\end{enumerate}
+%
+
 \ms{
 \begin{enumerate}[nosep]
 % \item Introduce assumption that attacker knows nothing about users’ disguise histories (in \S\ref{s:threat}?).
@@ -44,7 +64,8 @@ store all databases on \fn{tmpfs} to avoid confounding factors related to persis
 \end{enumerate}
 }
 
-%
+
+\note{old text follows}
 \sys secures disguise records by encrypting them with the public key of a principal $p$.
 %
 The corresponding private key for $p$ is on the client device and unavailable to the
@@ -164,7 +185,7 @@ restoration).
   \end{subfigure}
   \begin{subfigure}[b]{\columnwidth}
     \includegraphics{figs/hotcrp_op_stats}
-      \caption{HotCRP (80 reviewers/3K total users, 155 records/reviewer).}
+      \caption{HotCRP (80 reviewers, 3k total users, 155 records/reviewer).}
     \label{f:ops-hotcrp}
   \end{subfigure}
   \begin{subfigure}[b]{\columnwidth}
