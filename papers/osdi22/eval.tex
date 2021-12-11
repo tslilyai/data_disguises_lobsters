@@ -348,8 +348,10 @@ encrypting and storing these speaks-for records with the appropriate public keys
     \label{fig:concurrent}
 \end{figure*}
 
-\textbf{Composing Deletion After Anonymization.}
+\paragraph{Multiple Disguises.}
+
 \lyt{TODO}
+
 Account deletion post-anonymization requires \sys to perform temporary recorrelation find data of
 pseudoprincipals that the user is authorized to remove along with their account. \sys incurs latency
 increases from decrypting all speaks-for records of the user, and from performing the deletion or
@@ -364,10 +366,17 @@ the the increase in latency.\lyt{Numbers?}
 \subsection{Resource Use}
 \label{s:eval-res}
 
-Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also
-stores public-key metadata for each principal (and pseudoprincipal), and (in-memory) encrypted
-ciphertexts for records.  Clients keep track of capabilities and locators that are emailed to them in
-the form of URLs that allow for account restoration or post-anonymization editing.
+\note{XXX measure space used for \sys metadata + ciphertexts}
+
+%
+Each generated pseudoprincipal adds an additional row to the users table in WebSubmit.
+%
+\sys also stores public-key metadata for each principal (and pseudoprincipal), and
+(in-memory) encrypted ciphertexts for records.
+%
+Clients also need to keep track of keys and locators that are emailed to them, but these
+are small.
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Impact on Normal Application Use}
