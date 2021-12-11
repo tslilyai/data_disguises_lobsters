@@ -53,17 +53,14 @@ originally owned the data.
 For example, after the instructor anonymizes a class in WebSubmit, all
 answers are associated with pseudoprincipals.
 %
-If a user now seeks to delete their account (but retains the power to
-restore it later), the corresponding answer-removal database diffs
-must be associated with pseudoprincipals.
+If the instructor later decides to scrub identifiers from answer contents, 
+the corresponding diff records must be associated with pseudoprincipals.
+%If a user now seeks to delete their account (but retains the power to
+%restore it later), the corresponding answer-removal database diffs
+%must be associated with pseudoprincipals.
 %
-\ms{This is not a good example; account removal is interactive, so
-the application and Edna know that the records need to be associated with
-$p$ at the time of disguising.}
-%
-%One might argue that the WebSubmit could associate the answer-removal diff with the original natural
-%principal owning the answer. However, \sys stll needs to allow disguises to be applied to the data
-%of pseudoprincipals \emph{even without} knowing the original natural principal who owned the data.
+\lyt{check this example; noted that account removal is interactive and therefore
+not a good example.}
 
 %
 To solve this challenge, \sys stores data for pseudoprincipals,
@@ -130,34 +127,45 @@ as the principal who speaks-for $q$ can unwrap it.
 
 \head{Pseudoprincipal Metadata.}
 %
-\sys removes any metadata about a principal $p$ when the application
-\fn{ForgetPrincipal}.
+\fn{ForgetPrincipal} tells \sys to remove any metadata about a principal $p$.
 %
-However, \sys cannot simply remove pseudoprincipal $q$'s metadata when
-$q$ is decorrelated: this metadata includes \lcapa{qd} ciphertexts.
-%
-Removing \lcapa{qd} would remove the ability to find $q$'s encrypted
-record bags efficiently.
-%
-%If \sys wanted to access $q$'s records for \eg disguise reversal, \sys would need
-%to attempt to decrypt every encrypted record bag at every location.
-
+However, \sys cannot always remove a metadata of a pseudoprincipal $q$: this metadata may include
+\lcapa{qd} ciphertexts that must be kept in order to later find $q$'s encrypted record bags
+efficiently.
 %
 Given that \sys cannot decrypt $q$'s locators, nor send them to a
-client, it has only two choices when asked to forget $q$ while $q$
-still holds locators: \one{} delete $q$'s metadata at the cost of losing
-(efficient) access to $q$'s records; or \two{} retain $q$'s metadata at
-the cost of slightly weaker security (an adversary can learn that a
-pseudoprincipal existed and some data had been decorrelated at some point,
-even if the corresponding user or data has since been deleted).
+client, 
+%it has only two choices when asked to forget $q$ while $q$
+%still holds locators: \one{} delete $q$'s metadata at the cost of losing
+%(efficient) access to $q$'s records; or \two{} retain $q$'s metadata at
+%the cost of slightly weaker security (an adversary can learn that a
+%pseudoprincipal existed and some data had been decorrelated at some point,
+%even if the corresponding user or data has since been deleted).
 %
-\sys currently does the latter and retains pseudoprincipal metadata.
+\sys retains pseudoprincipal metadata if it contains encrypted locators when 
+\fn{ForgetPrincipal} is called. However, \sys flags the metadata so that \sys removes the metadata immediately once all locators are removed.
 %
-%If a pseudoprincipal is often deleted while \sys has knowledge of the link between $q$ and original
-%principal $p$ (\eg, when a client deletes $p$'s account and provides speaks-for records
-%to \sys to delete $p$'s anoymized data). In these scenarios, \sys can .
 
-\lyt{TODO clearing of records, $d' \neq d$}
+%
+\sys removes a pseudoprincipal locator \lcapa{qd_2} when the application
+decides disguised data from disguise $d_2$ is no longer necessary (\eg because the disguise has been
+revealed). 
+%
+The application calls \fn{ForgetData($d_2$, \lcapa{pd_1})} with a user-provided locator
+that must necessarily be from an earlier disguise $d_1$ that decorrelated $q$ from natural principal
+$p$. 
+%
+\lcapa{pd_1} allows \sys to access $q$'s private key, decrypt $q$'s locator \lcapa{qd_2}, and
+find and forget the disguised data at \lcapa{qd_2}. Once this is done, \sys can remove \lcapa{qd_2}.
+%
+
+%
+Because \sys may need to use \lcapa{pd_1} to access $q$'s encrypted private key,
+\sys retains $q$'s encrypted private key at \lcapa{pd} even if a prior call to \fn{ForgetData($d_1$, \lcapa{pd_1})}
+removed the rest of $d_1$'s disguised data at \lcapa{pd_1} (\ie encrypted diff or speaks-for tokens).
+Once \sys has removed $q$'s metadata, then \sys removes all trace of \lcapa{pd} since the
+referenced bag is empty.
+%
 
 \head{Putting It Together.}
 %
@@ -177,6 +185,12 @@ with $q_i$'s private key.
 %
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% OLD
 \begin{comment}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -80,8 +80,8 @@ StoreSpeaksFor(p1: UID, p2: UID);
 DiffsForDisguise(did: DisguiseID, privk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
 // Principals that p speaks for (stored at loc).
 PseudoprincipalsOf(p: UID, privk: PrivKey, loc: Locator) -> Vec<UID>;
-// Drop encrypted data at locator (irreversible).
-ForgetData(loc: Locator);
+// Drop encrypted data stored by disguise did at locator (irreversible).
+ForgetData(did: DisguiseID, loc: Locator);
 \end{lstlisting}
 \caption{\sys's low-level API.}
 \label{f:api-low}
