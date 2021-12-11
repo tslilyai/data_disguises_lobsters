@@ -35,6 +35,15 @@ to avoid confounding factors related to persistence.
 \subsection{Security Evaluation}
 \label{s:eval-security}
 
+\ms{
+\begin{enumerate}[nosep]
+ \item Introduce assumption that attacker knows nothing about users’ disguise histories (in \S\ref{s:threat}?).
+ \item Explain in how (2) in threat model comes to be (single disguise case).
+ \item Note that other leaks (2+ disguises if PP w/ locators present) are already covered by that.
+ \item Add that Edna leaks the number of disguises applied to a PP, but not how many applied to a NP.
+\end{enumerate}
+}
+
 %
 \sys secures disguise records by encrypting them with the public key of a principal $p$.
 %
