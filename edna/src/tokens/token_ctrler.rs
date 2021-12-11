@@ -8,7 +8,7 @@ use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 use log::warn;
 use mysql::prelude::*;
-use rand::{rngs::OsRng, RngCore};
+use rand::{rngs::OsRng, RngCore, Rng};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
@@ -27,6 +27,12 @@ const PRINCIPAL_TABLE: &'static str = "EdnaPrincipals";
 const UID_COL: &'static str = "uid";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct BoolNonce {
+    pub nonce: u64,
+    pub b: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash, Default)]
 pub struct EncData {
     pub enc_key: Vec<u8>,
     pub enc_data: Vec<u8>,
@@ -78,7 +84,7 @@ impl EncData {
 pub struct PrincipalData {
     pub pubkey: RsaPublicKey,
     pub is_anon: bool,
-    pub should_remove: bool,
+    pub should_remove: EncData,
 
     // only nonempty for pseudoprincipals!
     pub loc_caps: HashSet<EncData>,
@@ -150,7 +156,7 @@ impl TokenCtrler {
             .unwrap();
         //db.query_drop(&format!("DROP TABLE {};", PRINCIPAL_TABLE)).unwrap();
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove tinyint, pubkey varchar(1024), locs varchar(2048), PRIMARY KEY ({})) ENGINE = MEMORY;",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove varchar(255), pubkey varchar(1024), locs varchar(2048), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         db.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(
@@ -161,7 +167,7 @@ impl TokenCtrler {
         .unwrap();
         for row in selected {
             let is_anon: bool = row[1].value == "1";
-            let should_remove: bool = row[2].value == "1";
+            let should_remove: EncData = serde_json::from_str(&row[2].value).unwrap();
             let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[3].value).unwrap();
             let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
             let locs = serde_json::from_str(&row[4].value).unwrap();
@@ -290,7 +296,7 @@ impl TokenCtrler {
         &mut self,
         uid: &UID,
         is_anon: bool,
-        should_remove: bool,
+        should_remove: EncData,
         pubkey: &RsaPublicKey,
         lc: HashSet<EncData>,
         persist: bool,
@@ -319,11 +325,21 @@ impl TokenCtrler {
     ) -> RsaPrivateKey {
         warn!("Registering principal {}", uid);
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
+        let should_remove = if is_anon {
+            let bn = BoolNonce {
+                nonce: self.rng.gen(),
+                b: false,
+            };
+            let plaintext = serialize_to_bytes(&bn);
+            EncData::encrypt_with_pubkey(&pubkey, &plaintext)
+        } else {
+            Default::default()
+        };
         let pdata = PrincipalData {
             pubkey: pubkey,
             is_anon: is_anon,
             loc_caps: HashSet::new(),
-            should_remove: false,
+            should_remove: should_remove,
         };
 
         self.mark_principal_to_insert(uid, &pdata);
@@ -393,7 +409,7 @@ impl TokenCtrler {
                 "(\'{}\', {}, {}, \'{}\', \'{}\')",
                 uid,
                 if pdata.is_anon { 1 } else { 0 },
-                if pdata.should_remove { 1 } else { 0 },
+                serde_json::to_string(&pdata.should_remove).unwrap(),
                 serde_json::to_string(&pubkey_vec).unwrap(),
                 empty_vec
             ));
@@ -417,11 +433,11 @@ impl TokenCtrler {
         self.tmp_principals_to_insert.clear();
     }
 
-    // Note: pseudoprincipals cannot be removed (they're essentially like ``tokens'')
     pub fn mark_principal_to_be_removed(&mut self, uid: &UID, did: DID) {
         let start = time::Instant::now();
         let p = self.principal_data.get_mut(uid).unwrap();
         // save to principal data if anon (pseudoprincipal)
+        // we only want to remove PPs if the corresponding owntokens have been cleared
         if p.is_anon {
             return;
         }
@@ -445,7 +461,13 @@ impl TokenCtrler {
         let mut pdata = pdata.unwrap();
         if !pdata.loc_caps.is_empty() {
             // mark as to_remove
-            pdata.should_remove = true;
+            let should_remove = BoolNonce {
+                nonce: self.rng.gen(),
+                b: true,
+            };
+            let plaintext = serialize_to_bytes(&should_remove);
+            let enc_bn = EncData::encrypt_with_pubkey(&pdata.pubkey, &plaintext);
+            pdata.should_remove = enc_bn;
         } else {
             // actually remove metadata
             warn!("Removing principal {}\n", uid);
@@ -1087,9 +1109,12 @@ impl TokenCtrler {
                                 removed = new_pp.loc_caps.remove(&enclc);
                             }
 
+                            let (_, should_remove_bytes) = new_pp.should_remove.decrypt_encdata(&pkt.priv_key);
+                            let should_remove = serde_json::from_slice(&should_remove_bytes).unwrap();
+
                             // remove the pp if it has no more bags and should be removed,
                             // otherwise update the pp's metadata in edna if changed
-                            if new_pp.should_remove && new_pp.loc_caps.is_empty() {
+                            if should_remove && new_pp.loc_caps.is_empty() {
                                 // either remove the principal metadata
                                 warn!("Removing metadata of {}", new_uid);
                                 self.remove_principal(&new_uid, db);
@@ -1102,7 +1127,7 @@ impl TokenCtrler {
 
                             // this is a privkey whose corresponding pp still has data :\
                             // we need to keep it
-                            if !(new_pp.should_remove && new_pp.loc_caps.is_empty()) {
+                            if !(should_remove && new_pp.loc_caps.is_empty()) {
                                 kept_privkeys.push(pkt.clone());
                             }
                         }

@@ -31,7 +31,7 @@ fn main() {
     let mut file = File::create(filename).unwrap();
  
     let size = 2048;
-    for i in 1..10001 {
+    for i in 1..1001 {
         let mut bytes: Vec<u8> = repeat(0u8).take(i*size).collect();
         rng.fill_bytes(&mut bytes[..]);
         let start = time::Instant::now();

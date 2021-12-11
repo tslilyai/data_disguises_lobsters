@@ -314,7 +314,7 @@ fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<
 
 pub fn init_db(prime: bool, in_memory: bool, host: &str, dbname: &str, schema: &str) {
     warn!("EDNA: Init db {}!", dbname);
-    let url = format!("mysql://root:password@{}", host);
+    let url = format!("mysql://tslilyai:pass@{}", host);
     let mut db = mysql::Conn::new(Opts::from_url(&url).unwrap()).unwrap();
     if prime {
         warn!("Priming database");
