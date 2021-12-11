@@ -338,14 +338,20 @@ impl TokenCtrler {
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
         let should_remove = if is_anon {
             // save a bunch of random bytes instead of actually encrypting anything
-            let mut key: Vec<u8> = repeat(0u8).take(RSA_BYTES).collect();
+            let mut key: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
+            self.rng.fill_bytes(&mut key[..]);
+            // encrypt key with pubkey
+            let padding = PaddingScheme::new_pkcs1v15_encrypt();
+            let enc_key = pubkey
+                .encrypt(&mut self.rng, padding, &key[..])
+                .expect("failed to encrypt");
+            // generate random bytes for other stuff
             let mut encdata: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
             let mut iv: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
-            self.rng.fill_bytes(&mut key[..]);
             self.rng.fill_bytes(&mut encdata[..]);
             self.rng.fill_bytes(&mut iv[..]);
             EncData {
-                enc_key: key,
+                enc_key: enc_key,
                 enc_data: encdata,
                 iv: iv,
             }
