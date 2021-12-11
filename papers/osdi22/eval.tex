@@ -179,18 +179,18 @@ restoration).
   \label{fig:client_opstats}
 \end{figure}
 
-\begin{table*}[h!]
+\begin{figure}[t]
 \begin{center}
-\begin{tabular}{ c c }
-\textbf{DB Op} & \textbf{Time (ms)}\\
-\hline
-Update DB Row & 0.1\\
-Select DB Rows & 0.2\\
-Remove DB Rows & 0.2\\
-Reveal Deleted Row (DB Select + Insert) & 0.2 \\
-Create + Register Principal & 0.1\\
-\end{tabular}
-\quad
+%\begin{tabular}{ c c }
+%\textbf{DB Op} & \textbf{Time (ms)}\\
+%\hline
+%Update DB Row & 0.1\\
+%Select DB Rows & 0.2\\
+%Remove DB Rows & 0.2\\
+%Reveal Deleted Row (DB Select + Insert) & 0.2 \\
+%Create + Register Principal & 0.1\\
+%\end{tabular}
+%\quad
 \begin{tabular}{ c c }
 \textbf{Crypto Op} & \textbf{Time (ms)}\\
 \hline
@@ -202,8 +202,8 @@ Decrypt Diff Record & 3.0\\
 \end{tabular}
 \end{center}
 \caption{Amount of time required to run different operations required to apply and reveal disguises.}
-\label{tab:opstats}
-\end{table*}
+\label{f:opstats}
+\end{figure}
 
 \paragraph{WebSubmit.}
 %
@@ -221,32 +221,25 @@ low variance in the results.
 %
 
 %
-Figure~\ref{fig:ops-websubmit} shows the median latency for two normal operations
+Figure~\ref{f:ops-websubmit} shows the median latency for two normal operations
 (creating an account and editing unanonymized data), two disguises (delete account
 and anonymizing an account), and two operations over data under disguise (editing
 anonymized data and restoring the account).
 %
 Normal operations have comparable latencies with and without \sys.
 %
-
-%
-\sys's disguise-based account deletion takes 2.9ms, \vs 0.9ms in the manual
-baseline.
-%
-This makes sense, as \sys encrypts database diffs and speaks-for records, while
+\sys's disguise-based account deletion and anonymization take longer than the
+baseline since \sys encrypts database diffs and speaks-for records, while
 the baseline only deletes data from the application DB.
 %
-The difference is greater for account anonymization, where \sys takes 10.8ms,
-while the baseline takes less than 0.1ms.
-\ms{why?}
+The absolute latency of \sys's disguises is 10.8ms and the latencies for
+\sys's operations over data under disguise are 10--21ms.
 %
-Finally, \sys enables operations over data under disguise, which are impossible in
-the baseline; these take 10.2ms and 21ms, well within acceptable interactive
-latencies for web applications.
+(These operations are impossible in the baseline.)
 %
-The simplicity of WebSubmit's disguises---which touch at maximum two database
-tables---lead to fairly low latencies even for involved operations such as
-restoring a deleted account (21ms).
+However, WebSubmit's disguises are simple and touch at maximum two database
+tables, so we repeate the same measurement with HotCRP's more complex schema and
+disguises.
 %
 
 \paragraph{HotCRP.}
@@ -255,53 +248,83 @@ We run the HotCRP experiments on a database seeded with 450 total users (50 of
 whom are PC members), 450 papers, and four reviews and four comments per paper,
 distributed evenly among PC members.
 %
-The benchmark measures the server-side latency to perform disguising and
-application operations.
+The benchmark measures the server-side latency only.
 %
-HotCRP supports the same disguise-related operations as WebSubmit.
+HotCRP supports the same disguise-related operations as WebSubmit, but reviewers
+have more data, and HotCRP's disguises mix deletions and decorrelations across
+12 tables, so we would expect higher latencies.
 %
 
-HotCRP reviewers have slightly more variable amounts of data \lyt{TODO?} depending on the
-assignment of papers to reviewers. HotCRP's disguises are far more complex than
-WebSubmit's, touching 12 tables, and performing a mix of deletions and
-decorrelations, leading to higher median latencies in general, even for the baseline.
-
+%
+Figure~\ref{f:ops-hotcrp} shows higher latencies in general, even for the manual
+privacy transformations in the baseline, which reflects the more complex
+disguises.
+%
+\sys takes 32--107ms to disguise and reveal a user's data, again owing to the
+extra cryptographic operations necessary.
+%
+Note that account anonymization in HotCRP is an admin-applied disguises that
+runs for all PC members.
+%
+Its total latency is proportional to the PC size; \eg with 50 PC members, it takes
+five seconds, which is acceptable for a one-off operation.
+%
+As before, \sys adds minimal latency to normal application operations.
+%
 
 \paragraph{Lobsters.}
 %
-We run Lobsters benchmarks on a database seeded with 14.5k users, which
-is the late-2021 size of the real Lobsters site.
+Finally, we consider Lobsters, which has users with far more variable amounts of
+data.
+%
+We run Lobsters benchmarks on a database seeded with \note{14.5k} users, the
+late-2021 size of the real Lobsters site~\cite{lobsters}.
 %
 These users have \note{40k} stories, and \note{120k} comments with votes;
 stories, comments, and votes are distributed among users according to
 statistics from the actual Lobsters deployment~\cite{lobsters-data}.
 %
-The benchmark measures server-side latency of disguising and application
-operations.
+The benchmark measures server-side latency only, and we measure the account
+decay disguise (and subsequent restoration) in addition to GDPR-compliant
+account deletion and restoration.
+%
+Lobsters does not support editing decayed contributions.
+%
+As the amount of data per user follows a Zipf-like distribution, so we would
+expect some users' disguises to be much more expensive than the median user's.
 %
 
-Lobsters supports account creation and deletion/restoration as well, but has account decay (and
-subsequent restoration) instead of account anonymization.  It does not support editing anonymized
-data (accounts can be restored in order to edit decorrelated data). In these benchmarks, we measure
-the cost of GDPR-compliant account deletion and restoration.
-
-
-Lobsters users' amount of data follows a skewed distribution, with most of the 5000 users
-having fewer than 10 stories and comments, and a handful of users having over 300 stories and
-comments. Lobster supports more complex disguises than WebSubmit and HotCRP,
-touching 15 tables, and performing a mix of deletions, decorrelations, and modifications. This leads
-to a higher latency as the amount of user data grows comparable to that of users in HotCRP and
-WebSubmit.
-
-\note{XXX old, unedited text follows. Malte is editing here.}
-
-\paragraph{Drill-Down.}
 %
-Latency-critical tasks such as editing (unanonymized) data or
-creating an account are largely unaffected by \sys.
+The results are in Figure~\ref{f:ops-lobsters}.
+%
+The median latencies are small (10--25ms for \sys, and <0.1ms for the
+baseline), since the median Lobsters user has little data.
+%
+But some highly active users have a lot of data, which raises the
+95\textsuperscript{th} percentile latency to 120--220ms for these users.
+%
+
+\paragraph{Summary.}
+%
+These results illustrate that data disguises are fast enough in absolute terms
+that most of them could be run interactively as part of a web request.
+%
+Some global disguises (such as HotCRP's conference anonymization) may take a
+few seconds to complete if run ad-hoc.
+%
+An application could also apply these disguises incrementally by user in the
+background (as Lobsters's data decay already does).
+%
+\sys necessarily adds some latency compared to a manual privacy transformation
+as it must encrypt and store data, as well as maintain its metadata.
+%
+Next, we break down \sys's added latency.
+%
+
+\subsubsection{\sys Operation Cost Drill-Down}
 %
 To explain these costs, we break them down into fine-grained operations shown in
-Table~\ref{tab:opstats}: every disguise action requires some DB operations and,
+Figure~\ref{f:opstats}: every disguise action requires some DB operations and,
 if using \sys, may require cryptographic operations.
 
 \textbf{Creating an account} with or without \sys performs a database insert. Using \sys additionally
@@ -360,7 +383,7 @@ encrypting and storing these speaks-for records with the appropriate public keys
     \label{fig:concurrent}
 \end{figure*}
 
-\paragraph{Multiple Disguises.}
+\subsubsection{Applying Multiple Disguises}
 
 \lyt{TODO}
 
