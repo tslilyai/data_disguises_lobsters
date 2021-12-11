@@ -227,7 +227,7 @@ impl Disguiser {
         let did = disguise.did;
         let start = time::Instant::now();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
+        let global_diff_tokens = vec![];//locked_token_ctrler.get_all_global_diff_tokens();
         let mut ownership_tokens = vec![];
         for lc in &loc_caps {
             let (_, mut ots) = locked_token_ctrler.get_user_tokens(&decrypt_cap, lc);
@@ -244,8 +244,8 @@ impl Disguiser {
          */
         let decor_start = time::Instant::now();
         for (table, transforms) in disguise.table_disguises.clone() {
-            let my_global_diff_tokens_to_modify = self.global_diff_tokens_to_modify.clone();
-            let my_diff_tokens: Vec<DiffTokenWrapper> = vec![]; //global_diff_tokens.clone();
+            //let my_global_diff_tokens_to_modify = self.global_diff_tokens_to_modify.clone();
+            //let my_diff_tokens: Vec<DiffTokenWrapper> = vec![]; //global_diff_tokens.clone();
             let my_own_tokens = ownership_tokens.clone();
             let my_token_ctrler = self.token_ctrler.clone();
 
@@ -254,8 +254,8 @@ impl Disguiser {
             let my_guise_gen = self.guise_gen.clone();
 
             // hashmap from item value --> transform
-            let mut token_transforms: HashMap<DiffTokenWrapper, Vec<ObjectTransformation>> =
-                HashMap::new();
+            //*let mut token_transforms: HashMap<DiffTokenWrapper, Vec<ObjectTransformation>> =
+             //   HashMap::new();
 
             //threads.push(thread::spawn(move || {
             // XXX note: not tracking if we remove or decorrelate twice
@@ -270,6 +270,7 @@ impl Disguiser {
                 if let TransformArgs::Remove = transargs {
                     continue;
                 }
+                // XXX assumes only one original owner UID
                 let preds = predicate::get_all_preds_with_owners(
                     &t.pred,
                     &curtable_info.owner_cols, // assume only one fk
@@ -375,7 +376,7 @@ impl Disguiser {
 
                     // ensure that matching diff tokens are updated
                     // TODO separate out predicating on global diff tokens completely?
-                    for dwrapper in &my_diff_tokens {
+                    /*for dwrapper in &my_diff_tokens {
                         let d = edna_diff_token_from_bytes(&dwrapper.token_data);
                         if dwrapper.is_global && predicate::diff_token_matches_pred(p, &table, &d) {
                             warn!("Apply: Inserting global token {:?} to update\n", d);
@@ -386,13 +387,13 @@ impl Disguiser {
                                 }
                             }
                         }
-                    }
+                    }*/
                 }
             }
             // save token transforms to perform
-            let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
-            locked_tokens.extend(token_transforms);
-            drop(locked_tokens);
+            //let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
+            //locked_tokens.extend(token_transforms);
+            //drop(locked_tokens);
 
             //warn!("Thread {:?} exiting", thread::current().id());
             //}));
@@ -428,8 +429,7 @@ impl Disguiser {
         );
 
         // modify global diff tokens all at once
-        self.modify_global_diff_tokens(disguise);
-        warn!("Disguiser: Performed Inserts");
+        //self.modify_global_diff_tokens(disguise);
 
         // any capabilities generated during disguise should be emailed
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
@@ -444,7 +444,7 @@ impl Disguiser {
         Ok(loc_caps)
     }
 
-    fn modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
+    fn _modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
         let start = time::Instant::now();
         let did = disguise.did;
         let uid = disguise.user.clone();

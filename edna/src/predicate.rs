@@ -94,47 +94,69 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
     ors.join(" OR ")
 }
 
-pub fn modify_predicate_with_owner(
+pub fn modify_predicate_with_owners(
     pred: &Vec<Vec<PredClause>>,
     fk_col: &str,
-    ownership_token: &OwnershipTokenWrapper,
+    ots: &Vec<OwnershipTokenWrapper>,
 ) -> (Vec<Vec<PredClause>>, bool) {
     use PredClause::*;
     let mut new_pred = vec![];
     let mut changed = false;
+    if ots.is_empty() {
+        return (new_pred, changed);
+    }
+    let old_uid = &ots[0].old_uid;
+    let new_owners : Vec<String> = ots.iter().map(|ot| ot.new_uid.to_string()).collect();
     for and_clauses in pred {
         let mut new_and_clauses = vec![];
         // change clause to reference new user instead of old
         for clause in and_clauses {
             match clause {
                 ColInList { col, vals, neg } => {
+                    let mut found = false;
                     for val in vals {
-                        if val == &ownership_token.old_uid.to_string() && col == &fk_col
-                        {
-                            let op = match neg {
-                                true => BinaryOperator::NotEq,
-                                false => BinaryOperator::Eq,
-                            };
-                            new_and_clauses.push(ColValCmp {
-                                col: col.clone(),
-                                val: ownership_token.new_uid.to_string(),
-                                op: op,
-                            });
-                            changed = true;
-                            debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
-                        } else {
-                            new_and_clauses.push(clause.clone())
+                        if val == old_uid && col == &fk_col {
+                            found = true;
+                            break;
                         }
+                    }
+                    if found {
+                        new_and_clauses.push(ColInList {
+                            col: col.clone(),
+                            vals: new_owners.clone(),
+                            neg: *neg,
+                        });
+                        changed = true;
+                        debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
+                    } else {
+                        new_and_clauses.push(clause.clone())
                     }
                 }
                 ColColCmp { .. } => unimplemented!("No ownership comparison of cols"),
                 ColValCmp { col, val, op } => {
-                    if val == &ownership_token.old_uid.to_string() && col == &fk_col {
-                        new_and_clauses.push(ColValCmp {
-                            col: col.clone(),
-                            val: ownership_token.new_uid.to_string(),
-                            op: op.clone(),
-                        });
+                    if val == old_uid && col == &fk_col {
+                        match op {
+                        BinaryOperator::Eq => {
+                            new_and_clauses.push(ColInList {
+                                col: col.clone(),
+                                vals: new_owners.clone(),
+                                neg: false,
+                            });
+                        }, 
+                        BinaryOperator::NotEq => {
+                            new_and_clauses.push(ColInList {
+                                col: col.clone(),
+                                vals: new_owners.clone(),
+                                neg: true,
+                            });
+                        },
+                        _ => unimplemented!("No support for ops that aren't eq or neq for composition"),
+                            /*new_and_clauses.push(ColValCmp {
+                                col: col.clone(),
+                                val: ownership_token.new_uid.to_string(),
+                                op: op.clone(),
+                            });*/
+                        }
                         changed = true;
                         debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
                     } else {
@@ -146,7 +168,7 @@ pub fn modify_predicate_with_owner(
         }
         new_pred.push(new_and_clauses);
     }
-    debug!("Modified pred {:?} to {:?} with ot {:?}\n", pred, new_pred, ownership_token);
+    debug!("Modified pred {:?} to {:?} with ots {:?}\n", pred, new_pred, ots);
     (new_pred, changed)
 }
 
@@ -168,14 +190,12 @@ pub fn get_all_preds_with_owners(
     own_tokens: &Vec<OwnershipTokenWrapper>,
 ) -> Vec<Vec<Vec<PredClause>>> {
     let mut preds = vec![pred.clone()];
-    for ot in own_tokens {
-        for col in fk_cols {
-            let (modified_pred, changed) = modify_predicate_with_owner(pred, col, ot);
-            if !changed {
-                continue;
-            }
-            preds.push(modified_pred);
+    for col in fk_cols {
+        let (modified_pred, changed) = modify_predicate_with_owners(pred, col, own_tokens);
+        if !changed {
+            continue;
         }
+        preds.push(modified_pred);
     }
     preds
 }
