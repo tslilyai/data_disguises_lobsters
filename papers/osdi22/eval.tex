@@ -28,8 +28,8 @@ We seek to answer the four questions:
 All benchmarks run on a 40-core server with Intel Xeon E5-2660 v3 CPUs and \note{XX} of RAM
 running \note{Arch Linux XXX}.
 %
-We use the MariaDB RDMS for application data storage, but store all databases on \fn{tmpfs}
-to avoid confounding factors related to persistence.
+We use the MariaDB RDMS with the InnoDB storage engine for application data storage, but
+store all databases on \fn{tmpfs} to avoid confounding factors related to persistence.
 %
 
 \subsection{Security Evaluation}
@@ -378,24 +378,6 @@ evaluate next.
     \label{f:composition}
 \end{figure}
 
-\begin{figure*}[t]
-    \centering
-        \includegraphics[width=0.45\textwidth]{figs/lobsters_concurrent_results}
-        \includegraphics[width=0.45\textwidth]{figs/websubmit_concurrent_results}
-    \caption{Impact of continuously applying and revealing account deletion disguises (non-transactional and transactional) on users concurrently running
-    normal application operations. We show the median latency; ranges indicate the 5th to 95th
-    percentile latencies.
-    \textbf{Left (Lobsters)} tests the normal Lobsters traffic in the presence of an expensive
-    disguiser (owning >6000 data objects) and a cheap disguiser (ownering <10 data objects). Even an expensive disguiser has minimal impact when user load is low; however, the impact increases as the server load increases, and if the
-    disguise is transactional.
-    \textbf{Right (WebSubmit)} tests an adversarial, write-only user workload of edits that
-    modify the same table. All users have approximately the same amount of data (4 answers for 20
-    lectures), and one user is chosen to continuously delete and restore their account. Here,
-    disguising has minimal impact on latency even at high load.
-    }
-    \label{fig:concurrent}
-\end{figure*}
-
 \subsubsection{Applying Multiple Disguises}
 
 \lyt{TODO}
@@ -408,7 +390,9 @@ modification queries for each discovered pseudoprincipal (in addition to the ori
 Account restoration may also restore pseudoprincipal-associated data, which requires temporary
 recorrelation to access to pseudoprincipal-associated records produced from the account deletion.
 \sys thus additionally decrypt speaks-for records for all pseudoprincipals of the user, which causes
-the the increase in latency.\lyt{Numbers?}
+the the increase in latency.
+
+\lyt{Numbers?}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Resource Use}
@@ -427,46 +411,105 @@ are small.
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Impact on Normal Application Use}
+\subsection{Impact On Concurrent Application Use}
 \label{s:eval-conc}
 
-Figure~\ref{fig:concurrent} shows the impact of concurrently-running disguise actions on the latency
-of normal application operations.
+%
+Web applications serve many concurrent users, most of whom are simply using the
+application.
+%
+Occasionally, a user (or an admin, or a cron job) will initiate a privacy
+transformation, which invokes \sys.
+%
+These transformations are comparatively rare, but data disguises and \sys can
+only be practical if the latency of normal application requests is largely
+unaffected by \sys' disguise and reveal operations.
+%
+If an expensive disguise---such as a popular Lobsters user deleting their
+account---blocked application processing for all other users, developers would
+be rightly sceptical to deploy \sys.
+%
 
-We first test the impact of disguising in Lobsters. We first achieve ~80\% CPU load by running
-30 threads that model production Lobsters traffic. These threads simulate performing different
-Lobsters operations (\eg loading the front-page, posting stories) according to measured access
-frequencies and popularity distributions in production\lyt{CITE}. In this workload, 85\% of all
-operations are front-page loads, which fetching stories and vote counts.
+\begin{figure}[t]
+    \centering
+%    \begin{subfigure}[b]{0.49\textwidth}
+        \includegraphics{figs/lobsters_concurrent_results}
+        \caption{Lobsters. Even continuous disguise/reveal operations by an expensive disguiser (>6k
+          data objects) has a small impact on application request latency. Bars show median latency,
+          error bars are the 5\textsuperscript{th}/95\textsuperscript{th} percentiles.}
+        \label{f:concurrent-lobsters}
+%    \end{subfigure}
+%    \begin{subfigure}[b]{0.49\textwidth}
+%        \includegraphics{figs/websubmit_concurrent_results}
+%        \caption{WebSubmit. A user's continuous disguising/revealing has only a small impact on
+%          application request latency.}
+%        \label{f:concurrent-websubmit}
+%    \end{subfigure}
+%    \caption{Impact of continuously applying and revealing account deletion disguises (with and with TX
+%    over the application DB) on other users' concurrent application requests. Bars show median latency,
+%    error bars indicate 5\textsuperscript{th}/95\textsuperscript{th} percentiles.}
+%    \label{fig:concurrent}
+\end{figure}
 
-An additional number of threads simulate disguising users: these users (in the worst-case) decide to
-simultaneously delete their account (\eg in response to some social media campaign). At some later
-point in time, these users decide to come back and (in the worst case) simultaneously restore their
+%
+We investigate the impact of \sys's disguise and reveal operations, as well as
+operations over data under disguise, on other concurrent user requests in Lobsters.
+%
+In both experiments, a set of ``normal'' users make requests to the application
+while another (distinct) set of users continuously deletes and restores their
 accounts.
-We observe that even when the number of disguisers increases to 100, the latency of normal Lobsters
-operation remains unaffected.
-
-We then test an adversarial, write-only workload with WebSubmit. As a baseline, we achieve ~60\% CPU
-load by running 100 threads that each continuously edit a user's lecture answers with 250-500ms
-pauses between edits. This write-heavy workload achieves particularly high contention because all
-edit queries modify the same database table; MySQL uses table-level locking for \texttt{MEMORY}
-tables.
-
-We then add an additional number of threads to simulate simultaneously disguising users.  While
-fewer than 16 users disguising themselves at once has minimal impact on edit latency, 30 users doing
-so causes spikes up to 4000ms.  These spikes come in pairs, with the larger second spike in the pair
-coinciding with concurrent revealing (and the first of the pair coinciding with disguising);
-revealing has greater impact due to its higher latency and compute costs.
 %
-Record batching improves these results by reducing the load generated by disguise actions: latency
-spikes decrease to under 1500ms.
-
-While we focus on normal application operation latency, we note that
-disguise operation latency increases proportional to the overall system load (\eg due to MySQL’s
-table-level locking). But this is acceptable, as disguises aren't time critical; in practice, they
-still complete within a few seconds even at 60-80\% system load.
+\sys applies disguises sequentially, so only one disguise happens at a time.
 %
-What matters is that normal application requests have acceptably low latency even in the presence of
-disguising, which we achieve under realistic workloads (largely reads, with queries dispersed among
-tables). If the workload becomes adversarial, \sys can prevent normal operation latency spikes by
-rate-limiting disguise actions.
+(This is realistic, as the UI can tell other users to wait or process the request
+asynchronously; it also avoids \sys having to reason about overlapping data between
+two or more disguises.)
+%
+We measure the latency of ``normal'' user's application operations in closed-loop
+setting, both without any disguises (the baseline) and with the application
+continuously invoking \sys.
+%
+Our Lobsters application workload is based on the request distributions in the real
+Lobsters deployment~\cite{lobsters-data}.
+%
+Since the disguise/reveal cost in Lobsters varies across users, we measure the
+impact of randomly chosen users invoking account deletion/restoration, and of
+the user with the most data continuously deleting and restoring their account
+(a worst-case scenario for this application).
+%
+We show latency in a low load scenario ($\approx$10\% CPU load on the server),
+and a high load scenario in which we run the maximum load supported before
+concurrency control in the MariaDB database becomes a bottleneck
+and throughput increases no further (at $\approx$40\% CPU load).
+%
+Finally, we measure a setting without using a transaction for the disguise's
+application database operations, and one with such a transaction.
+%
+The latter makes sense sense if the application wishes to avoid exposing
+partially-disguised data to other clients.
+%
+A good result for \sys would show little impact on the latency of normal operations
+when concurrent privacy transformations occur.
+%
+
+%
+Figure~\ref{f:concurrent-lobsters} shows the results.
+%
+The median latency of normal application requests increases by 5--20\% (from
+1.7ms to 1.8--2ms under low load, and 2ms to 2.1--2.4ms under high load) when
+random users delete and restore their accounts.
+%
+Transactional account deletion and restoration of the most expensive user
+results in a 53--60\% increase in median latency.
+%
+These results show that \sys's data disguises, as well as operations over
+data under disguise (here, account restoration) have little impact on
+other user's application experience.
+%
+
+%
+While the experiment measured normal application request latency, the
+account deletions and restorations take \note{X--Y}ms to complete.
+%
+This is also acceptable, as disguises aren't time critical.
+%

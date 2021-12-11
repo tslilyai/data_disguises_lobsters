@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import csv
@@ -6,9 +7,19 @@ import sys
 from collections import defaultdict
 
 plt.style.use('seaborn-deep')
+
+# plot styling for paper
+matplotlib.rc('font', family='serif', size=9)
+matplotlib.rc('text.latex', preamble='\\usepackage{times,mathptmx}')
+matplotlib.rc('text', usetex=True)
+matplotlib.rc('legend', fontsize=8)
+matplotlib.rc('figure', figsize=(3.33,1.5))
+matplotlib.rc('axes', linewidth=0.5)
+matplotlib.rc('lines', linewidth=0.5)
+
 def add_labels(x,y,ax,color,offset):
     for i in range(len(x)):
-        ax.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color)
+        ax.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color, fontsize='x-small')
 
 barwidth = 0.15
 # positions
@@ -18,7 +29,7 @@ labels = ['Low Load', 'High Load']
 # collect all results
 op_results = defaultdict(list)
 op_results_txn = defaultdict(list)
-fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(6.33,3))
+fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(3.33, 2.22))
 
 def get_yerr(durs):
     mins = []
@@ -51,7 +62,7 @@ for u in users:
         get_data('results/lobsters_results/concurrent_disguise_stats_{}users_{}_txn.csv'.format(u, d),
                 op_results_txn, 1, u)
 
-offset = 0.5
+offset = 0.1
 
 ################ none
 plt.bar((X-2*barwidth), [
@@ -63,7 +74,7 @@ yerr=get_yerr([
     op_results[10][0],
 
 ]),
-color='g', capsize=5, width=barwidth, label="No Disguiser")
+color='g', capsize=3, width=barwidth, label="No Disguiser")
 add_labels((X-2*barwidth),
 [
     statistics.median(op_results[1][0]),
@@ -81,7 +92,7 @@ yerr=get_yerr([
     op_results[10][1],
 
 ]),
-color='c', capsize=5, width=barwidth, label="Random Disguiser")
+color='c', capsize=3, width=barwidth, label="Random Disguiser")
 add_labels((X-barwidth),
 [
     statistics.median(op_results[1][1]),
@@ -98,7 +109,7 @@ yerr=get_yerr([
     op_results_txn[10][1],
 
 ]),
-color='b', capsize=5, width=barwidth, label="Random Disguiser (Txn)")
+color='b', capsize=3, width=barwidth, label="Random Disguiser (Txn)")
 add_labels((X),
 [
     statistics.median(op_results_txn[1][1]),
@@ -115,7 +126,7 @@ yerr=get_yerr([
     op_results[10][2],
 
 ]),
-color='r', capsize=5, width=barwidth, label="Expensive Disguiser")
+color='r', capsize=3, width=barwidth, label="Expensive Disguiser")
 add_labels((X+barwidth),
 [
     statistics.median(op_results[1][2]),
@@ -133,7 +144,7 @@ yerr=get_yerr([
     op_results_txn[10][2],
 
 ]),
-color='m', capsize=5, width=barwidth, label="Expensive Disguiser (Txn)")
+color='m', capsize=3, width=barwidth, label="Expensive Disguiser (Txn)")
 add_labels((X+2*barwidth),
 [
     statistics.median(op_results_txn[1][2]),
@@ -142,10 +153,10 @@ add_labels((X+2*barwidth),
 
 
 plt.ylabel('Time (ms)')
-plt.ylim(ymin=0, ymax=8)
+plt.ylim(ymin=0, ymax=10)
 plt.xticks(X, labels=labels)
 
 plt.ylabel('Latency (ms)')
-plt.legend(loc="upper left")
-plt.tight_layout(h_pad=4)
+plt.legend(loc="upper left", frameon=False)
+plt.tight_layout(h_pad=0)
 plt.savefig('lobsters_concurrent_results.pdf')
