@@ -34,10 +34,13 @@ impl ToString for PredClause {
     fn to_string(&self) -> String {
         use PredClause::*;
         match self {
-            ColInList { col, vals, neg } => match neg {
-                true => format!("{} NOT IN ({})", col, vals.join(",")),
-                false => format!("{} IN ({})", col, vals.join(",")),
-            },
+            ColInList { col, vals, neg } => {
+                let strvals : Vec<String> = vals.iter().map(|v| format!("\'{}\'", v)).collect();
+                match neg {
+                    true => format!("{} NOT IN ({})", col, strvals.join(",")),
+                    false => format!("{} IN ({})", col, strvals.join(",")),
+                }
+            }
 
             ColColCmp { col1, col2, op } => {
                 use BinaryOperator::*;

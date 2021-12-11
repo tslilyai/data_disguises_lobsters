@@ -23,6 +23,8 @@ pub type LocCap = u64;
 pub type DecryptCap = Vec<u8>; // private key
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
+const RSA_BYTES :usize = 256;
+const AES_BYTES :usize = 16;
 const PRINCIPAL_TABLE: &'static str = "EdnaPrincipals";
 const UID_COL: &'static str = "uid";
 
@@ -40,25 +42,27 @@ pub struct EncData {
 }
 
 impl EncData {
-    pub fn decrypt_encdata(&self, decrypt_cap: &DecryptCap) -> (Vec<u8>, Vec<u8>) {
+    pub fn decrypt_encdata(&self, decrypt_cap: &DecryptCap) -> (bool, Vec<u8>) {
         if decrypt_cap.is_empty() {
-            return (vec![], vec![]);
+            return (false, vec![]);
         }
 
         let priv_key = RsaPrivateKey::from_pkcs1_der(decrypt_cap).unwrap();
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let key = priv_key
-            .decrypt(padding, &self.enc_key)
-            .expect("failed to decrypt");
+        let key : Vec<u8>;
+        match priv_key.decrypt(padding, &self.enc_key) {
+            Ok(k) => key = k.clone(),
+            _ => return (false, vec![]),
+        }
         let cipher = Aes128Cbc::new_from_slices(&key, &self.iv).unwrap();
         let mut edata = self.enc_data.clone();
         let plaintext = cipher.decrypt_vec(&mut edata).unwrap();
-        (key.to_vec(), plaintext)
+        (true, plaintext)
     } 
     pub fn encrypt_with_pubkey(pubkey: &RsaPublicKey, bytes: &Vec<u8>) -> EncData {
         let mut rng = rand::thread_rng();
         // generate key
-        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
+        let mut key: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
         rng.fill_bytes(&mut key[..]);
 
         // encrypt key with pubkey
@@ -68,10 +72,11 @@ impl EncData {
             .expect("failed to encrypt");
 
         // encrypt pppk with key
-        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
+        let mut iv: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
         rng.fill_bytes(&mut iv[..]);
         let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
         let encrypted = cipher.encrypt_vec(bytes);
+        warn!("encrypted len is {}, {}", enc_key.len(), encrypted.len());
         EncData {
             enc_key: enc_key,
             enc_data: encrypted,
@@ -332,13 +337,18 @@ impl TokenCtrler {
         warn!("Registering principal {}", uid);
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
         let should_remove = if is_anon {
-            let bn = BoolNonce {
-                nonce: self.rng.gen(),
-                b: false,
-            };
-            let plaintext = serialize_to_bytes(&bn);
-            warn!("Should remove bytes false is {:?}", plaintext);
-            EncData::encrypt_with_pubkey(&pubkey, &plaintext)
+            // save a bunch of random bytes instead of actually encrypting anything
+            let mut key: Vec<u8> = repeat(0u8).take(RSA_BYTES).collect();
+            let mut encdata: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
+            let mut iv: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
+            self.rng.fill_bytes(&mut key[..]);
+            self.rng.fill_bytes(&mut encdata[..]);
+            self.rng.fill_bytes(&mut iv[..]);
+            EncData {
+                enc_key: key,
+                enc_data: encdata,
+                iv: iv,
+            }
         } else {
             Default::default()
         };
@@ -912,10 +922,16 @@ impl TokenCtrler {
                         }
 
                         // check if we should remove the pp
-                        let (_, should_remove_bytes) = new_pp.should_remove.decrypt_encdata(&pkt.priv_key);
-                        warn!("Should remove bytes dec {:?}", should_remove_bytes);
-                        let bn: BoolNonce = serde_json::from_slice(&should_remove_bytes).unwrap();
-                        let should_remove = bn.b;
+                        let (succeeded, should_remove_bytes) = new_pp.should_remove.decrypt_encdata(&pkt.priv_key);
+                        let should_remove = if !succeeded {
+                            false 
+                        } else {
+                            warn!("Should remove bytes dec {:?}", should_remove_bytes);
+                            match serde_json::from_slice::<BoolNonce>(&should_remove_bytes) {
+                                Ok(bn) => bn.b,
+                                _ => false,
+                            }
+                        };
 
                         // remove the pp if it has no more bags and should be removed,
                         // otherwise update the pp's metadata in edna if changed
