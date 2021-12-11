@@ -7,7 +7,7 @@ mkdir output
 set -e
 
 for baseline in '--baseline' ''; do
-	RUST_LOG=warn ../../target/release/hotcrp --prime \
+	RUST_LOG=error ../../target/release/hotcrp --prime \
 		--nusers_nonpc 400 \
 		--nusers_pc 50 \
 		--npapers_rej 400 \

@@ -484,7 +484,6 @@ impl TokenCtrler {
             };
             let plaintext = serialize_to_bytes(&should_remove);
             let enc_bn = EncData::encrypt_with_pubkey(&pdata.pubkey, &plaintext);
-            warn!("Should remove bytes set to {:?}", plaintext);
             pdata.should_remove = enc_bn;
             // TODO persist this?
         } else {
@@ -926,7 +925,6 @@ impl TokenCtrler {
                         let should_remove = if !succeeded {
                             false 
                         } else {
-                            warn!("Should remove bytes dec {:?}", should_remove_bytes);
                             match serde_json::from_slice::<BoolNonce>(&should_remove_bytes) {
                                 Ok(bn) => bn.b,
                                 _ => false,

@@ -86,13 +86,13 @@ fn main() {
     }
     // create private keys, save in file jic if we've primed already
     let mut db = edna.get_conn().unwrap();
-    db.query_drop("DELETE FROM EdnaPrincipals WHERE uid >= 10000")
+    db.query_drop("DELETE FROM EdnaPrincipals WHERE uid >= 20000")
         .unwrap();
     // clear extra pseudoprincipals
-    db.query_drop("DELETE FROM users WHERE id >= 10000")
+    db.query_drop("DELETE FROM users WHERE id >= 20000")
         .unwrap();
 
-    if prime {
+    //if prime {
         for u in 0..nusers {
             let user_id = u as u64 + 1;
             let private_key = edna.register_principal(&user_id.to_string());
@@ -105,12 +105,12 @@ fn main() {
         )
         .unwrap();
         error!("Got {} decrypt caps", user2decryptcap.len());
-    } else {
-        let file = File::open("decrypt_caps.json").unwrap();
-        let reader = BufReader::new(file);
-        user2decryptcap = serde_json::from_reader(reader).unwrap();
-        error!("Got {} decrypt caps", user2decryptcap.len());
-    }
+    //} else {
+        //let file = File::open("decrypt_caps.json").unwrap();
+        //let reader = BufReader::new(file);
+        //user2decryptcap = serde_json::from_reader(reader).unwrap();
+        //error!("Got {} decrypt caps", user2decryptcap.len());
+    //}
 
     if args.stats {
         run_stats_test(&mut edna, &sampler, &user2decryptcap, prime);
@@ -527,6 +527,7 @@ fn run_stats_test(
             disguises::data_decay::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
+        warn!("Got lc {:?} decaying {}", lcs, user_id);
 
         // checks
         let res = db
@@ -561,6 +562,7 @@ fn run_stats_test(
             Some(ol) => vec![*ol],
             None => vec![],
         };
+        warn!("Got lc {:?} to undecay {}", ls, user_id);
         disguises::data_decay::reveal(edna, decryption_cap.clone(), ls).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
@@ -661,7 +663,7 @@ fn run_stats_test(
         // only measure this if we're not priming, so we don't mess up the DB again...
         let start = time::Instant::now();
         if !prime {
-            //disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
+            disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
             //disguises::baseline::apply_decay(user_id, edna).unwrap();
         }
         file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())

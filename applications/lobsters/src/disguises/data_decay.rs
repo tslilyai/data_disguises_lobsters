@@ -12,8 +12,8 @@ pub fn apply(
     decryption_cap: tokens::DecryptCap,
     loc_caps: Vec<tokens::LocCap>,
 ) -> Result<HashMap<(UID, DID), tokens::LocCap>, mysql::Error> {
-    let gdpr_disguise = get_disguise(uid);
-    edna.apply_disguise(Arc::new(gdpr_disguise), decryption_cap, loc_caps)
+    let decay_disguise = get_disguise(uid);
+    edna.apply_disguise(Arc::new(decay_disguise), decryption_cap, loc_caps)
 }
 
 pub fn reveal(
