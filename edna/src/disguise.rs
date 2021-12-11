@@ -291,6 +291,9 @@ impl Disguiser {
                         )
                         .unwrap()
                     };
+                    if selected_rows.is_empty() {
+                        continue;
+                    }
                     warn!(
                         "ApplyPredDecor: Got {} selected rows matching predicate {:?}\n",
                         selected_rows.len(),

@@ -76,7 +76,7 @@ fn main() {
         "127.0.0.1",
         &dbname,
         SCHEMA,
-        true,
+        false,
         nusers as usize * 200,      // assume each user has 200 pieces of data
         disguises::get_guise_gen(), /*in-mem*/
     );
