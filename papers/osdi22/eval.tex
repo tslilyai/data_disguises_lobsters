@@ -185,16 +185,16 @@ Decrypt Diff Record & 3.0\\
 \paragraph{WebSubmit.}
 %
 We run WebSubmit benchmarks with a database seeded with 2,000 users, 20
-lectures with four questions each, and answers for each question for
+lectures with four questions each, and an answer for each question for
 each user (160k total answers).
 %
 This might correspond to all classes in a department, or to a large AI class.
 %
-We measure end-to-end latency, including request processing in WebSubmit,
+We measure end-to-end latency, which includes request processing in WebSubmit,
 \sys's operations, and the response to the client.
 %
-Since WebSubmit is a small application and the amount of data under disguise
-is constant across users, we would expect low variance in the results.
+The amount of data under disguise is constant across users, so we would expect
+low variance in the results.
 %
 
 %
@@ -203,22 +203,28 @@ Figure~\ref{fig:websubmit-ops} shows the median latency for two normal operation
 and anonymizing an account), and two operations over data under disguise (editing
 anonymized data and restoring the account).
 %
-Normal operations have comparable latencies with and without \sys, so \sys
-adds little overhead due to \eg principal registration.
+Normal operations have comparable latencies with and without \sys.
 %
 
-
-Note that \sys enables editing of anonymized data and account restoration. Thus, we have no
-comparable baseline latency without \sys for editing anonymized data or account restoration.
-Record batching also has no effect in creating user accounts and editing unanonymized data
-(as no records are involved).
 %
-
-WebSubmit users all have approximately the same amount of data (a set number of answers to
-lecture questions). Thus, the spread in latencies is low. The simplicity of WebSubmit's
-disguises---which touch at maximum two database tables---lead to fairly low latencies even for
-expensive operations such as restoring deleted accounts (250ms).
-
+\sys's disguise-based account deletion takes 2.9ms, \vs 0.9ms in the manual
+baseline.
+%
+This makes sense, as \sys encrypts database diffs and speaks-for records, while
+the baseline only deletes data from the application DB.
+%
+The difference is greater for account anonymization, where \sys takes 10.8ms,
+while the baseline takes less than 0.1ms.
+\ms{why?}
+%
+Finally, \sys enables operations over data under disguise, which are impossible in
+the baseline; these take 10.2ms and 21ms, well within acceptable interactive
+latencies for web applications.
+%
+The simplicity of WebSubmit's disguises---which touch at maximum two database
+tables---lead to fairly low latencies even for involved operations such as
+restoring a deleted account (21ms).
+%
 
 \paragraph{HotCRP.}
 %
