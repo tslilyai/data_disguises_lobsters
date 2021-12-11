@@ -6,11 +6,11 @@ set -e
 
 #get stats first, prime when you do this
 # TODO get baselines
-#RUST_LOG=error perflock ../../target/release/lobsters \
-#	--stats \
-#	--scale 3 \
-#	&> output/users.out
-#echo "Ran stats primed test for users"
+RUST_LOG=error perflock ../../target/release/lobsters \
+	--stats \
+	--scale 3 \
+	&> output/users.out
+echo "Ran stats primed test for users"
 
 for u in 1 10 15; do
 	for d in 'none' 'cheap' 'expensive'; do

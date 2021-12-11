@@ -718,6 +718,29 @@ fn decor_items<Q: Queryable>(
         thread::current().id(),
         child_name
     );
+
+    // first, insert all pseudoprincipals
+    let start = time::Instant::now();
+    // actually insert pseudoprincipals
+    let cols = pseudoprincipals[0].1
+            .iter()
+            .map(|rv| rv.column.clone())
+            .collect::<Vec<String>>()
+            .join(",");
+    let vals : Vec<String> = pseudoprincipals.iter().map(|pp|
+        format!("({})", 
+            pp.1.iter()
+                .map(|rv| rv.value.clone())
+                .collect::<Vec<String>>()
+                .join(","))).collect();
+    db.query_drop(&format!(
+        "INSERT INTO {} ({}) VALUES {};",
+        guise_gen.guise_name,
+        cols,
+        vals.join(",")
+    )).unwrap();
+    warn!("Insert {} PPs: {}", pseudoprincipals.len(), start.elapsed().as_micros());
+
     for (index, i) in items.iter().enumerate() {
         // TODO sort items by shared parent
         // then group by group-by-cols
@@ -728,7 +751,6 @@ fn decor_items<Q: Queryable>(
          * A) insert guises for parents
          * B) update child to point to new guise
          * */
-
         // get ID of old parent
         let old_uid = get_value_of_col(&i, &fk_col).unwrap();
         warn!(
@@ -739,26 +761,7 @@ fn decor_items<Q: Queryable>(
         let child_ids = get_ids(&child_name_info.id_cols, &i);
 
         // A. CREATE NEW PARENT
-        let (new_uid, new_parent) = &pseudoprincipals[index];
-
-        let start = time::Instant::now();
-        // actually insert pseudoprincipal
-        db.query_drop(&format!(
-            "INSERT INTO {} ({}) VALUES ({});",
-            guise_gen.guise_name,
-            new_parent
-                .iter()
-                .map(|rv| rv.column.clone())
-                .collect::<Vec<String>>()
-                .join(","),
-            new_parent
-                .iter()
-                .map(|rv| rv.value.clone())
-                .collect::<Vec<String>>()
-                .join(","),
-        ))
-        .unwrap();
-        warn!("Insert PP: {}", start.elapsed().as_micros());
+        let (new_uid, _) = &pseudoprincipals[index];
 
         // actually register the anon principal, including saving an ownership token for the old uid
         // token is always inserted ``privately''
