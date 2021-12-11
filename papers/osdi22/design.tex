@@ -221,18 +221,19 @@ after class anonymization can still delete their anonymized answers.
 When a client wants to restore the account of natural principal $p$, the client
 supplies $p$'s private key and the locator \lcapa{pd} that WebSubmit emailed to
 the client when it applied the account deletion disguise $d$.
-\lyt{The locator is actually a list because of composition: the client may introduce locators from
-previous anonymization disguises so it can reveal data from disguise $d$ on pseudoprincipals. Not
-sure if this is too complex for here, or where to put this in.}
+%\lyt{The locator is actually a list because of composition: the client may introduce locators from
+%previous anonymization disguises so it can reveal data from disguise $d$ on pseudoprincipals. Not
+%sure if this is too complex for here, or where to put this in.}
 %
 WebSubmit receives the key and the locator, and invokes \fn{DiffsForDisguise} with
 \lcapa{pd} and the private key.
 %
 \sys uses the private key to decrypt the records stored earlier, and returns the
 set of (plaintext) database diffs, which WebSubmit then uses to return the
-application database to its original state. Disguised data in \sys is no longer needed: WebSubmit
-invokes \fn{ForgetData} with the locator and the delete-account disguise ID $d$, which clears all
-trace of stored records from $d$.
+application database to its original state.
+%
+Disguised data in \sys is no longer needed: WebSubmit invokes \fn{ForgetData} with
+the locator and the disguise ID $d$, which clears all stored records from $d$.
 %
 Finally, \sys and the application forget the locator and $p$'s private key.
 %
@@ -242,14 +243,16 @@ In this case, $p$ has no pseudoprincipals, as account deletion removes their
 answers than decorrelating them.
 %
 WebSubmit thus only handles diff records, but if the disguise had decorrelated
-data, the application would invokes \fn{PseudoprincipalsOf} with the \lcapa{pd}
+data, the application would invoke \fn{PseudoprincipalsOf} with the \lcapa{pd}
 and $p$'s private key to determine which pseudoprincipals' data should be
 recorrelated back with $p$.
 %
-The application would then remove these pseudoprincipals, and invoke \fn{ForgetPrincipal} on each
-pseudoprincipal ID to remove \sys's state for the pseudoprincipal (subject to conditions described
-in \ref{s:composition}) \lyt{I don't love this forward reference, but we need this condition to be
-accurate}.
+The application would then remove these pseudoprincipals, and invoke
+\fn{ForgetPrincipal} on each pseudoprincipal ID to remove \sys's state for the
+pseudoprincipal (with some caveats described in \S\ref{s:composition}).
+%(subject to conditions described
+%in \ref{s:composition}) \lyt{I don't love this forward reference, but we need this condition to be
+%accurate}.
 
 \head{(2) Accessing Anonymized Answers.}
 %
