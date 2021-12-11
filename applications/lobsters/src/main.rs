@@ -22,6 +22,7 @@ use std::time::Duration;
 use std::*;
 use structopt::StructOpt;
 use std::convert::TryInto;
+use std::cmp::min;
 
 mod datagen;
 mod disguises;
@@ -92,25 +93,27 @@ fn main() {
     db.query_drop("DELETE FROM users WHERE id >= 20000")
         .unwrap();
 
-    //if prime {
-        for u in 0..nusers {
-            let user_id = u as u64 + 1;
-            let private_key = edna.register_principal(&user_id.to_string());
-            let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-            user2decryptcap.insert(user_id, privkey_str);
+    match File::open("decrypt_caps.json") {
+        Ok(file) => {
+            let reader = BufReader::new(file);
+            user2decryptcap = serde_json::from_reader(reader).unwrap();
+            error!("Got {} decrypt caps", user2decryptcap.len());
         }
-        serde_json::to_writer(
-            &File::create("decrypt_caps.json").unwrap(),
-            &user2decryptcap,
-        )
-        .unwrap();
-        error!("Got {} decrypt caps", user2decryptcap.len());
-    //} else {
-        //let file = File::open("decrypt_caps.json").unwrap();
-        //let reader = BufReader::new(file);
-        //user2decryptcap = serde_json::from_reader(reader).unwrap();
-        //error!("Got {} decrypt caps", user2decryptcap.len());
-    //}
+        _ => {
+            for u in 0..nusers {
+                let user_id = u as u64 + 1;
+                let private_key = edna.register_principal(&user_id.to_string());
+                let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
+                user2decryptcap.insert(user_id, privkey_str);
+            }
+            serde_json::to_writer(
+                &File::create("decrypt_caps.json").unwrap(),
+                &user2decryptcap,
+            )
+            .unwrap();
+            error!("Got {} decrypt caps", user2decryptcap.len());
+        }
+    }
 
     if args.stats {
         run_stats_test(&mut edna, &sampler, &user2decryptcap, prime);
@@ -228,11 +231,22 @@ fn run_normal_thread(
     barrier: Arc<Barrier>,
 ) {
     let nstories = sampler.nstories();
-    let ncomments = sampler.ncomments();
+    let mut ncomments = sampler.ncomments();
+    let res = db
+        .query_iter(format!(
+            r"SELECT COUNT(*) FROM comments WHERE id < {};",
+            ncomments, 
+        ))
+        .unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        ncomments = helpers::mysql_val_to_u64(&vals[0]).unwrap() as u32;
+    }
     let nusers = sampler.nusers() as u64;
 
     let mut rng = rand::thread_rng();
-    let max_id = ncomments * 10000;
+    let max_id = i32::MAX as u32;
     let mut my_op_durations = vec![];
 
     barrier.wait();
@@ -279,7 +293,7 @@ fn run_normal_thread(
             queriers::recent::recent(db, user).unwrap();
         } else if pick(630) {
             op = "votecomment";
-            let comment = sampler.comment_for_vote(&mut rng);
+            let comment = rng.gen_range(0, ncomments);//sampler.comment_for_vote(&mut rng);
             queriers::vote::vote_on_comment(db, user, comment as u64, true).unwrap();
         } else if pick(475) {
             op = "votestory";
@@ -301,12 +315,12 @@ fn run_normal_thread(
             // we need to pick a comment that's on the chosen story
             // we know that every nth comment from prepopulation is to the same story
             let comments_per_story = ncomments / nstories;
-            let parent = story + rng.gen_range(0, comments_per_story);
+            let parent = min(story + nstories * rng.gen_range(0, comments_per_story), max_id);
             queriers::comment::post_comment(db, user, id.into(), story as u64, Some(parent as u64))
                 .unwrap();
         } else if pick(54) {
             op = "votecomment";
-            let comment = sampler.comment_for_vote(&mut rng);
+            let comment = rng.gen_range(0, ncomments);//sampler.comment_for_vote(&mut rng);
             queriers::vote::vote_on_comment(db, user, comment as u64, false).unwrap();
         } else if pick(53) {
             op = "poststory";
