@@ -38,8 +38,8 @@ for (i, ax) in enumerate(axes_flat[:2]):
     delete_durs_batch_noanon = []
     restore_durs_batch_noanon = []
 
-    filename_baseline = "results/hotcrp_results/hotcrp_disguise_stats_450users_baseline.csv"
-    filename_batch = "results/hotcrp_results/hotcrp_disguise_stats_450users_batch.csv"
+    filename_baseline = "results/hotcrp_results/hotcrp_disguise_stats_3080users_baseline.csv"
+    filename_batch = "results/hotcrp_results/hotcrp_disguise_stats_3080users_batch.csv"
     title = "HotCRP Reviewer Disguise Costs w/Composition"
     offset = 50
     if i == 0:

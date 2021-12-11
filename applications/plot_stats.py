@@ -63,8 +63,8 @@ for i in range(2):
     delete_durs_baseline = []
 
     app = "hotcrp"
-    filename_baseline = "results/hotcrp_results/hotcrp_disguise_stats_450users_baseline.csv"
-    filename_batch = "results/hotcrp_results/hotcrp_disguise_stats_450users_batch.csv"
+    filename_baseline = "results/hotcrp_results/hotcrp_disguise_stats_3080users_baseline.csv"
+    filename_batch = "results/hotcrp_results/hotcrp_disguise_stats_3080users_batch.csv"
     offset = 2
     if i == 0:
         app = "websubmit"
