@@ -109,13 +109,12 @@ Our version of Lobsters is end-to-end integrated with \sys.
 %
 Lobster's Ruby code communicates with \sys through a JSON-HTTP API.
 %
-We modified \lyt{TODO} lines of code in Lobster's \lyt{TODO} LoC code base
-(\lyt{TODO}\%).
+We added 85LoC of Ruby/templating in the Lobster's code base (originally 15866LoC), and generated an
+automated Ruby client library using Swagger~\cite{swagger}, which Lobsters uses to invoke \sys's
+API.
 %
-These modifications took \lyt{TODO} person-days for developers familiar with
-\sys, but unfamiliar with Ruby and Lobsters.
-%
-
+These modifications took less than one person-day for developers familiar with
+\sys and Lobsters, but unfamiliar with Ruby.
 %\lyt{Do we need to talk about how Lobsters uses \eg keystores, and the high-level API doesn't deal
 %with this?}
 
