@@ -111,14 +111,13 @@ Lobster's Ruby code communicates with \sys through a JSON-HTTP API.
 Lobster's disguises are written in 734 LoC of Rust and installed on \sys's server (most of which are
 boilerplate schema annotations indicate \eg foreign key relationships).
 %
-We added 85 LoC of Ruby/templating in the Lobster's code base (originally 160k LoC), and generated an
-automated Ruby client library using Swagger~\cite{swagger}, which Lobsters uses to invoke \sys's
+We modified 85 lines of code in Lobsters's 160k LoC implementation, and generated a
+Ruby client library via Swagger~\cite{swagger}, which Lobsters uses to invoke \sys's
 API.
 %
 These modifications took less than one person-day for developers familiar with
 \sys and Lobsters, but unfamiliar with Ruby.
-%\lyt{Do we need to talk about how Lobsters uses \eg keystores, and the high-level API doesn't deal
-%with this?}
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{WebSubmit}
