@@ -179,18 +179,18 @@ restoration).
   \label{fig:client_opstats}
 \end{figure}
 
-\begin{table*}[h!]
+\begin{figure}[t]
 \begin{center}
-\begin{tabular}{ c c }
-\textbf{DB Op} & \textbf{Time (ms)}\\
-\hline
-Update DB Row & 0.1\\
-Select DB Rows & 0.2\\
-Remove DB Rows & 0.2\\
-Reveal Deleted Row (DB Select + Insert) & 0.2 \\
-Create + Register Principal & 0.1\\
-\end{tabular}
-\quad
+%\begin{tabular}{ c c }
+%\textbf{DB Op} & \textbf{Time (ms)}\\
+%\hline
+%Update DB Row & 0.1\\
+%Select DB Rows & 0.2\\
+%Remove DB Rows & 0.2\\
+%Reveal Deleted Row (DB Select + Insert) & 0.2 \\
+%Create + Register Principal & 0.1\\
+%\end{tabular}
+%\quad
 \begin{tabular}{ c c }
 \textbf{Crypto Op} & \textbf{Time (ms)}\\
 \hline
@@ -201,9 +201,11 @@ Encrypt Diff Record & 0.3\\
 Decrypt Diff Record & 3.0\\
 \end{tabular}
 \end{center}
-\caption{Amount of time required to run different operations required to apply and reveal disguises.}
-\label{tab:opstats}
-\end{table*}
+  \caption{\sys cryptographic operations are cheap( 0.3--3ms), except
+  for pseudoprincipal key generation, which \sys amortizes by via a
+  pre-generated key pool (\S\ref{s:impl}). \ms{Need to give record sizes.}}
+\label{f:opstats}
+\end{figure}
 
 \paragraph{WebSubmit.}
 %
@@ -221,32 +223,25 @@ low variance in the results.
 %
 
 %
-Figure~\ref{fig:ops-websubmit} shows the median latency for two normal operations
+Figure~\ref{f:ops-websubmit} shows the median latency for two normal operations
 (creating an account and editing unanonymized data), two disguises (delete account
 and anonymizing an account), and two operations over data under disguise (editing
 anonymized data and restoring the account).
 %
 Normal operations have comparable latencies with and without \sys.
 %
-
-%
-\sys's disguise-based account deletion takes 2.9ms, \vs 0.9ms in the manual
-baseline.
-%
-This makes sense, as \sys encrypts database diffs and speaks-for records, while
+\sys's disguise-based account deletion and anonymization take longer than the
+baseline since \sys encrypts database diffs and speaks-for records, while
 the baseline only deletes data from the application DB.
 %
-The difference is greater for account anonymization, where \sys takes 10.8ms,
-while the baseline takes less than 0.1ms.
-\ms{why?}
+The absolute latency of \sys's disguises is 10.8ms and the latencies for
+\sys's operations over data under disguise are 10--21ms.
 %
-Finally, \sys enables operations over data under disguise, which are impossible in
-the baseline; these take 10.2ms and 21ms, well within acceptable interactive
-latencies for web applications.
+(These operations are impossible in the baseline.)
 %
-The simplicity of WebSubmit's disguises---which touch at maximum two database
-tables---lead to fairly low latencies even for involved operations such as
-restoring a deleted account (21ms).
+However, WebSubmit's disguises are simple and touch at maximum two database
+tables, so we repeate the same measurement with HotCRP's more complex schema and
+disguises.
 %
 
 \paragraph{HotCRP.}
@@ -255,85 +250,126 @@ We run the HotCRP experiments on a database seeded with 450 total users (50 of
 whom are PC members), 450 papers, and four reviews and four comments per paper,
 distributed evenly among PC members.
 %
-The benchmark measures the server-side latency to perform disguising and
-application operations.
+The benchmark measures the server-side latency only.
 %
-HotCRP supports the same disguise-related operations as WebSubmit.
+HotCRP supports the same disguise-related operations as WebSubmit, but reviewers
+have more data, and HotCRP's disguises mix deletions and decorrelations across
+12 tables, so we would expect higher latencies.
 %
 
-HotCRP reviewers have slightly more variable amounts of data \lyt{TODO?} depending on the
-assignment of papers to reviewers. HotCRP's disguises are far more complex than
-WebSubmit's, touching 12 tables, and performing a mix of deletions and
-decorrelations, leading to higher median latencies in general, even for the baseline.
-
+%
+Figure~\ref{f:ops-hotcrp} shows higher latencies in general, even for the manual
+privacy transformations in the baseline, which reflects the more complex
+disguises.
+%
+\sys takes 32--107ms to disguise and reveal a user's data, again owing to the
+extra cryptographic operations necessary.
+%
+Note that account anonymization in HotCRP is an admin-applied disguises that
+runs for all PC members.
+%
+Its total latency is proportional to the PC size; \eg with 50 PC members, it takes
+five seconds, which is acceptable for a one-off operation.
+%
+As before, \sys adds minimal latency to normal application operations.
+%
 
 \paragraph{Lobsters.}
 %
-We run Lobsters benchmarks on a database seeded with 14.5k users, which
-is the late-2021 size of the real Lobsters site.
+Finally, we consider Lobsters, which has users with far more variable amounts of
+data.
+%
+We run Lobsters benchmarks on a database seeded with \note{14.5k} users, the
+late-2021 size of the real Lobsters site~\cite{lobsters}.
 %
 These users have \note{40k} stories, and \note{120k} comments with votes;
 stories, comments, and votes are distributed among users according to
 statistics from the actual Lobsters deployment~\cite{lobsters-data}.
 %
-The benchmark measures server-side latency of disguising and application
-operations.
+The benchmark measures server-side latency only, and we measure the account
+decay disguise (and subsequent restoration) in addition to GDPR-compliant
+account deletion and restoration.
+%
+Lobsters does not support editing decayed contributions.
+%
+As the amount of data per user follows a Zipf-like distribution, so we would
+expect some users' disguises to be much more expensive than the median user's.
 %
 
-Lobsters supports account creation and deletion/restoration as well, but has account decay (and
-subsequent restoration) instead of account anonymization.  It does not support editing anonymized
-data (accounts can be restored in order to edit decorrelated data). In these benchmarks, we measure
-the cost of GDPR-compliant account deletion and restoration.
-
-
-Lobsters users' amount of data follows a skewed distribution, with most of the 5000 users
-having fewer than 10 stories and comments, and a handful of users having over 300 stories and
-comments. Lobster supports more complex disguises than WebSubmit and HotCRP,
-touching 15 tables, and performing a mix of deletions, decorrelations, and modifications. This leads
-to a higher latency as the amount of user data grows comparable to that of users in HotCRP and
-WebSubmit.
-
-\note{XXX old, unedited text follows. Malte is editing here.}
-
-\paragraph{Drill-Down.}
 %
-Latency-critical tasks such as editing (unanonymized) data or
-creating an account are largely unaffected by \sys.
+The results are in Figure~\ref{f:ops-lobsters}.
 %
-To explain these costs, we break them down into fine-grained operations shown in
-Table~\ref{tab:opstats}: every disguise action requires some DB operations and,
-if using \sys, may require cryptographic operations.
+The median latencies are small (10--25ms for \sys, and <0.1ms for the
+baseline), since the median Lobsters user has little data.
+%
+But some highly active users have a lot of data, which raises the
+95\textsuperscript{th} percentile latency to 120--220ms for these users.
+%
 
-\textbf{Creating an account} with or without \sys performs a database insert. Using \sys additionally
-requires registering the new user as a principal, which assigns the user a (pre-generated)
-private-public key pair, stores metadata about the new principal's key in \sys's storage, and
-returns the corresponding private key to the application.
-Using \sys thus incurs only the cost of an extra database operation, since the high cost of key
-generation is taken offline.
+\paragraph{Summary.}
+%
+These results illustrate that data disguises are fast enough in absolute terms
+that most of them could be run interactively as part of a web request.
+%
+Some global disguises---such as HotCRP's conference anonymization over many
+users---take several seconds if run ad-hoc, but an application can also apply
+these disguises incrementally by user in the background (as Lobsters's data decay
+does).
+%
 
-\textbf{Editing data} with or without \sys simply performs database updates. Editing anonymized
-data, however, requires \sys to decrypt (with the client-provided decryption capability) \emph{all}
-speaks-for records at the client-provided locator until it finds a speaks-for record linking the
-client to the currently-owning pseudoprincipal.  For example, if anonymization of a user account
-generates 20 speaks-for record ciphertexts at the same locator, then editing anonymized data may
-perform up to 20 decryptions to determine which pseudoprincipals the client can act for.
+%
+\sys necessarily adds some latency compared to a manual privacy transformation
+as it must encrypt and store data, as well as maintain its metadata.
+%
+Next, we break down \sys's added latency.
+%
 
-\textbf{Account deletion or data decay} with or without \sys performs the same database operations
-to remove, modify, or anonymize data. \sys incurs increased costs by additionally encrypting and
-inserting one diff record for each deleted or modified object, and one speaks-for record for each
-anonymized object.
+\subsubsection{\sys Per-Operation Drill-Down}
+%
+\sys's API calls perform three classes of primitive operations: data encryption
+and decryption, store/retrieve accesses into \sys's store of encrypted bags,
+and metadata updates.
+%
+\sys's high-level API additionally also operates on the application database,
+while the application performs these queries when it uses \sys's low-level API.
+%
+\sys's store and metadata operations are fast; in our prototype, all of them
+take less than 0.1ms.
+%
+The cost of application database operations depends on the amount of data
+touched, but is in the single-digit milliseconds in our case studies.
+%
+\sys cryptographic operations are most expensive, and Figure~\ref{f:opstats}
+shows their cost.
+%
 
-\textbf{Account restoration} is only possible with \sys. \sys decrypts a record for each
-piece of modified/removed/anonymized data, and performs database checks to ensure the data can be restored
-(\eg that the corresponding lecture of an answer to reinsert still exists). If the checks pass
-(which they do in this benchmark), \sys restores the data stored in the diffs.
+%
+When disguises create pseudoprincipals, these pseudoprincipals need their
+own keypair in case their data later gets disguised again.
+%
+Key generation is expensive ($\approx$300ms), and disguises would be
+prohibitively slow if \sys incurred this latency for every pseudoprincipal
+created.
+%
+To avoid this cost, \sys keeps a pre-generated key pool that it draws on
+during disguises (\S\ref{s:impl}).
+%
 
-\textbf{Anonymization} with or without \sys generates one pseudoprincipal per object to anonymize
-(\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
-to anonymize, generates new pseudoprincipals, and performs DB queries to insert new pseudoprincipals
-and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
-\sys incurs increased costs by additionally generating per-pseudoprincipal speaks-for records, and
-encrypting and storing these speaks-for records with the appropriate public keys.
+%
+The cost of \sys's other cryptographic operations depends on the size of the
+stored data, but they are generally cheap.
+%
+However, a disguise or reveal operation may require multiple encryptions and
+decryptions.
+%
+\ms{Discuss examples. Cost of restore, edit data after decorrelation.}
+%
+
+%
+The cost of these cryptographic primitives also affects \sys's latency when
+the application applies multiple disguises to the same data, which we
+evaluate next.
+%
 
 \begin{figure}[t]
     \centering
@@ -360,7 +396,7 @@ encrypting and storing these speaks-for records with the appropriate public keys
     \label{fig:concurrent}
 \end{figure*}
 
-\paragraph{Multiple Disguises.}
+\subsubsection{Applying Multiple Disguises}
 
 \lyt{TODO}
 

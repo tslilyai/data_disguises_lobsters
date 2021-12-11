@@ -4,7 +4,7 @@ extern crate log;
 extern crate mysql;
 extern crate rand;
 
-use edna::EdnaClient;
+use edna::{helpers, EdnaClient};
 use log::warn;
 use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashMap;
@@ -55,7 +55,7 @@ fn init_logger() {
 fn main() {
     init_logger();
     let args = Cli::from_args();
-    
+   
     if args.baseline {
         run_baseline(&args);
     } else {
@@ -63,6 +63,37 @@ fn main() {
     }
 }
 
+fn get_stats(db: &mut mysql::PooledConn) {
+    let mut users = vec![];
+    let res = db.query_iter(format!(r"SELECT contactId FROM ContactInfo")).unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        users.push(helpers::mysql_val_to_u64(&vals[0]).unwrap());
+    }
+    for u in users {
+        let mut nobjs = 1;
+        let tables = disguises::get_table_info();
+        for (table, info) in tables.read().unwrap().iter() {
+            for owner_col in &info.owner_cols {
+                let res = db
+                    .query_iter(format!(
+                        r"SELECT COUNT(*) FROM {} WHERE {} = {};",
+                        table,
+                        owner_col,
+                        u
+                    ))
+                    .unwrap();
+                for row in res {
+                    let vals = row.unwrap().unwrap();
+                    assert_eq!(vals.len(), 1);
+                    nobjs += helpers::mysql_val_to_u64(&vals[0]).unwrap();
+                }
+            }
+        }
+        println!("{}\t{}", u, nobjs);
+    }
+}
 
 fn run_edna(args: &Cli) {
     let mut account_durations = vec![];
@@ -93,6 +124,8 @@ fn run_edna(args: &Cli) {
     warn!("database populated!");
 
     let mut db = edna.get_conn().unwrap();
+    get_stats(&mut db);
+
     let mut decrypt_caps = HashMap::new();
     for uid in 1..nusers + 1 {
         let start = time::Instant::now();
