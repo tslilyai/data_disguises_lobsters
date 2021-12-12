@@ -129,6 +129,7 @@ fn main() {
     let mut user_comments = 0;
     let mut user_votes = 0;
     let user_to_disguise : i64 = if args.disguiser == "cheap" {
+        error!("Disguising cheap /random user");
         0 
     } else if args.disguiser == "expensive" {
         nusers as i64

@@ -29,6 +29,11 @@ labels = ['Low Load', 'High Load']
 # collect all results
 op_results = defaultdict(list)
 op_results_txn = defaultdict(list)
+delete_results = defaultdict(list)
+delete_results_txn = defaultdict(list)
+restore_results = defaultdict(list)
+restore_results_txn = defaultdict(list)
+
 fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(3.33, 2.22))
 
 def get_yerr(durs):
@@ -46,12 +51,19 @@ def get_data(filename, results, i, u):
         ndisguises = int(rows[0].strip())
         oppairs = [x.split(':') for x in rows[i].strip().split(',')]
         opdata = defaultdict(list)
-        for x in oppairs:
+        for (i, x) in enumerate(oppairs):
             val = float(x[1])/1000
             vals.append(val)
         if len(vals) == 0:
             results[u].append(0)
         results[u].append(vals)
+        if i > 1:
+            print(
+                filename[-20:],
+                int(statistics.mean(vals)),
+                int(np.percentile(vals, 5)),
+                int(np.percentile(vals, 95)),
+            )
 
 users = [1, 10]
 disguiser = ['none', 'cheap', 'expensive']
@@ -61,6 +73,15 @@ for u in users:
                 op_results, 1, u)
         get_data('results/lobsters_results/concurrent_disguise_stats_{}users_{}_txn.csv'.format(u, d),
                 op_results_txn, 1, u)
+        if d != 'none':
+            get_data('results/lobsters_results/concurrent_disguise_stats_{}users_{}.csv'.format(u, d),
+                    delete_results, 2, u)
+            get_data('results/lobsters_results/concurrent_disguise_stats_{}users_{}_txn.csv'.format(u, d),
+                    delete_results_txn, 2, u)
+            get_data('results/lobsters_results/concurrent_disguise_stats_{}users_{}.csv'.format(u, d),
+                    restore_results, 3, u)
+            get_data('results/lobsters_results/concurrent_disguise_stats_{}users_{}_txn.csv'.format(u, d),
+                    restore_results_txn, 3, u)
 
 offset = 0.1
 
