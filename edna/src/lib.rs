@@ -289,6 +289,13 @@ impl EdnaClient {
     pub fn get_stats(&self) -> Arc<Mutex<stats::QueryStat>> {
         self.disguiser.stats.clone()
     }
+
+    pub fn get_sizes(&self) -> usize {
+        let locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        let (principal_data, encmap, keys, toremove) = locked_token_ctrler.get_sizes();
+        drop(locked_token_ctrler);
+        principal_data + encmap + keys + toremove
+    }
 }
 
 fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<(), mysql::Error> {

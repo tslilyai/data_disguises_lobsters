@@ -18,6 +18,7 @@ use std::convert::TryInto;
 use std::iter::repeat;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time;
+use  std::mem::size_of_val;
 
 pub type Loc = u64; // locator
 pub type DecryptCap = Vec<u8>; // private key
@@ -204,6 +205,13 @@ impl TokenCtrler {
         }
         tctrler.repopulate_pseudoprincipal_keys_pool();
         tctrler
+    }
+
+    pub fn get_sizes(&self) -> (usize, usize, usize, usize) {
+        (size_of_val(&self.principal_data),
+        size_of_val(&self.enc_map),
+        size_of_val(&self.pseudoprincipal_keys_pool),
+        size_of_val(&self.pps_to_remove))
     }
 
     pub fn repopulate_pseudoprincipal_keys_pool(&mut self) {

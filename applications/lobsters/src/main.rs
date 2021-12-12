@@ -48,6 +48,8 @@ struct Cli {
     prime: bool,
     #[structopt(long = "stats")]
     stats: bool,
+    #[structopt(long = "storage")]
+    storage: bool,
 }
 
 fn init_logger() {
@@ -113,6 +115,11 @@ fn main() {
             .unwrap();
             error!("Generated and got {} decrypt caps", user2decryptcap.len());
         }
+    }
+
+    if args.storage {
+        run_sizes_test(&mut edna, &sampler, &user2decryptcap);
+        return;
     }
 
     if args.stats {
@@ -468,6 +475,55 @@ fn run_disguising_sleeps(
     }
     Ok(())
 }*/
+
+
+fn run_sizes_test(
+    edna: &mut EdnaClient,
+    sampler: &datagen::Sampler,
+    user2decryptcaps: &HashMap<u64, Vec<u8>>,
+) {
+    let filename = format!("lobsters_disguise_storage_stats.csv");
+    let mut file = File::create(filename).unwrap();
+    let nusers = sampler.nusers();
+    let mut lcs_map_all = HashMap::new();
+    let mut rng = rand::thread_rng();
+    for trial in 0..100 {
+        let mut users = vec![];
+        for i in 0..(nusers/10) as usize {
+            let mut user_id = rng.gen_range(0, nusers) as u64 + 1;
+            users.push(user_id);
+            let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
+
+            // DECAY
+            let start = time::Instant::now();
+            let mut lcs_map =
+                disguises::data_decay::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
+            lcs_map_all.extend(lcs_map.clone());
+        }
+
+        // TODO spit out number
+        file.write(format!("{}, ", edna.get_sizes()).as_bytes()).unwrap();
+
+        for u in users { 
+            let decryption_cap = user2decryptcaps.get(&u).unwrap();
+
+            // UNDECAY
+            let ls = match lcs_map_all.get(&(
+                u.to_string(),
+                disguises::data_decay::get_disguise_id(),
+            )) {
+                Some(ol) => ol.clone(),
+                None => vec![],
+            };
+            disguises::data_decay::reveal(edna, decryption_cap.clone(), ls).unwrap();
+        }
+
+        // TODO spit out number
+        file.write(format!("{}\n", edna.get_sizes()).as_bytes()).unwrap();
+    }
+    file.flush().unwrap();
+}
+
 
 fn run_stats_test(
     edna: &mut EdnaClient,
