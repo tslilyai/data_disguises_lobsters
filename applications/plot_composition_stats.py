@@ -43,8 +43,8 @@ for (i, ax) in enumerate(axes_flat[:2]):
     title = "HotCRP Reviewer Disguise Costs w/Composition"
     offset = 50
     if i == 0:
-        filename_baseline = 'results/websubmit_results/disguise_stats_{}lec_{}users_batch_baseline.csv'.format(20, 100)
-        filename_batch = 'results/websubmit_results/disguise_stats_{}lec_{}users_batch.csv'.format(20, 100)
+        filename_baseline = 'results/websubmit_results/disguise_stats_{}lec_{}users_baseline.csv'.format(20, 100)
+        filename_batch = 'results/websubmit_results/disguise_stats_{}lec_{}users.csv'.format(20, 100)
         title = "WebSubmit Disguise Costs w/Composition"
         offset = 10
     with open(filename_batch,'r') as csvfile:

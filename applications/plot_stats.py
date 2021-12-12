@@ -68,8 +68,8 @@ for i in range(2):
     offset = 2
     if i == 0:
         app = "websubmit"
-        filename_baseline = 'results/websubmit_results/disguise_stats_{}lec_{}users_batch_baseline.csv'.format(20, 100)
-        filename_batch = 'results/websubmit_results/disguise_stats_{}lec_{}users_batch.csv'.format(20, 100)
+        filename_baseline = 'results/websubmit_results/disguise_stats_{}lec_{}users_baseline.csv'.format(20, 100)
+        filename_batch = 'results/websubmit_results/disguise_stats_{}lec_{}users.csv'.format(20, 100)
         offset = 0.5
     with open(filename_batch,'r') as csvfile:
         rows = csvfile.readlines()
