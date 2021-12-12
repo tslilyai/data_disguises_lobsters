@@ -675,7 +675,7 @@ fn print_stats(
 ) {
     let filename = if is_baseline {
         format!(
-            "disguise_stats_{}lec_{}users_batch_baseline.csv",
+            "disguise_stats_{}lec_{}users_baseline.csv",
             args.nlec, args.nusers
         )
     } else {
