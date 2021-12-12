@@ -71,16 +71,16 @@
 (*\textbf{RegisterPseudoprincipal}*)(pp: UID);
 (*\textbf{ForgetPrincipal}*)(p: UID);
 
-// Disguise operations.
+// Starts a new disguise, returns disguise ID.
 (*\textbf{StartDisguise}*)() -> DisguiseID;
-// Stores encrypted diff for principal ownerP with
-// app-provided content during active disguise.
+// During active disguise, encrypts & stores diff
+// with app-provided content for principal ownerP.
 (*\textbf{StoreDiff}*)(ownerP: UID, buffer: Vec<u8>,
-         remember_loc: bool);
-// Stores encrypted mapping that oldP speaks
-// for newP during active disguise.
+         remember_loc_on_compose: bool);
+// During active disguise, encrypts and stores
+// mapping that oldP speaks for newP.
 (*\textbf{StoreSpeaksFor}*)(oldP: UID, newP: UID,
-             remember_loc: bool);
+             remember_loc_on_compose: bool);
 // Finishes disguise, returns accumulated locators
 (*\textbf{EndDisguise}*)(did: DisguiseID) -> Vec<Locator>;
 
