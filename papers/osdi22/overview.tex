@@ -58,14 +58,15 @@ A data disguise guarantees that the data under disguise, and any metadata about 
 applied which disguise, is hidden from the attacker unless explicitly revealed by the
 user for whom it was disguised.
 %
-Users who are inactive can therefore rest assured that their data under disguise, and
-its existence, is never exposed.
+Users who are inactive can therefore rest assured that their data under disguise
+is never exposed.
 %
 However, while \sys hides who disguised a piece of application data, it does not hide
 the existence of disguised data, nor does it protect against information leaks from
 undisguised data that remains in the application database (\eg a message quoted
-within another message), or against bugs in the application's disguise
-implementations.
+within another message), against bugs in the application's disguise
+implementations, or against statistical inference attacks over information visible
+to the attacker.
 %
 
 %
