@@ -46,8 +46,10 @@ principal to be secure.
 Consequently, \sys lacks a public key to encrypt $d_2$'s changes
 for $p$.
 %
-Moreover, the application will struggle to convey the locators returned
-by \sys to the right client, since it cannot know which principal
+
+%
+Moreover, the application will struggle to convey the locators returned by \sys to the right client
+without the original client introducing information, as the application cannot know which principal
 originally owned the data.
 %
 For example, after the instructor anonymizes a class in WebSubmit, all
@@ -57,12 +59,10 @@ If the instructor later decides to scrub identifiers from answer contents
 using another disguise, those disguise's records must be associated with
 pseudoprincipals.
 %
-%If a user now seeks to delete their account (but retains the power to
-%restore it later), the corresponding answer-removal database diffs
-%must be associated with pseudoprincipals.
+However, if a client speaking for the pseudoprincipals actively applies the disguise (\eg a user
+deletes $p$'s account after anonymization), the deletion disguise's records can be associated with
+$p$, rather than the pseudoprincipals that own $p$'s data after anonymization. 
 %
-\lyt{check this example; noted that account removal is interactive and therefore
-not a good example.}
 
 %
 To solve this challenge, \sys stores data for pseudoprincipals,
@@ -109,18 +109,19 @@ $s$'s private key access to $q$ and its data.
 
 \head{Storing Pseudoprincipals' Locators.}
 %
-If a disguise $d$ generates records that \sys needs to store for a
-pseudoprincipal $q$, \sys stores $q$'s encrypted records at some locator
-\lcapa{qd}.
+When a disguise $d$ generates records owned by a pseudoprincipal $q$, \sys stores these encrypted
+records at some locator. If the call to store the record indicates an active client speaking-for $p$,
+\sys stores the ciphertexts at \lcapa{pd}, and everything is fine (\lcapa{pd} is sent back to the
+active client). 
 %
-However, unlike when disguising data for a natural principal, the
-application and \sys have nowhere to send \lcapa{qd}, because $q$ is a
+If no active user is present, however, \sys stores encrypted records at some locator for $q$, \lcapa{qd}.
+%
+In this case, the application and \sys have nowhere to send \lcapa{qd} when the disguise completes, because $q$ is a
 pseudoprincipal.
 %
-To retain the ability to efficiently access the records, \sys encrypts
-\lcapa{qd} with the pseudoprincipal's public key and stores
-the resulting ciphertext in \sys's metadata for $q$ (which also includes
-$q$'s public key).
+To retain the ability to efficiently access the records via \lcapa{qd}, \sys encrypts \lcapa{qd}
+with the pseudoprincipal's public key and stores the resulting ciphertext in \sys's metadata for $q$
+(which also includes $q$'s public key).
 %
 It is fine to encrypt the locator, since it will only be needed to reveal
 the disguise---and at that point, $q$'s private key will be available,
