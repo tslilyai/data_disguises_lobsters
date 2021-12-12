@@ -56,6 +56,7 @@ pub(crate) struct DeleteRequest {
 #[derive(Debug, FromForm)]
 pub(crate) struct EditCapabilitiesRequest {
     decryption_cap: String,
+    ownership_loc_caps: String,
 }
 
 /*
@@ -92,16 +93,10 @@ pub(crate) fn anonymize(_adm: Admin) -> Template {
     Template::render("admin/anonymize", &ctx)
 }
 
-#[get("/<olc>")]
-pub(crate) fn edit_as_pseudoprincipal(cookies: &CookieJar<'_>, olc: String) -> Template {
+#[get("/")]
+pub(crate) fn edit_as_pseudoprincipal() -> Template {
     let mut ctx = HashMap::new();
     ctx.insert("parent", String::from("layout"));
-
-    // save olc
-    let cookie = Cookie::new("olc", olc);
-    //cookies.add_private(cookie);
-    cookies.add(cookie);
-
     Template::render("edit_as_pseudoprincipal/get_decryption_cap", &ctx)
 }
 
@@ -115,6 +110,11 @@ pub(crate) fn edit_as_pseudoprincipal_lecs(
     //cookies.add_private(cookie);
     cookies.add(cookie);
     let res = bg.query_exec("leclist", vec![]);
+
+    // save olc
+    let cookie = Cookie::new("olc", data.ownership_loc_caps.to_string());
+    //cookies.add_private(cookie);
+    cookies.add(cookie);
 
     let lecs: Vec<_> = res
         .into_iter()
