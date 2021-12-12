@@ -11,7 +11,7 @@ pub fn apply(
     uid: u64,
     decryption_cap: tokens::DecryptCap,
     loc_caps: Vec<tokens::LocCap>,
-) -> Result<HashMap<(UID, DID), tokens::LocCap>, mysql::Error> {
+) -> Result<HashMap<(UID, DID), Vec<tokens::LocCap>>, mysql::Error> {
     let decay_disguise = get_disguise(uid);
     edna.apply_disguise(Arc::new(decay_disguise), decryption_cap, loc_caps)
 }

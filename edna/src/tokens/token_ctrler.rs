@@ -499,7 +499,7 @@ impl TokenCtrler {
             // TODO persist this?
         } else {
             // actually remove metadata
-            warn!("Removing principal {}\n", uid);
+            warn!("Actually removing principal metadata {}\n", uid);
             self.principal_data.remove(uid);
             warn!(
                 "DELETE FROM {} WHERE {} = \'{}\'",
@@ -886,7 +886,7 @@ impl TokenCtrler {
             }
             let tokens = bag.owntoks.clone();
             warn!(
-                "EdnaBatch: Decrypted own tokens added {}: {}",
+                "EdnaBatchCleanup: Decrypted own tokens added {}: {}",
                 tokens.len(),
                 start.elapsed().as_micros(),
             );
@@ -901,7 +901,7 @@ impl TokenCtrler {
             let mut new_uids = vec![];
             let tokens = bag.pktoks;
             warn!(
-                "EdnaBatch: Decrypted pk tokens added {}: {}",
+                "EdnaBatchCleanup: Decrypted pk tokens added {}: {}",
                 tokens.len(),
                 start.elapsed().as_micros(),
             );
@@ -916,7 +916,7 @@ impl TokenCtrler {
                 if let Some(pp) = self.principal_data.get(new_uid) {
                     let mut new_pp = pp.clone();
                     warn!(
-                        "Getting tokens of pseudoprincipal {} with data {}, {:?}",
+                        "Cleanup: Getting tokens of pseudoprincipal {} with data {}, {:?}",
                         new_uid,
                         pkt.priv_key.len(),
                         new_pp.loc_caps,
