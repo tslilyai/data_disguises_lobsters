@@ -21,7 +21,7 @@ pub fn get_did() -> DID {
 pub fn apply(
     bg: &MySqlBackend,
     is_baseline: bool,
-) -> Result<HashMap<(UID, DID), tokens::LocCap>> {
+) -> Result<HashMap<(UID, DID), Vec<tokens::LocCap>>> {
     // DECOR ANSWERS
     let mut locators = HashMap::new();
     
@@ -98,6 +98,7 @@ pub fn apply(
                     u.clone(),
                     new_uid.clone(),
                     vec![],
+                    None,
                 );
                 drop(edna);
                 debug!(

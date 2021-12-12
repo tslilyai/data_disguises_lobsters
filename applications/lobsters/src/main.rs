@@ -111,7 +111,7 @@ fn main() {
                 &user2decryptcap,
             )
             .unwrap();
-            error!("Got {} decrypt caps", user2decryptcap.len());
+            error!("Generated and got {} decrypt caps", user2decryptcap.len());
         }
     }
 
@@ -676,10 +676,8 @@ fn run_stats_test(
         // baseline delete
         // only measure this if we're not priming, so we don't mess up the DB again...
         let start = time::Instant::now();
-        if !prime {
-            disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
-            //disguises::baseline::apply_decay(user_id, edna).unwrap();
-        }
+        disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
+        //disguises::baseline::apply_decay(user_id, edna).unwrap();
         file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
             .unwrap();
     }

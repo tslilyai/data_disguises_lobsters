@@ -19,7 +19,7 @@ pub fn apply(
     loc_caps: Vec<tokens::LocCap>,
     is_baseline: bool,
 ) -> Result<
-        HashMap<(UID, DID), tokens::LocCap>,
+        HashMap<(UID, DID), Vec<tokens::LocCap>>,
     mysql::Error,
 > {
     if is_baseline {

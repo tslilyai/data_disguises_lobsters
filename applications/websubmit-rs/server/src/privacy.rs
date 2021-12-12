@@ -12,7 +12,6 @@ use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
 use edna::tokens::LocCap;
 
 #[derive(Serialize)]
@@ -44,7 +43,7 @@ pub struct LectureListContext {
 #[derive(Debug, FromForm)]
 pub(crate) struct RestoreRequest {
     decryption_cap: String,
-    diff_loc_cap: u64,
+    diff_loc_cap: String,
     ownership_loc_caps: String,
 }
 
@@ -69,15 +68,16 @@ pub(crate) fn anonymize_answers(
     config: &State<Config>,
 ) -> Redirect {
     let olcs = disguises::universal_anon_disguise::apply(&*bg, config.is_baseline).unwrap();
-    debug!(bg.log, "olcs are {:?}", olcs);
+    warn!(bg.log, "olcs are {:?}", olcs);
     //let local: DateTime<Local> = Local::now();
-    for ((uid, _did), olc) in olcs {
+    for ((uid, _did), olcs) in olcs {
+        assert!(!olcs.is_empty());
         email::send(
             bg.log.clone(),
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![uid],
             "Your Websubmit Answers Have Been Anonymized".into(),
-            format!("OWNCAP:{}", olc),
+            format!("OWNCAP#{}", serde_json::to_string(&olcs[0]).unwrap()),
         )
         .expect("failed to send email");
     }
@@ -93,12 +93,12 @@ pub(crate) fn anonymize(_adm: Admin) -> Template {
 }
 
 #[get("/<olc>")]
-pub(crate) fn edit_as_pseudoprincipal(cookies: &CookieJar<'_>, olc: u64) -> Template {
+pub(crate) fn edit_as_pseudoprincipal(cookies: &CookieJar<'_>, olc: String) -> Template {
     let mut ctx = HashMap::new();
     ctx.insert("parent", String::from("layout"));
 
     // save olc
-    let cookie = Cookie::new("olc", olc.to_string());
+    let cookie = Cookie::new("olc", olc);
     //cookies.add_private(cookie);
     cookies.add(cookie);
 
@@ -138,13 +138,13 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     bg: &State<MySqlBackend>,
 ) -> Template {
     let decryption_cap = cookies.get("decryptioncap").unwrap().value();
-    let olc: u64 = u64::from_str(cookies.get("olc").unwrap().value()).unwrap();
+    let olc: LocCap = serde_json::from_str(&cookies.get("olc").unwrap().value()).unwrap();
     let edna = bg.edna.lock().unwrap();
     
     // get all the UIDs that this user can access
     let pps = edna
         .get_pseudoprincipals(base64::decode(decryption_cap).unwrap(), vec![olc]);
-    debug!(bg.log, "Got pps {:?}", pps);
+    warn!(bg.log, "Got pps {:?}", pps);
     drop(edna);
 
     // get all answers for lectures
@@ -152,14 +152,14 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     let mut apikey = String::new();
     for pp in pps {
         let answers_res = bg.query_exec("my_answers_for_lec", vec![lid.into(), pp.clone().into()]);
-        debug!(bg.log, "Got answers of user {}: {:?}", pp, answers_res);
+        warn!(bg.log, "Got answers of user {}: {:?}", pp, answers_res);
         if !answers_res.is_empty() {
             for r in answers_res {
                 let qid: u64 = from_value(r[2].clone());
                 let atext: String = from_value(r[3].clone());
                 answers.insert(qid, atext);
             }
-            debug!(bg.log, "Getting ApiKey of User {}", pp.clone());
+            warn!(bg.log, "Getting ApiKey of User {}", pp.clone());
             let apikey_res = bg.query_exec("apikey_by_user", vec![pp.clone().into()]);
             apikey = from_value(apikey_res[0][0].clone());
             break;
@@ -167,7 +167,7 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     }
 
     let res = bg.query_exec("qs_by_lec", vec![lid.into()]);
-    debug!(bg.log, "Setting API key to user key {}", apikey);
+    warn!(bg.log, "Setting API key to user key {}", apikey);
     let mut qs: Vec<LectureQuestion> = vec![];
     for r in res {
         let qid: u64 = from_value(r[1].clone());
@@ -221,14 +221,14 @@ pub(crate) fn delete_submit(
         vec![]
     };
 
-    let own_loc_caps: Vec<u64> = if data.ownership_loc_caps.is_empty() {
+    let own_loc_caps: Vec<LocCap> = if data.ownership_loc_caps.is_empty() {
         vec![]
     } else {
         // get ownership caps from data for composition of GDPR on top of anonymization
         data.ownership_loc_caps
             .split(',')
             .into_iter()
-            .map(|olc| u64::from_str(olc).unwrap())
+            .map(|olc| serde_json::from_str(olc).unwrap())
             .collect()
     };
     let lcs = disguises::gdpr_disguise::apply(
@@ -243,10 +243,11 @@ pub(crate) fn delete_submit(
     // linked to these pseudoprincipals and they remain in Edna, we don't need to deal with them
     //assert!(dlcs.len() <= 1);
     //assert!(olcs.len() <= 1);
-    debug!(bg.log, "Got LCS {:?}", lcs);
+    warn!(bg.log, "Got LCS {:?}", lcs);
+    assert!(!lcs.is_empty());
     let dlc_str = match lcs.get(&(apikey.user.clone(), disguises::gdpr_disguise::get_did())) {
-        Some(dlc) => format!("{}", dlc),
-        None => 0.to_string(),
+        Some(dlc) => format!("{}", serde_json::to_string(&dlc[0]).unwrap()),
+        None => "".to_string(),
     };
     let olc_str = data.ownership_loc_caps.clone();
 
@@ -255,7 +256,7 @@ pub(crate) fn delete_submit(
         "no-reply@csci2390-submit.cs.brown.edu".into(),
         vec![apikey.user.clone()],
         "You Have Deleted Your Websubmit Account".into(),
-        format!("OWNCAP:{}\nDIFFCAP:{}", olc_str, dlc_str), //"You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}/{}",
+        format!("OWNCAP#{}\nDIFFCAP#{}", olc_str, dlc_str), //"You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}/{}",
     )
     .expect("failed to send email");
 
@@ -263,10 +264,10 @@ pub(crate) fn delete_submit(
 }
 
 #[get("/<diff_loc_cap>/<ownership_loc_cap>")]
-pub(crate) fn restore(diff_loc_cap: u64, ownership_loc_cap: u64) -> Template {
+pub(crate) fn restore(diff_loc_cap: String, ownership_loc_cap: String) -> Template {
     let mut ctx = HashMap::new();
-    ctx.insert("DIFFLC", diff_loc_cap.to_string());
-    ctx.insert("OWNLC", ownership_loc_cap.to_string());
+    ctx.insert("DIFFLC", diff_loc_cap);
+    ctx.insert("OWNLC", ownership_loc_cap);
     ctx.insert("parent", String::from("layout"));
     Template::render("restore", &ctx)
 }
@@ -286,10 +287,12 @@ pub(crate) fn restore_account(
             .ownership_loc_caps
             .split(',')
             .into_iter()
-            .map(|olc| u64::from_str(olc).unwrap())
+            .map(|olc| serde_json::from_str(olc).unwrap())
             .collect();
     }
-    own_loc_caps.insert(data.diff_loc_cap);
+    if !data.diff_loc_cap.is_empty() {
+        own_loc_caps.insert(serde_json::from_str(&data.diff_loc_cap).unwrap());
+    }
 
     disguises::gdpr_disguise::reveal(
         &*bg,

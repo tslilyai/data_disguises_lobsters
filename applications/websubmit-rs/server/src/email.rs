@@ -22,7 +22,7 @@ pub(crate) fn send(
         builder = builder.to(recipient.to_string());
     }
 
-    debug!(log, "Email: Subject {}\nText: {}!", subject, text);
+    warn!(log, "Email: Subject {}\nText: {}!", subject, text);
 
     /*let email = builder.build();
     match email {
@@ -35,7 +35,7 @@ pub(crate) fn send(
     // XXX for testing
     let parts = text.split("\n");
     for part in parts {
-        let subparts: Vec<&str> = part.split(":").collect();
+        let subparts: Vec<&str> = part.split("#").collect();
         let filename : String;
         match subparts[0].trim() {
             "APIKEY" => {
@@ -51,7 +51,7 @@ pub(crate) fn send(
                 filename = format!("{}.{}", recipients[0], OWNCAP_FILE);
             }
             _ => {
-                debug!(log, "Badly formatted email text {}", part);
+                warn!(log, "Badly formatted email text {}", part);
                 return Ok(())
             }
         };

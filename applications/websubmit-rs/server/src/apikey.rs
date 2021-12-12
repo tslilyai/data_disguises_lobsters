@@ -114,7 +114,7 @@ pub(crate) fn generate(
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![data.email.clone()],
             format!("{} API key", config.class),
-            format!("APIKEY:{}\nDECRYPTCAP:{}", hash.as_str(), privkey_str,),
+            format!("APIKEY#{}\nDECRYPTCAP#{}", hash.as_str(), privkey_str,),
         )
         .expect("failed to send API key email");
     }
