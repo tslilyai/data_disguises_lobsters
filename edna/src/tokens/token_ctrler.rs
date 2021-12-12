@@ -861,8 +861,7 @@ impl TokenCtrler {
             let (success, plaintext) = encbag.decrypt_encdata(decrypt_cap);
             if !success {
                 warn!(
-                    "Could not decrypt encdata at {:?} with decryptcap {:?}",
-                    lc, decrypt_cap
+                    "Could not decrypt encdata at {:?} with decryptcap", lc 
                 );
                 return (false, false, false);
             }

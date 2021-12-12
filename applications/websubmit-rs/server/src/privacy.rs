@@ -11,7 +11,7 @@ use rocket::http::{Cookie, CookieJar};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use edna::tokens::LocCap;
 
 #[derive(Serialize)]
@@ -43,20 +43,19 @@ pub struct LectureListContext {
 #[derive(Debug, FromForm)]
 pub(crate) struct RestoreRequest {
     decryption_cap: String,
-    diff_loc_cap: String,
-    ownership_loc_caps: String,
+    loc_caps: String,
 }
 
 #[derive(Debug, FromForm)]
 pub(crate) struct DeleteRequest {
     decryption_cap: String,
-    ownership_loc_caps: String,
+    loc_caps: String,
 }
 
 #[derive(Debug, FromForm)]
 pub(crate) struct EditCapabilitiesRequest {
     decryption_cap: String,
-    ownership_loc_caps: String,
+    loc_caps: String,
 }
 
 /*
@@ -78,7 +77,7 @@ pub(crate) fn anonymize_answers(
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![uid],
             "Your Websubmit Answers Have Been Anonymized".into(),
-            format!("OWNCAP#{}", serde_json::to_string(&olcs[0]).unwrap()),
+            format!("CAPS#{}", serde_json::to_string(&olcs).unwrap()),
         )
         .expect("failed to send email");
     }
@@ -107,13 +106,11 @@ pub(crate) fn edit_as_pseudoprincipal_lecs(
     bg: &State<MySqlBackend>,
 ) -> Template {
     let cookie = Cookie::new("decryptioncap", data.decryption_cap.to_string());
-    //cookies.add_private(cookie);
     cookies.add(cookie);
     let res = bg.query_exec("leclist", vec![]);
 
-    // save olc
-    let cookie = Cookie::new("olc", data.ownership_loc_caps.to_string());
-    //cookies.add_private(cookie);
+    // save lcs
+    let cookie = Cookie::new("lcs", data.loc_caps.to_string());
     cookies.add(cookie);
 
     let lecs: Vec<_> = res
@@ -138,12 +135,12 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     bg: &State<MySqlBackend>,
 ) -> Template {
     let decryption_cap = cookies.get("decryptioncap").unwrap().value();
-    let olc: LocCap = serde_json::from_str(&cookies.get("olc").unwrap().value()).unwrap();
+    let lcs: Vec<LocCap> = serde_json::from_str(&cookies.get("lcs").unwrap().value()).unwrap();
     let edna = bg.edna.lock().unwrap();
     
     // get all the UIDs that this user can access
     let pps = edna
-        .get_pseudoprincipals(base64::decode(decryption_cap).unwrap(), vec![olc]);
+        .get_pseudoprincipals(base64::decode(decryption_cap).unwrap(), lcs);
     warn!(bg.log, "Got pps {:?}", pps);
     drop(edna);
 
@@ -191,7 +188,7 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     // this just lets the user act as the latest pseudoprincipal
     // but it won't reset afterward.... so the user won't be able to do anything else
     cookies.remove(Cookie::named("decryptioncap"));
-    cookies.remove(Cookie::named("olc"));
+    cookies.remove(Cookie::named("lcs"));
     let cookie = Cookie::build("apikey", apikey.clone()).path("/").finish();
     cookies.add(cookie);
 
@@ -221,53 +218,39 @@ pub(crate) fn delete_submit(
         vec![]
     };
 
-    let own_loc_caps: Vec<LocCap> = if data.ownership_loc_caps.is_empty() {
-        vec![]
-    } else {
-        // get ownership caps from data for composition of GDPR on top of anonymization
-        data.ownership_loc_caps
-            .split(',')
-            .into_iter()
-            .map(|olc| serde_json::from_str(olc).unwrap())
-            .collect()
-    };
-    let lcs = disguises::gdpr_disguise::apply(
+    warn!(bg.log, "Going to deserialize lcs {}", data.loc_caps);
+    // get caps from data for composition of GDPR on top of anonymization
+    let loc_caps: Vec<LocCap> = serde_json::from_str(&data.loc_caps).unwrap();
+    let lcsmap = disguises::gdpr_disguise::apply(
         &*bg,
         apikey.user.clone(),
         decryption_cap,
-        own_loc_caps,
+        loc_caps,
         config.is_baseline,
     )
     .unwrap();
-    // Note: we can return the dlc and olc for pseudoprincipals here, but since the user is already
-    // linked to these pseudoprincipals and they remain in Edna, we don't need to deal with them
-    //assert!(dlcs.len() <= 1);
-    //assert!(olcs.len() <= 1);
-    warn!(bg.log, "Got LCS {:?}", lcs);
-    assert!(!lcs.is_empty());
-    let dlc_str = match lcs.get(&(apikey.user.clone(), disguises::gdpr_disguise::get_did())) {
-        Some(dlc) => format!("{}", serde_json::to_string(&dlc[0]).unwrap()),
-        None => "".to_string(),
-    };
-    let olc_str = data.ownership_loc_caps.clone();
+    let mut lcs = vec![];
+    for ((_uid, _did), mut lcsofuser) in lcsmap {
+        lcs.append(&mut lcsofuser);
+    }
 
     email::send(
         bg.log.clone(),
         "no-reply@csci2390-submit.cs.brown.edu".into(),
         vec![apikey.user.clone()],
         "You Have Deleted Your Websubmit Account".into(),
-        format!("OWNCAP#{}\nDIFFCAP#{}", olc_str, dlc_str), //"You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}/{}",
+        format!("CAPS#{}", serde_json::to_string(&lcs).unwrap()),
+        //"You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}",
     )
     .expect("failed to send email");
 
     Redirect::to(format!("/login"))
 }
 
-#[get("/<diff_loc_cap>/<ownership_loc_cap>")]
-pub(crate) fn restore(diff_loc_cap: String, ownership_loc_cap: String) -> Template {
+#[get("/<loc_caps>")]
+pub(crate) fn restore(loc_caps: String) -> Template {
     let mut ctx = HashMap::new();
-    ctx.insert("DIFFLC", diff_loc_cap);
-    ctx.insert("OWNLC", ownership_loc_cap);
+    ctx.insert("LC", loc_caps);
     ctx.insert("parent", String::from("layout"));
     Template::render("restore", &ctx)
 }
@@ -280,24 +263,12 @@ pub(crate) fn restore_account(
 ) -> Redirect {
     let decryption_cap: Vec<u8> =
         base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
-    let mut own_loc_caps: HashSet<LocCap> = HashSet::new();
-    if !data.ownership_loc_caps.is_empty() {
-        // get ownership caps from data for composition of GDPR on top of anonymization
-        own_loc_caps = data
-            .ownership_loc_caps
-            .split(',')
-            .into_iter()
-            .map(|olc| serde_json::from_str(olc).unwrap())
-            .collect();
-    }
-    if !data.diff_loc_cap.is_empty() {
-        own_loc_caps.insert(serde_json::from_str(&data.diff_loc_cap).unwrap());
-    }
+    let loc_caps: Vec<LocCap> = serde_json::from_str(&data.loc_caps).unwrap();
 
     disguises::gdpr_disguise::reveal(
         &*bg,
         decryption_cap,
-        own_loc_caps.into_iter().collect::<Vec<LocCap>>(),
+        loc_caps,
         config.is_baseline,
     )
     .expect("Failed to reverse GDPR deletion disguise");

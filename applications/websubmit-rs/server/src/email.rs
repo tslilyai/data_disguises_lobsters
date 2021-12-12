@@ -44,11 +44,8 @@ pub(crate) fn send(
             "DECRYPTCAP" => {
                 filename = format!("{}.{}", recipients[0], DECRYPT_FILE);
             }
-            "DIFFCAP" => {
-                filename = format!("{}.{}", recipients[0], DIFFCAP_FILE);
-            }
-            "OWNCAP" => {
-                filename = format!("{}.{}", recipients[0], OWNCAP_FILE);
+            "CAPS" => {
+                filename = format!("{}.{}", recipients[0], CAPS_FILE);
             }
             _ => {
                 warn!(log, "Badly formatted email text {}", part);
