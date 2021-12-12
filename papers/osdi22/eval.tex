@@ -434,7 +434,16 @@ evaluate next.
 
 \begin{figure}[t]
     \centering
-    \includegraphics{figs/composition_stats}
+    \begin{subfigure}[b]{\columnwidth}
+        \includegraphics{figs/composition_stats_websubmit}
+        \caption{WebSubmit}
+        \label{f:comp-websubmit}
+      \end{subfigure}
+      \begin{subfigure}[b]{\columnwidth}
+        \includegraphics{figs/composition_stats_hotcrp}
+          \caption{HotCRP}
+        \label{f:comp-hotcrp}
+      \end{subfigure}
     \caption{Latency of account delete and restore before anonymization vs. composed after anonymization.}
     \label{f:composition}
 \end{figure}
