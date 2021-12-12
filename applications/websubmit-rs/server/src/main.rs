@@ -27,6 +27,7 @@ mod questions;
 #[cfg(test)]
 mod tests;
 
+use edna::tokens::LocCap;
 use backend::MySqlBackend;
 use rocket::http::ContentType;
 use rocket::http::CookieJar;
@@ -42,11 +43,13 @@ use std::sync::{Mutex};
 use std::thread;
 use std::time;
 use std::time::Duration;
+use mysql::from_value;
+use mysql::prelude::*;
+use mysql::{Opts, Value};
 
 pub const APIKEY_FILE: &'static str = "apikey.txt";
 pub const DECRYPT_FILE: &'static str = "decrypt.txt";
-pub const DIFFCAP_FILE: &'static str = "diffcap.txt";
-pub const OWNCAP_FILE: &'static str = "owncap.txt";
+pub const CAPS_FILE: &'static str = "caps.txt";
 
 pub fn new_logger() -> slog::Logger {
     use slog::Drain;
@@ -216,10 +219,9 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         edit_durations.push(start.elapsed());
 
         // delete account
-
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", "0"),
-            ("ownership_loc_caps", "0"),
+            ("loc_caps", &serde_json::to_string(&Vec::<LocCap>::new()).unwrap()),
         ])
         .unwrap();
 
@@ -276,11 +278,14 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     let mut restore_durations_nonanon = vec![];
  
     let client = Client::tracked(rocket).expect("valid rocket instance");
-
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", args.class)).unwrap(),
+    ).unwrap();
+ 
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
-    let mut user2owncap = HashMap::new();
-    let mut user2diffcap = HashMap::new();
+    let mut user2anoncaps = HashMap::new();
+    let mut user2gdprcaps = HashMap::new();
     let log = new_logger();
 
     // create all users
@@ -371,7 +376,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
 
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("")),
+            ("loc_caps", &serde_json::to_string(&Vec::<LocCap>::new()).unwrap()),
         ])
         .unwrap();
 
@@ -384,13 +389,13 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         assert_eq!(response.status(), Status::SeeOther);
         delete_durations_nonanon.push(start.elapsed());
 
-        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+        // get capabilities: GDPR deletion in this app doesn't produce anon tokens
+        let file = File::open(format!("{}.{}", email, CAPS_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
-        let mut diffcap = String::new();
-        buf_reader.read_to_string(&mut diffcap).unwrap();
-        debug!(log, "Got email {} with diffcap {}", &email, diffcap);
-        user2diffcap.insert(email.clone(), diffcap);
+        let mut capstr = String::new();
+        buf_reader.read_to_string(&mut capstr).unwrap();
+        debug!(log, "Got email {} with cap {}", &email, capstr);
+        user2gdprcaps.insert(email.clone(), capstr);
     }
 
     /***********************************
@@ -400,11 +405,10 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         let email = format!("{}@mail.edu", u);
         let start = time::Instant::now();
         let decryptcap = user2decryptcap.get(&email).unwrap();
-        let diffcap = user2diffcap.get(&email).unwrap();
+        let caps = user2gdprcaps.get(&email).unwrap();
         let postdata = serde_urlencoded::to_string(&vec![
-            ("diff_loc_cap", diffcap),
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("")),
+            ("loc_caps", caps),
         ])
         .unwrap();
         let response = client
@@ -439,20 +443,39 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         let email = format!("{}@mail.edu", u);
 
         // get ownership location capability
-        let file = File::open(format!("{}.{}", email, OWNCAP_FILE)).unwrap();
+        let file = File::open(format!("{}.{}", email, CAPS_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
-        let mut owncap = String::new();
-        buf_reader.read_to_string(&mut owncap).unwrap();
-        debug!(log, "Got email {} with owncap {}", &email, owncap);
-        user2owncap.insert(email.clone(), owncap);
+        let mut caps = String::new();
+        buf_reader.read_to_string(&mut caps).unwrap();
+        debug!(log, "Got email {} with caps {}", &email, caps);
+        user2anoncaps.insert(email.clone(), caps);
+
+        // check results of anonymization: user has no answers
+        for l in 0..args.nlec {
+            let keys: Vec<Value> = vec![l.into(), email.clone().into()];
+            let res = db
+                .exec_iter(
+                    "SELECT answers.* FROM answers WHERE answers.lec = ? AND answers.`user` = ?;",
+                    keys,
+                )
+                .unwrap();
+            let mut rows = vec![];
+            for row in res {
+                let rowvals = row.unwrap().unwrap();
+                let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+                rows.push(vals);
+            }
+            assert_eq!(rows.len(), 0);
+        }
     }
+
 
     /***********************************
      * editing anonymized data
      ***********************************/
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
-        let owncap = user2owncap.get(&email).unwrap();
+        let caps = user2anoncaps.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
 
         let start = time::Instant::now();
@@ -464,7 +487,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         // set decryption capability as cookie
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", owncap)
+            ("loc_caps", caps)
         ]).unwrap();
         let response = client
             .post("/edit")
@@ -498,6 +521,16 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         // logged out
         let response = client.get(format!("/leclist")).dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
+
+        // check answers for users for lecture 0
+        let res = db
+            .query_iter("SELECT answer FROM answers WHERE lec = 0;")
+            .unwrap();
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let answer: String = from_value(rowvals[0].clone());
+            assert!(answer.contains("new_answer"));
+        }
     }
 
     /***********************************
@@ -506,7 +539,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap();
-        let owncap = user2owncap.get(&email).unwrap();
+        let anoncaps = user2anoncaps.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
 
         // login as the user
@@ -520,7 +553,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
 
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("{}", owncap)),
+            ("loc_caps", anoncaps),
         ])
         .unwrap();
 
@@ -533,14 +566,32 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         assert_eq!(response.status(), Status::SeeOther);
         delete_durations.push(start.elapsed());
 
-        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+        // diff location capability: GDPR deletion in this app doesn't produce anon tokens
+        let file = File::open(format!("{}.{}", email, CAPS_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
-        let mut diffcap = String::new();
-        buf_reader.read_to_string(&mut diffcap).unwrap();
-        debug!(log, "Got email {} with diffcap {}", &email, diffcap);
-        user2diffcap.insert(email.clone(), diffcap);
+        let mut caps = String::new();
+        buf_reader.read_to_string(&mut caps).unwrap();
+        debug!(log, "Got email {} with caps {}", &email, caps);
+        user2gdprcaps.insert(email.clone(), caps);
     }
+    // check results of delete: no answers or users exist
+    let res = db.query_iter("SELECT * FROM answers;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), 0);
+    let res = db.query_iter("SELECT * FROM users;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), 1); // the admin
+
 
     /***********************************
      * gdpr restore (with composition)
@@ -548,13 +599,17 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let start = time::Instant::now();
-        let owncap = user2owncap.get(&email).unwrap();
+        let anoncaps = user2anoncaps.get(&email).unwrap();
+        let caps = user2gdprcaps.get(&email).unwrap();
+        let mut anoncaps_vec : Vec<LocCap>= serde_json::from_str(&anoncaps).unwrap();
+        let mut caps_vec : Vec<LocCap> = serde_json::from_str(&caps).unwrap();
+        anoncaps_vec.append(&mut caps_vec);
+
+        let caps = serde_json::to_string(&anoncaps_vec).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
-        let diffcap = user2diffcap.get(&email).unwrap();
         let postdata = serde_urlencoded::to_string(&vec![
-            ("diff_loc_cap", diffcap),
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("{}", owncap)),
+            ("loc_caps", &format!("{}", caps)),
         ])
         .unwrap();
         let response = client
@@ -565,6 +620,32 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         assert_eq!(response.status(), Status::SeeOther);
         restore_durations.push(start.elapsed());
     }
+
+    // database is back in anonymized form
+    // check answers for lecture 0
+    let res = db
+        .query_iter("SELECT answer FROM answers WHERE lec = 0;")
+        .unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        assert!(answer.contains("new_answer"));
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), args.nqs as usize * args.nusers as usize);
+
+    let res = db.query_iter("SELECT * FROM users;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(
+        rows.len(),
+        1 + args.nusers as usize * (args.nlec as usize + 1)
+    );
 
     print_stats(
         args,
