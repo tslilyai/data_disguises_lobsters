@@ -377,7 +377,7 @@ does).
 \sys necessarily adds some latency compared to a manual privacy transformation
 as it must encrypt and store data, as well as maintain its metadata.
 %
-Next, we break down \sys's added latency.
+Next, we break this down.
 %
 
 \subsubsection{\sys Per-Operation Drill-Down}
@@ -410,26 +410,16 @@ created.
 To avoid this cost, \sys keeps a pre-generated key pool that it draws on
 during disguises (\S\ref{s:impl}).
 %
-
 %
-The cost of \sys's other cryptographic operations depends on the size of the
-stored data, but they are generally cheap.
+The cost of \sys's other cryptographic operations scales linearly with the
+size of the stored data, but they are generally cheap (0.3--4.5ms).
 %
-However, a disguise or reveal operation may require multiple encryptions and
-decryptions.
+A disguise or reveal operation requires encryption/decryption in
+the simple case when the application only applied one disguise to the
+data.
 %
-\lyt{These all seem to be because of composition (or basically performing ops on
-previously-decorrelated data); maybe we should just move exmaples to the next section?}
-%Such scenarios occur when the operation is performed on previously-decorrelated data, \eg
-%an operation to reveal data or delete data decorrelated by a prior anonymization.
-%For example, restoring an account
-\ms{Discuss examples. Cost of restore, edit data after decorrelation.}
-%
-
-%
-The cost of these cryptographic primitives also affects \sys's latency when
-the application applies multiple disguises to the same data, which we
-evaluate next.
+Several may be required when the application has applied multiple
+disguises have applied, whose cost we evaluate next.
 %
 
 \begin{figure}[t]
