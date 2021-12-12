@@ -356,9 +356,7 @@ fn run_disguising_thread(
     // UNSUB
     let start = time::Instant::now();
     let mut edna_locked = edna.lock().unwrap();
-    let lcs =
-        disguises::gdpr_disguise::apply(&mut edna_locked, uid, decryption_cap.clone(), vec![])
-            .unwrap();
+    let lcs_map = disguises::gdpr_disguise::apply(&mut edna_locked, uid, decryption_cap.clone(), vec![]).unwrap();
     my_delete_durations.push((overall_start.elapsed(), start.elapsed()));
     drop(edna_locked);
 
@@ -370,8 +368,8 @@ fn run_disguising_thread(
     // RESUB
     let start = time::Instant::now();
     let mut edna_locked = edna.lock().unwrap();
-    let ls = match lcs.get(&(uid.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
-        Some(dl) => vec![*dl],
+    let ls = match lcs_map.get(&(uid.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
+        Some(dl) => dl.clone(),
         None => vec![],
     };
     disguises::gdpr_disguise::reveal(&mut edna_locked, decryption_cap.clone(), ls).unwrap();
@@ -537,11 +535,11 @@ fn run_stats_test(
 
         // DECAY
         let start = time::Instant::now();
-        let lcs =
+        let lcs_map =
             disguises::data_decay::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
-        warn!("Got lc {:?} decaying {}", lcs, user_id);
+        warn!("Got lc {:?} decaying {}", lcs_map, user_id);
 
         // checks
         let res = db
@@ -569,11 +567,11 @@ fn run_stats_test(
 
         // UNDECAY
         let start = time::Instant::now();
-        let ls = match lcs.get(&(
+        let ls = match lcs_map.get(&(
             user_id.to_string(),
             disguises::data_decay::get_disguise_id(),
         )) {
-            Some(ol) => vec![*ol],
+            Some(ol) => ol.clone(),
             None => vec![],
         };
         warn!("Got lc {:?} to undecay {}", ls, user_id);
@@ -608,7 +606,7 @@ fn run_stats_test(
 
         // UNSUB
         let start = time::Instant::now();
-        let lcs =
+        let lcs_map =
             disguises::gdpr_disguise::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
@@ -638,11 +636,11 @@ fn run_stats_test(
 
         // RESUB
         let start = time::Instant::now();
-        let ls = match lcs.get(&(
+        let ls = match lcs_map.get(&(
             user_id.to_string(),
             disguises::gdpr_disguise::get_disguise_id(),
         )) {
-            Some(ol) => vec![*ol],
+            Some(ol) => ol.clone(),
             None => vec![],
         };
         disguises::gdpr_disguise::reveal(edna, decryption_cap.clone(), ls).unwrap();
