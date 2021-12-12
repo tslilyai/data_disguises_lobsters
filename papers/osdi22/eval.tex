@@ -36,13 +36,13 @@ store all databases on \fn{tmpfs} to avoid confounding factors related to persis
 \label{s:eval-security}
 
 %
-An attacker who compromises the server can observe all application
+An attacker who compromises the server observes all application
 database content, the public metadata in \sys, and the (encrypted) contents of
 \sys's store.
 %
-From this, the attacker can learn:
+The attacker can learn:
 \begin{enumerate}[nosep]
-  \item the application code, which contains the disguise specifications;
+  \item the disguise specifications, from application code;
   \item any undisguised data in the application database;
   \item the number of encrypted bags in \sys and their sizes;
   \item the active natural principals, via \sys's list of
@@ -78,60 +78,74 @@ bags with it, so the principals' ownership of bags remains hidden.
 
 %
 The attacker could try to leverage bag and locator set sizes, as well as the
-known number of pseudoprincipals.
+known number of pseudoprincipals, for a statistical inference attack that
+lets them conclude with pseudoprincipals are correlated with \emph{some}
+natural principal.
 %
-We demonstrate that despite this knowledge, the attacker cannot do better
-than randomly guessing which natural principal owns a piece of disguised
-data in the application DB based on the statistics they can observe.
+\sys does not protect against such attacks, as the cost of the necessary
+protections would be prohibitive: \sys would have to add padding to every
+bag and pseudoprincipal locator set, and the amount of padding would need to
+be proportional to the largest amount of data any natural principal holds
+in the application DB (see \S\ref{s:disc}).
+%
+However, \sys guarantees that the attacker cannot tell the \emph{identity}
+of an inactive natural principal correlated with some pseudoprincipal(s)
+based on the compromised information, since the natural principal has been
+deleted from the application DB and from \sys's metadata.
 %
 
+%We demonstrate that despite this knowledge, the attacker cannot do better
+%than randomly guessing which natural principal owns a piece of disguised
+%data in the application DB based on the statistics they can observe.
+%%
 %
-Consider the base case: a single natural principal has disguised their data
-by decorrelating it to $k$ pseudoprincipals.
-%
-The attacker will see a single encrypted bag, and the existence of $k$
-(non-deleted) pseudoprincipals.
-%
-This reveals that \sys applied at least one disguise (because one bag
-exists), and that all $k$ pseudoprincials belong to a single natural
-principal.
-%
-Now if there are two bags and $k$ (non-deleted) pseudoprincipals, one
-or two natural principals could have decorrelated their data, and the
-attacker can leverage knowledge about the disguise specification or
-the bag sizes to infer how many.
-%
-The attacker can also use the bag sizes as a proxy for the number of
-speaks-for tokens that each bag contains, and therefore for the number
-of pseudoprincipals that each natural principal has.\footnote{It is
-possible to use padding to hide bag sizes from the attacker, but this
-would be expensive; we discuss this in \S\ref{s:disc}.}
-%
-Say the attacker guesses $i$ and $j$ pseudoprincipals for two natural
-principals np$_1$ and np$_2$.
-%
-The attacker's goal is to separate the $k$ application database records
-currently owned by pseudoprincipals into $i$ owned by np$_1$ and $j$
-owned by np$_2$.
-%
-For each record, the attacker can guess that with $\sfrac{i}{k}$
-probability it was originally owned by np$_1$, and with $\sfrac{j}{k}$
-probability by np$_2$.
-%
-But no other information available to the attacker can increase
-the probability of a correct guess: the number of active natural
-principals is unrelated, the pseudoprincipal IDs carry no information,
-and the number of non-interactive disguises applied to a pseudoprincipal
-must by design be independent of the original data ownership, as the data
-was already decorrelated when any further disguises applied.
-%
-Thus, the best strategy available to the attacker is to randomly
-guess the identity of the natural principal for a given record.
-%
-The likelihood of the attacker guessing the natural principal correctly
-diminishes with the number of disguises applied, and thus with the
-number of bags and pseudoprincipals in \sys.
-%
+%%
+%Consider the base case: a single natural principal has disguised their data
+%by decorrelating it to $k$ pseudoprincipals.
+%%
+%The attacker will see a single encrypted bag, and the existence of $k$
+%(non-deleted) pseudoprincipals.
+%%
+%This reveals that \sys applied at least one disguise (because one bag
+%exists), and that all $k$ pseudoprincials belong to a single natural
+%principal.
+%%
+%Now if there are two bags and $k$ (non-deleted) pseudoprincipals, one
+%or two natural principals could have decorrelated their data, and the
+%attacker can leverage knowledge about the disguise specification or
+%the bag sizes to infer how many.
+%%
+%The attacker can also use the bag sizes as a proxy for the number of
+%speaks-for tokens that each bag contains, and therefore for the number
+%of pseudoprincipals that each natural principal has.\footnote{It is
+%possible to use padding to hide bag sizes from the attacker, but this
+%would be expensive; we discuss this in \S\ref{s:disc}.}
+%%
+%Say the attacker guesses $i$ and $j$ pseudoprincipals for two natural
+%principals np$_1$ and np$_2$.
+%%
+%The attacker's goal is to separate the $k$ application database records
+%currently owned by pseudoprincipals into $i$ owned by np$_1$ and $j$
+%owned by np$_2$.
+%%
+%For each record, the attacker can guess that with $\sfrac{i}{k}$
+%probability it was originally owned by np$_1$, and with $\sfrac{j}{k}$
+%probability by np$_2$.
+%%
+%But no other information available to the attacker can increase
+%the probability of a correct guess: the number of active natural
+%principals is unrelated, the pseudoprincipal IDs carry no information,
+%and the number of non-interactive disguises applied to a pseudoprincipal
+%must by design be independent of the original data ownership, as the data
+%was already decorrelated when any further disguises applied.
+%%
+%Thus, the best strategy available to the attacker is to randomly
+%guess the identity of the natural principal for a given record.
+%%
+%The likelihood of the attacker guessing the natural principal correctly
+%diminishes with the number of disguises applied, and thus with the
+%number of bags and pseudoprincipals in \sys.
+%%
 
 % Add that Edna leaks the number of disguises applied to a PP, but not how many applied to a NP.
 
