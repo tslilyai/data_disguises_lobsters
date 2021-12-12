@@ -123,7 +123,6 @@ impl Disguiser {
         // USE TXN FOR NOW
         let mut db = self.pool.get_conn()?;
         //let mut txn = db.start_transaction(TxOpts::default())?;
-        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
 
         // XXX revealing all global tokens when a disguise is reversed
         let start = time::Instant::now();
@@ -136,6 +135,7 @@ impl Disguiser {
 
         // reverse REMOVE tokens first
         let start = time::Instant::now();
+        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         for dwrapper in &dts {
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
             if dwrapper.did == did
