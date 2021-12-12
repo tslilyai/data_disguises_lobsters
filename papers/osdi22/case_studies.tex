@@ -135,11 +135,9 @@ new HTTP endpoints for editing disguised data and restoring a deleted account.
 %
 
 %
-The original WebSubmit has 922 LoC; adding \sys's disguises required an additional 304 LoC
-to specify the disguises, 254 LoC for two additional HTTP endpoints; and 809 LoC added to
-existing code \lyt{(some of which were to add \eg benchmark timings)} \ms{can we subtract the
-timing and logging lines? Adding 1.5x the code that was there originally isn't super compelling.}.
-%
+The original WebSubmit has 922 LoC; adding \sys's disguises required an additional 261 LoC
+to specify the disguises, and 460 LoC to implement two additional HTTP endpoints and modify 
+existing code with \eg authorization checks when editing (potentially anonymized) lectures.
 Overall, the process took 1 person-day for a developer familiar with \sys, but
 unfamiliar with WebSubmit.
 %
