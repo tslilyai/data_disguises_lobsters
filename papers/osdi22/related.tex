@@ -3,14 +3,6 @@
 %-------------------------------------------------------------------------------
 \label{sec:related}
 
-\ms{Add (at least):
-\begin{itemize}[nosep]
-  \item Vanish (OSDI'10?)
-  \item CryptDB, Mylar
-  \item DORY (OSDI'21), Coeus (SOSP'21), Snoopy (SOSP'21)?
-\end{itemize}
-}
-
 %
 Protecting personal data in web services is a long-standing research direction.
 %
@@ -33,14 +25,18 @@ Other platforms attest that server-side processing respects
 \eg Zeph~\cite{zeph}) or systems security mechanisms (as in \eg Riverbed~\cite{riverbed}
 and Ryoan~\cite{ryoan}).
 %
+The application functionality is typically restricted, in terms of the feasible
+operations (\eg additively homomorphic ones) and in whether data with different policies
+can be combined.
+%
 Data disguising only provides assurances about data privacy after the application has
 disguised the data (possibly on user request), but in exchange allows unrestricted
-application functionality without any performance overhead outside of disguise-related
+application functionality without any overheads outside of disguise-related
 operations.
 %
 
 %
-The advent of new privacy laws has led researchers to propose new \textbf{database designs
+New privacy laws have led researchers to propose \textbf{database designs
 for privacy compliance}.
 %
 These databases track the owner of data objects and erase them on user request, compliant
@@ -54,109 +50,72 @@ transformations that go beyond deleting PII, and requires no ownership tracking 
 fine-grained IFC.
 %
 
-\lyt{TODO: This is just C-P from HotOS.}
-
 %
-Two prior \textbf{systems for personal data deletion} are particularly relevant to data
-disguising: Sypse~\cite{sypse}, which pseudonymizes user
-data and partitions personally identifying information (PII) from other data, and
-DELF~\cite{delf}, a framework for data deletion at Facebook.
+\textbf{Systems for data deletion}, on the other hand, specifically focus on the
+challenge of correctly removing a user's to provide them with post-deletion
+privacy.
 %
-While Sypse also traverses foreign keys, its design is application-oblivious, and leaves
-the specification of what counts as PII as future work.
+While cryptographically-verified deletion is difficult and expensive~\cite{vanish},
+practical systems that help developers get deletion right exist.
 %
-Data disguising provides a way to specify sensitive data and correlations, as well as
-application-specific transformations.
-%
-Instead of constantly maintaining data partitions (as Sypse does), data disguising adapts
-the physical database on disguising.
-%
-%developers take care of splitting and moving data between the identity-revealing PII partition and
-%the privacy-preserving normal partition.\lyt{I'm not sure this is accurate? They don't use
-%developer input at all to figure out which edges to break/columns to anonymize, but rather assume
-%some random data synthesis + some ``automated'' analysis of the data schema, whereas we actually
-%assume that developers need to specify these things}
-%%
-%In contrast, data disguing does not keep PII in the application, or change the application schema.
-%%
-%%We concretely define the application object graph and abstractions that allow developers to reason
-%%about it, whereas Sypse leaves this as future work.
-%For example, Sypse's synthetic data is randomly generated and application-oblivious. We observe that
-%in order to maintain correct application semantics, developers must provide input into how to
-%generate ghost entities.
-%
-%A future implementation may preemptively create
-%ghost data and result in a system design vaguely similar to Sypse, but this implementation strategy
-%is not fundamental.
-%Sypse also does not support resubscription, although we observe that a similar approach to ours
-%would allow Sypse to do so.
-%
-DELF~\cite{delf} helps developers write correct data deletion code, and uses annotations on
-application edge and object types to specify a deletion policy.
+DELF~\cite{delf}, a framework for data deletion at Facebook helps developers write
+correct data deletion code, and uses annotations on application edge and object types
+to specify a deletion policy.
 %
 DELF focuses only on data deletion, while data disguising targets broader privacy
-transformations, including decorrelation.
+transformations, including decorrelation and anonymization.
 %
-
-%---------------------------
+Sypse~\cite{sypse} pseudonymizes user data and partitions personally identifying
+information (PII) from other data.
+%
+Like data disguising, Sypse's design is application-oblivious, and leaves
+the specification of what counts as PII to the application.
+%
+Instead of constantly maintaining data partitions (as Sypse does), data disguising
+adapts the application database on disguising and stores encrypted data to
+potentially later reveal it.
+%
 
 %
 Other systems enforce developer-specified \textbf{visibility and access control policies}
 based on general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb},
-%, dynamically or statically,
+authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewriting database
+queries~\cite{qapla, sieve}.
 %
-authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewriting database queries~\cite{qapla, sieve}.
-%, and performing queries over encrypted data, readable only by authenticated
-%users~\cite{cryptdb}.
+Data disguising transforms the actual data stored, and---unlike the above systems---protects
+against an attacker who compromises the server.
 %
-Data disguising transforms the actual data stored.
+
 %
-%Data disguising can additionally automate complex privacy transformations for authorized or multiverse views.
-
-%ScrambleDB~\cite{scrambledb} generates oblivious pseudonyms for distributed settings, so there does
-%not need to be one trusted central pseudonym/linking server.
-
-%---------------------------
-
-Privacy-preserving data mining approaches, such as $k$-anonymity, $l$-diversity, and
-differential privacy~\cite{dataminingmodels, differential}, provide \textbf{statistical privacy
-guarantees}.
+Our work shares some ideas with \textbf{encrypted storage systems}.
 %
-These complement data disguising: disguise predicates might be based on
-differential privacy, for example.
+However, the deployment scenarios for these systems assume that all data is
+encrypted, which imposes overheads on normal operation and requires application
+functionality to live on the client.
 %
-%However, these formal techniques no longer apply for arbitrary application queries over possibly
-%non-numerical data.
+Support for arbitrary and fully-oblivious operation over encrypted data would
+be ideal, but while there is encouraging recent progress on search over encrypted
+data and oblivious key-value stores~\cite{dory, snoopy}, the cost is too high for
+practical web services.
+%
+However, data disguising has a similar threat model to CryptDB~\cite{cryptdb},
+Mylar~\cite{mylar}, or Keybase~\cite{keybase}, and protects confidentiality of
+data under disguise against similar server compromises.
+%
+Data disguising encrypts users' private data that is currently ``under disguise'',
+and provides limited functionality over it (which reveals the data to
+the server), but is efficient and still protects inactive users' privacy.
+%
 
+%
+Finally, privacy-enhancing techniques like $k$-anonymity, $l$-diversity, and
+differential privacy~\cite{dataminingmodels, differential}, provide statistical privacy
+guarantees.
+%
+These complement data disguising: disguises might add differential privacy noise to
+data left in the application DB, for example.
+%
 
-%Although these paradigms grant users more control over applications' access to their data,
-%In these paradigms, users must decide on appropriate access control and authentication policies, and
-%are burdened with long-term data maintenance and storage.
-%If users do not self-host, they must trust (and potentially
-%pay for) a third party provider to manage their data. Current providers in Solid~\cite{solid}
-%provide no security or stability guarantees, and others that use PKI (\eg
-%Blockstack~\cite{blockstack}) require users to maintain a master private key, a fragile solution in
-%which losing the key results in permanent loss of all the user's data.
-%https://www.nytimes.com/2021/01/12/technology/bitcoin-passwords-wallets-fortunes.html
-%Many applications that perform data-intensive service-side computation and rely on data sharing
-%between users (\eg online stores or social networks) experience large performance loss due to the
-%additional access control checks and remote queries to user datastores. Application developers can
-%no longer program over application-specific SQL databases, and lose the flexibility and performance
-%that results from specialized schemas and data storage.
-
-%Decoupling user data also eliminates the current revenue model for web applications, which relies on
-%access to user data. Projects such as Solid~\cite{solid} currently rely on open-source application
-%development, and free hosting by providers, a revenue model that may be unsustainable long-term.
-
-%provides a middle ground between the current data ownership paradigm (web
-%applications owning all user data), and these paradigms which decouple of user data from web applications.
-%While \name lacks a single, unified data location where users store all their data,
-%users gain control access to their personal data by taking it back from applications at will, without
-%any permanent consequences.  \name preserves the current web architecture and all
-%its performance benefits, removing the need for applications to compute over and query for remote
-%data.  When users enter privacy-preserving mode, \name does not require the user
-%to secure or manage this data, or handle the intricacies of access control (described in
-%Section~\ref{sec:design:storage}).
 
 %---------------------------
 
