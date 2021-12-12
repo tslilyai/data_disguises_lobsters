@@ -23,37 +23,37 @@ security and performance.
 An application hands \sys database diffs and speaks-for records when it applies
 a disguise $d$.
 %
-Prior to encrypting these records, \sys appends a random nonce to the plaintext
-to prevent known-plaintext attacks.
+\sys appends a random nonce to the plaintext to prevent known-plaintext attacks
+and encrypts the records.
 %
-Encryption ensures that only a client with $p$'s private key can reveal these
-records.
+\sys encrypts the record data with AES \ms{need details. What AES? CTR mode,
+key size?} using a fresh symmetric key, and then encrypts this key with the
+principal's public key.
 %
 
 %
-\sys must store encrypted records without leaking that disguise $d$ applied to
+\sys stores encrypted records without leaking that disguise $d$ applied to
 principal $p$.
 %
 For example, if \sys revealed that a principal has invoked GDPR deletion, it
 might violate the GDPR.
 %
-Consequently, \sys must avoid storing any mapping from $p$ or $d$ to a bag of
-encrypted records, as must the application.
+Consequently, \sys avoids storing any mapping from $p$ or $d$ to a bag of
+encrypted records.
 %
-However, \sys must also be able to---given $p$, $d$, and $p$'s private
-key---decrypt and return records to the application when it invokes
-\fn{DiffsForDisguise} or \fn{PseudoprincipalsOf}.
+Yet, given $p$, $d$, and $p$'s private key, \sys needs to decrypt and return
+records to the application on \fn{DiffsForDisguise} or \fn{PseudoprincipalsOf}.
 %
 While \sys could attempt to decrypt \emph{all} encrypted records with $p$'s
-private key, this is clearly too slow for applications with a large amount
+private key, this is too slow for applications with a large amount
 of data in \sys.
 %
-But the client can help the application (and, thus, \sys) identify the bag
-of encrypted records for $(p, d)$.
+Instead, \sys relies on the client helping the application (and, thus, \sys)
+identify the bag for $(p, d)$ using a locator \lcapa{pd}.
 %
-This is the role of \sys's locators: each \lcapa{pd} points to a bag of
-encrypted records, and \sys maintains an index from locators to bags,
-but---crucially---forgets which $(p, d)$ produced the locator.
+Each locator points to a bag of encrypted records, and \sys maintains an index
+from locators to bags, but---crucially---forgets which $(p, d)$ produced the
+locator.
 %
 Locators are drawn randomly from a large domain, so their values give
 the attacker no additional information.

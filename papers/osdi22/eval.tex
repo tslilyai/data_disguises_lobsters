@@ -237,7 +237,7 @@ restoration).
 \end{figure}
 
 \begin{figure}[t]
-\begin{center}
+\centering
 %\begin{tabular}{ c c }
 %\textbf{DB Op} & \textbf{Time (ms)}\\
 %\hline
@@ -257,11 +257,10 @@ restoration).
     Encrypt Bag & 0.3 & 4.1\\
     Decrypt Bag & 2.8 & 4.5\\
 \end{tabular}
-\end{center} \caption{\sys cryptographic operations are cheap (0.3--4.5ms) with reasonable bag
-    sizes, except for pseudoprincipal key generation, which \sys amortizes by via a pre-generated
-    key pool.
-    Encrypt/decrypt latency is linear in the the size of the bag.
-    (\S\ref{s:impl}).} \label{f:opstats}
+  \caption{\sys cryptographic operations are cheap (0.3--4.5ms), except for
+    pseudoprincipal key generation, which \sys amortizes by via a pre-generated
+    key pool (\S\ref{s:impl}).
+    Encrypt/decrypt latency is linear in the the size of the bag.} \label{f:opstats}
 \end{figure}
 
 \paragraph{WebSubmit.}
