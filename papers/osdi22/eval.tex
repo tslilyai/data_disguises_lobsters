@@ -248,14 +248,14 @@ restoration).
 %Create + Register Principal & 0.1\\
 %\end{tabular}
 %\quad
-\begin{tabular}{ c c c }
-    \textbf{Crypto Op} & \multicolumn{2}{c}{\textbf{Time (ms)}}\\
+\begin{tabular}{ c c c c }
+    \textbf{Crypto Op} & \multicolumn{3}{c}{\textbf{Time (ms)}}\\
 \hline
-    Generate Keypair & \multicolumn{2}{c}{301}\\
+    Generate Keypair & \multicolumn{3}{c}{301}\\
 \hline
-    & \textbf{100B} & \textbf{1MB}\\
-    Encrypt Bag & 0.3 & 4.1\\
-    Decrypt Bag & 2.8 & 4.5\\
+    & \textbf{100B} & \textbf{1MB} & \textbf{10MB}\\
+    Encrypt Bag & 0.3 & 4.1 & 38.3\\
+    Decrypt Bag & 2.8 & 4.5 & 22.3\\
 \end{tabular}
   \caption{\sys cryptographic operations are cheap (0.3--4.5ms), except for
     pseudoprincipal key generation, which \sys amortizes by via a pre-generated
