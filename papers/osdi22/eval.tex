@@ -116,7 +116,7 @@ deleted from the application DB and from \sys's metadata.
 %the bag sizes to infer how many.
 %%
 %The attacker can also use the bag sizes as a proxy for the number of
-%speaks-for tokens that each bag contains, and therefore for the number
+%speaks-for records that each bag contains, and therefore for the number
 %of pseudoprincipals that each natural principal has.\footnote{It is
 %possible to use padding to hide bag sizes from the attacker, but this
 %would be expensive; we discuss this in \S\ref{s:disc}.}
@@ -439,24 +439,48 @@ disguises; we evaluate this cost next.
 \end{figure}
 
 \subsubsection{Applying Multiple Disguises}
-\sys may perform extra work to apply a second disguise applied with optional 
-to data decorrelated by a prior disguise, or
-to reveal such a subsequent disguise.
-%A secon
+The application and \sys may perform extra cryptographic work to apply a second disguise $d_2$ to
+data decorrelated by a prior disguise $d_1$.
 
+%
+One such case occurs when a client interactively invokes $d_2$ on behalf of principal $p$ with private key $p$ and
+locators \lcapa{pd_1} from anonymization disguise $d_1$, the application can ask \sys (via
+\fn{PseudoprincipalsOf}) to decrypt all speaks-for records in $p$'s bag at \lcapa{pd_1} using $p$'s
+private key. 
+This adds the cost of decrypting speaks-for records stored at \lcapa{pd_1}.
+%
+With these speaks-for tokens, the application and \sys can not only disguise
+$p$'s data, but also disguise data of $p$'s pseudoprincipals $q_i$ produced by $d_1$.
+\sys must perform one bag encryption \emph{per pseudoprincipal $q_i$}, rather than a single 
+encryption for single pseudoprincipal $p$ had $p$'s data never been decorrelated by $d_1$. 
+%
 
-Account deletion post-anonymization requires \sys to perform temporary recorrelation find data of
-pseudoprincipals that the user is authorized to remove along with their account. \sys incurs latency
-increases from decrypting all speaks-for records of the user, and from performing the deletion or
-modification queries for each discovered pseudoprincipal (in addition to the original user).
+%
+As described in \S\ref{s:composition}, the application and \sys return a locator \lcapa{pd_2} to the
+client for every $q_i$ disguised, which points to $q_i$'s encrypted bag of records.
+%
+Upon reveal of $d_2$ with $p$'s private key, \lcapa{pd_1}, and the set of \lcapa{pd_2}s \sys decrypts and
+reveals all bags for both $p$ and the $q_i$. Similarly, \sys must perform one decryption per $q_i$; without
+composition, \sys could simply perform a single decryption of $p$'s bag at \lcapa{pd_1}.
 
-Account restoration may also restore pseudoprincipal-associated data, which requires temporary
-recorrelation to access to pseudoprincipal-associated records produced from the account deletion.
-\sys thus additionally decrypt speaks-for records for all pseudoprincipals of the user, which causes
-the increase in latency.
+Figure~\ref{f:composition} shows these costs of interactively applying account deletion to user $p$
+after anonymization to further disguise $p$'s pseudoprincipals' data in WebSubmit and HotCRP, as
+well as the cost of subsequently revealing $p$'s account with the returned locators.
+As expected, restoration cost increases in absolute numbers substantionally more than deletion cost, since (with the
+typical small bag data sizes) decryption is an order of magnitude more expensive than encryption.
+WebSubmit account deletion and restoration latencies increase respectively by 5.5x and 5.7x; and in
+HotCRP, latencies increase by 3x and 10x.
+\lyt{TODO why?}
 
-We measure 
-\lyt{TODO}
+%
+Had deletion been non-iteractively applied, locators for the $q_i$ would be encrypted and stored with
+sys's metadata for $q_i$. This incurs an extra encryption cost per $q_i$ during $d_2$. However, the
+initial cost of decrypting speaks-for records would be eliminated.
+%
+Revealing $d_2$ would simply take \lcapa{pd_1} and $p$'s private key (\S\ref{s:composition}); \sys
+recursively retrieves $q_i$'s records by decrypting the encrypted \lcapa{q_id_2},
+%with $q$'s private key (retrived from \lcapa{pd_1} with $p$'s private key).
+which similarly incurs an additional decryption cost per $q_i$ disguised.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Resource Use}
