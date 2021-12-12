@@ -252,7 +252,7 @@ impl TokenCtrler {
             let bag = self.tmp_bags.get(&(uid.to_string(), *did)).unwrap().clone();
             let owner = bag.owner.clone();
             self.update_bag_at_loc(uid.to_string(), &lc, &bag);
-            warn!("EdnaBatch: Inserted {} bags for {}", bags.len(), uid);
+            warn!("EdnaBatch: Inserted bag with {} dt, {} wt, {} pks for owner {} uid {}", bag.difftoks.len(), bag.owntoks.len(), bag.pktoks.len(), bag.owner, uid);
 
             // if we are going to return this to a user, actually return it
             if &owner != uid {
@@ -262,9 +262,11 @@ impl TokenCtrler {
                         lcs_to_return.insert((owner.clone(), *did), vec![lc]);
                     }
                 }
+                warn!("Going to return bag to owner {}", &owner);
                 continue;
             } else {
                 // otherwise, this pp should exist and be anon?
+                warn!("Going to return bag to uid {}", &uid);
                 let p = self
                     .principal_data
                     .get_mut(uid)
@@ -543,16 +545,17 @@ impl TokenCtrler {
         match self.tmp_bags.get_mut(&(uid.clone(), pppk.did.clone())) {
             Some(bag) => {
                 bag.owner = uid.clone();
-                bag.pktoks.insert(uid.clone(), pppk.clone());
+                // important: insert the mapping from new_uid to pppk
+                bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
             }
             None => {
                 let mut new_bag = Bag::new(uid);
-                new_bag.pktoks.insert(uid.clone(), pppk.clone());
+                new_bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
                 self.tmp_bags
                     .insert((uid.clone(), pppk.did.clone()), new_bag);
             }
         }
-        warn!("Inserted privkey token: {}", start.elapsed().as_micros());
+        warn!("Inserted privkey token from uid {} for {}: {}", pppk.new_uid, uid, start.elapsed().as_micros());
     }
 
     fn insert_ownership_token_wrapper_for(&mut self, pppk: &OwnershipTokenWrapper, uid: &UID) {
@@ -582,7 +585,7 @@ impl TokenCtrler {
         let start = time::Instant::now();
         let did = token.did;
         warn!(
-            "inserting user diff token for uid {} did {} of user {}",
+            "inserting user diff token for owner {} did {} of uid {}",
             uid, did, token.uid
         );
 
@@ -776,7 +779,7 @@ impl TokenCtrler {
         }
         assert!(self.batch);
         if let Some(encbag) = self.enc_map.get(&lc.loc) {
-            warn!("Getting tokens of user");
+            warn!("Getting tokens of user {} with lc {}", lc.uid, lc.loc);
             let start = time::Instant::now();
             // decrypt token with decrypt_cap provided by client
             let (succeeded, plaintext) = encbag.decrypt_encdata(decrypt_cap);

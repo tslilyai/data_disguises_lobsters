@@ -125,6 +125,7 @@ impl Disguiser {
         //let mut txn = db.start_transaction(TxOpts::default())?;
 
         // XXX revealing all global tokens when a disguise is reversed
+        warn!("Getting tokens for reveal with loc_caps {:?}", loc_caps);
         let start = time::Instant::now();
         let (dts, ots, _pks) = self.get_toks_and_privkeys_at_locs(&decrypt_cap, &loc_caps);
         warn!(
