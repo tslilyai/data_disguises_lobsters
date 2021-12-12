@@ -40,6 +40,7 @@ impl EncData {
             return (false, vec![]);
         }
 
+        let start = time::Instant::now();
         let priv_key = RsaPrivateKey::from_pkcs1_der(decrypt_cap).unwrap();
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let key: Vec<u8>;
@@ -50,9 +51,11 @@ impl EncData {
         let cipher = Aes128Cbc::new_from_slices(&key, &self.iv).unwrap();
         let mut edata = self.enc_data.clone();
         let plaintext = cipher.decrypt_vec(&mut edata).unwrap();
+        warn!("decrypted len is {}: {}", plaintext.len(), start.elapsed().as_micros());
         (true, plaintext)
     }
     pub fn encrypt_with_pubkey(pubkey: &RsaPublicKey, bytes: &Vec<u8>) -> EncData {
+        let start = time::Instant::now();
         let mut rng = rand::thread_rng();
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(AES_BYTES).collect();
@@ -69,7 +72,7 @@ impl EncData {
         rng.fill_bytes(&mut iv[..]);
         let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
         let encrypted = cipher.encrypt_vec(bytes);
-        warn!("encrypted len is {}, {}", enc_key.len(), encrypted.len());
+        warn!("encrypted len is {}, {}: {}", enc_key.len(), encrypted.len(), start.elapsed().as_micros());
         EncData {
             enc_key: enc_key,
             enc_data: encrypted,

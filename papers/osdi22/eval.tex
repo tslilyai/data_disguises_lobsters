@@ -248,20 +248,20 @@ restoration).
 %Create + Register Principal & 0.1\\
 %\end{tabular}
 %\quad
-\begin{tabular}{ c c }
-\textbf{Crypto Op} & \textbf{Time (ms)}\\
+\begin{tabular}{ c c c }
+    \textbf{Crypto Op} & \multicolumn{2}{c}{\textbf{Time (ms)}}\\
 \hline
-Generate Keypair & 301\\
-Encrypt SpeaksFor Record & 0.4\\
-Decrypt SpeaksFor Record & 3.0\\
-Encrypt Diff Record & 0.3\\
-Decrypt Diff Record & 3.0\\
+    Generate Keypair & \multicolumn{2}{c}{301}\\
+\hline
+    & \textbf{100B} & \textbf{1MB}\\
+    Encrypt Bag & 0.3 & 4.1\\
+    Decrypt Bag & 2.8 & 4.5\\
 \end{tabular}
-\end{center}
-  \caption{\sys cryptographic operations are cheap( 0.3--3ms), except
-  for pseudoprincipal key generation, which \sys amortizes by via a
-  pre-generated key pool (\S\ref{s:impl}). \ms{Need to give record sizes.}}
-\label{f:opstats}
+\end{center} \caption{\sys cryptographic operations are cheap (0.3--4.5ms) with reasonable bag
+    sizes, except for pseudoprincipal key generation, which \sys amortizes by via a pre-generated
+    key pool.
+    Encrypt/decrypt latency is linear in the the size of the bag.
+    (\S\ref{s:impl}).} \label{f:opstats}
 \end{figure}
 
 \paragraph{WebSubmit.}

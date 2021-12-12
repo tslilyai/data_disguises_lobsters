@@ -30,7 +30,7 @@ fn main() {
     let filename = format!("enc_stats.csv");
     let mut file = File::create(filename).unwrap();
  
-    let size = 2048;
+    let size = 100;
     for i in 1..1001 {
         let mut bytes: Vec<u8> = repeat(0u8).take(i*size).collect();
         rng.fill_bytes(&mut bytes[..]);
