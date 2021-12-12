@@ -55,8 +55,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        //.filter_level(log::LevelFilter::Warn)
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Warn)
+        //.filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -542,11 +542,6 @@ fn run_stats_test(
     let mut rng = rand::thread_rng();
 
     for u in 0..sampler.nusers() {
-
-        // sample every 50 users
-        if u % 50 != 0 {
-            continue;
-        }
         let user_id = u as u64 + 1;
         let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
         let mut user_stories = 0;
