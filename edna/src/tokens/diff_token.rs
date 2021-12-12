@@ -349,17 +349,17 @@ impl EdnaDiffToken {
             }
             REMOVE_TOKEN => {
                 // restore global token (may or may not have been revealed, but oh well!)
-                let mut token: DiffTokenWrapper =
+                /*let mut token: DiffTokenWrapper =
                     serde_json::from_str(&self.old_token_blob).unwrap();
                 assert!(token.is_global);
-                token_ctrler.insert_global_diff_token_wrapper(&mut token);
+                //token_ctrler.insert_global_diff_token_wrapper(&mut token);*/
             }
             MODIFY_TOKEN => {
-                let new_token: DiffTokenWrapper =
+                /*let new_token: DiffTokenWrapper =
                     serde_json::from_str(&self.new_token_blob).unwrap();
                 assert!(new_token.is_global);
 
-                let (revealed, eq) = token_ctrler.check_global_diff_token_for_match(&new_token);
+                //let (revealed, eq) = token_ctrler.check_global_diff_token_for_match(&new_token);
 
                 // don't reveal if token has been modified
                 if !eq {
@@ -369,13 +369,13 @@ impl EdnaDiffToken {
                 // actually update token
                 let old_token: DiffTokenWrapper =
                     serde_json::from_str(&self.old_token_blob).unwrap();
-                token_ctrler.update_global_diff_token_from_old_to(&new_token, &old_token, None);
+                //token_ctrler.update_global_diff_token_from_old_to(&new_token, &old_token, None);
 
                 // if token has been revealed, attempt to reveal old value of token
                 if revealed {
                     let edna_old_token = edna_diff_token_from_bytes(&old_token.token_data);
                     return edna_old_token.reveal::<Q>(token_ctrler, db);
-                }
+                }*/
             }
             _ => unimplemented!("Bad diff token update type?"), // do nothing for PRIV_KEY
         }

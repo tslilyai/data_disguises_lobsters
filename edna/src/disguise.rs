@@ -219,7 +219,7 @@ impl Disguiser {
         disguise: Arc<disguise::Disguise>,
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
-    ) -> Result<HashMap<(UID, DID), tokens::LocCap>, mysql::Error> {
+    ) -> Result<HashMap<(UID, DID), Vec<tokens::LocCap>>, mysql::Error> {
         let mut db = self.pool.get_conn()?;
         let mut db2 = self.pool.get_conn()?;
         let mut txn = db2.start_transaction(TxOpts::default())?;
@@ -254,10 +254,8 @@ impl Disguiser {
             let my_guise_gen = self.guise_gen.clone();
 
             // hashmap from item value --> transform
-            //*let mut token_transforms: HashMap<DiffTokenWrapper, Vec<ObjectTransformation>> =
-             //   HashMap::new();
+            //let mut token_transforms: HashMap<DiffTokenWrapper, Vec<ObjectTransformation>> = HashMap::new();
 
-            //threads.push(thread::spawn(move || {
             // XXX note: not tracking if we remove or decorrelate twice
             let locked_table_info = my_table_info.read().unwrap();
             let curtable_info = locked_table_info.get(&table).unwrap();
@@ -271,7 +269,7 @@ impl Disguiser {
                     continue;
                 }
                 // XXX assumes only one original owner UID
-                let preds = predicate::get_all_preds_with_owners(
+                let (original_uid, preds) = predicate::get_all_preds_with_owners(
                     &t.pred,
                     &curtable_info.owner_cols, // assume only one fk
                     &my_own_tokens,
@@ -357,6 +355,7 @@ impl Disguiser {
                                     &selected_rows,
                                     selection,
                                     &mut txn,
+                                    &original_uid,
                                 );
                             } else {
                                 modify_items::<mysql::PooledConn>(
@@ -370,6 +369,7 @@ impl Disguiser {
                                     &selected_rows,
                                     selection,
                                     &mut db,
+                                    &original_uid,
                                 );
                             }
                             drop(locked_token_ctrler);
@@ -397,9 +397,6 @@ impl Disguiser {
             //let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
             //locked_tokens.extend(token_transforms);
             //drop(locked_tokens);
-
-            //warn!("Thread {:?} exiting", thread::current().id());
-            //}));
         }
         warn!(
             "Edna: Execute modify/decor total: {}",
@@ -447,7 +444,7 @@ impl Disguiser {
         Ok(loc_caps)
     }
 
-    fn _modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
+    /*fn _modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
         let start = time::Instant::now();
         let did = disguise.did;
         let uid = disguise.user.clone();
@@ -495,7 +492,7 @@ impl Disguiser {
             let mut new_token = token.clone();
             new_token.new_val = token.new_val.clone();
             //XXX todo
-            /*token.new_val
+            token.new_val
                 .iter()
                 .map(|rv| {
                     let mut new_rv = rv.clone();
@@ -509,9 +506,9 @@ impl Disguiser {
                     }
                     new_rv
                 })
-                .collect();*/
+                .collect();
             new_token.old_val = token.old_val.clone();
-                /*token.old_value
+                token.old_value
                 .iter()
                 .map(|rv| {
                     let mut new_rv = rv.clone();
@@ -525,7 +522,7 @@ impl Disguiser {
                     }
                     new_rv
                 })
-                .collect();*/
+                .collect();
             let mut new_token_wrapper = twrapper.clone();
             new_token_wrapper.token_data = edna_diff_token_to_bytes(&new_token);
             if !locked_token_ctrler.update_global_diff_token_from_old_to(
@@ -541,7 +538,7 @@ impl Disguiser {
             "Edna: modify global diff tokens: {}",
             start.elapsed().as_micros()
         );
-    }
+    }*/
 
     fn execute_removes<Q: Queryable>(
         &self,
@@ -567,7 +564,7 @@ impl Disguiser {
             // REMOVES: do one loop to handle removes
             for t in &*transforms.read().unwrap() {
                 if let TransformArgs::Remove = *t.trans.read().unwrap() {
-                    let preds = predicate::get_all_preds_with_owners(
+                    let (original_uid, preds) = predicate::get_all_preds_with_owners(
                         &t.pred,
                         &curtable_info.owner_cols,
                         &own_tokens,
@@ -631,12 +628,21 @@ impl Disguiser {
                                 t.global,
                             );
                             for owner_col in &curtable_info.owner_cols {
-                                token.uid = get_value_of_col(&i, &owner_col).unwrap();
-                                if t.global {
-                                    locked_token_ctrler.insert_global_diff_token_wrapper(&token);
-                                } else {
-                                    locked_token_ctrler.insert_user_diff_token_wrapper(&token);
+                                let curuid = get_value_of_col(&i, &owner_col).unwrap();
+                                
+                                // if this was predicated on belonging to the original principal,
+                                // then we should insert it into a bag whose locator should be sent
+                                // to the original principal (even though it's encrypted with the
+                                // pseudoprincipal's pubkey).
+                                // XXX think about this
+                                token.uid = curuid.clone();
+                                
+                                // insert the token in a bag for the original user if it exists
+                                match &original_uid {
+                                    Some(ouid) => locked_token_ctrler.insert_user_diff_token_wrapper_for(&token, &ouid),
+                                    None => locked_token_ctrler.insert_user_diff_token_wrapper_for(&token, &curuid),
                                 }
+                                //locked_token_ctrler.insert_global_diff_token_wrapper(&token);
                                 // if we're working on a guise table (e.g., a users table)
                                 // remove the user
                                 if locked_guise_gen.guise_name == table {
@@ -645,7 +651,7 @@ impl Disguiser {
                                         table
                                     );
                                     locked_token_ctrler
-                                        .mark_principal_to_be_removed(&token.uid, token.did);
+                                        .mark_principal_to_be_removed(&curuid, token.did);
                                 }
                             }
                         }
@@ -812,6 +818,7 @@ fn modify_items<Q: Queryable>(
     items: &Vec<Vec<RowVal>>,
     selection: String,
     db: &mut Q,
+    original_uid: &Option<UID>,
 ) {
     warn!("Thread {:?} starting mod {}", thread::current().id(), table);
 
@@ -842,11 +849,11 @@ fn modify_items<Q: Queryable>(
         for owner_col in &table_info.owner_cols {
             let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
             update_token.uid = owner_uid.clone();
-            if !global {
-                token_ctrler.insert_user_diff_token_wrapper(&update_token);
-            } else {
-                token_ctrler.insert_global_diff_token_wrapper(&update_token);
+            match original_uid {
+                Some(ouid) => token_ctrler.insert_user_diff_token_wrapper_for(&update_token, &ouid),
+                None => token_ctrler.insert_user_diff_token_wrapper_for(&update_token, &owner_uid),
             }
+            //token_ctrler.insert_global_diff_token_wrapper(&update_token);
         }
     }
     warn!("Update token inserted: {}", start.elapsed().as_micros());

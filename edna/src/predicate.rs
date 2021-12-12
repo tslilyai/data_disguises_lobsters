@@ -1,5 +1,5 @@
 use crate::helpers::*;
-use crate::RowVal;
+use crate::{RowVal, UID};
 use crate::tokens::*;
 use log::{debug, warn};
 use sql_parser::ast::*;
@@ -101,12 +101,12 @@ pub fn modify_predicate_with_owners(
     pred: &Vec<Vec<PredClause>>,
     fk_col: &str,
     ots: &Vec<OwnershipTokenWrapper>,
-) -> (Vec<Vec<PredClause>>, bool) {
+) -> (Vec<Vec<PredClause>>, Option<UID>) {
     use PredClause::*;
     let mut new_pred = vec![];
     let mut changed = false;
     if ots.is_empty() {
-        return (new_pred, changed);
+        return (new_pred, None);
     }
     let old_uid = &ots[0].old_uid;
     let new_owners : Vec<String> = ots.iter().map(|ot| ot.new_uid.to_string()).collect();
@@ -172,7 +172,11 @@ pub fn modify_predicate_with_owners(
         new_pred.push(new_and_clauses);
     }
     debug!("Modified pred {:?} to {:?} with ots {:?}\n", pred, new_pred, ots);
-    (new_pred, changed)
+    if changed {
+        (new_pred, Some(old_uid.to_string()))
+    } else {
+        (new_pred, None)
+    }
 }
 
 pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &EdnaDiffToken) -> bool {
@@ -191,16 +195,18 @@ pub fn get_all_preds_with_owners(
     pred: &Vec<Vec<PredClause>>,
     fk_cols: &Vec<String>,
     own_tokens: &Vec<OwnershipTokenWrapper>,
-) -> Vec<Vec<Vec<PredClause>>> {
+) -> (Option<UID>, Vec<Vec<Vec<PredClause>>>) {
     let mut preds = vec![pred.clone()];
+    let mut old_uid = None;
     for col in fk_cols {
-        let (modified_pred, changed) = modify_predicate_with_owners(pred, col, own_tokens);
-        if !changed {
+        let (modified_pred, changed_from) = modify_predicate_with_owners(pred, col, own_tokens);
+        if changed_from.is_none() {
             continue;
         }
+        old_uid = changed_from;
         preds.push(modified_pred);
     }
-    preds
+    (old_uid, preds)
 }
 
 pub fn get_ownership_tokens_matching_pred(

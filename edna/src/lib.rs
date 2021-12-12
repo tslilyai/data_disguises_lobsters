@@ -110,7 +110,7 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     pub fn start_disguise(&self, _did: DID) {}
 
-    pub fn end_disguise(&self) -> HashMap<(UID, DID), tokens::LocCap>
+    pub fn end_disguise(&self) -> HashMap<(UID, DID), Vec<tokens::LocCap>>
     {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let loc_caps = locked_token_ctrler.save_and_clear(&mut self.get_conn().unwrap());
@@ -194,13 +194,15 @@ impl EdnaClient {
     // Save arbitrary diffs performed by the disguise for the purpose of later
     // restoring.
     //-----------------------------------------------------------------------------
-    pub fn save_diff_token(&self, uid: UID, did: DID, data: Vec<u8>, is_global: bool) {
+    pub fn save_diff_token(&self, uid: UID, did: DID, data: Vec<u8>, is_global: bool, acting_uid: Option<UID>) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let tok = tokens::new_generic_diff_token_wrapper(&uid, did, data, is_global);
-        if is_global {
+        /*if is_global {
             locked_token_ctrler.insert_global_diff_token_wrapper(&tok);
-        } else {
-            locked_token_ctrler.insert_user_diff_token_wrapper(&tok);
+        } else {*/
+        match acting_uid {
+            Some(u) =>locked_token_ctrler.insert_user_diff_token_wrapper_for(&tok, &u), 
+            None => locked_token_ctrler.insert_user_diff_token_wrapper_for(&tok, &uid), 
         }
         drop(locked_token_ctrler);
     }
@@ -255,12 +257,11 @@ impl EdnaClient {
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
     ) -> Result<
-            HashMap<(UID, DID), tokens::LocCap>,
+            HashMap<(UID, DID), Vec<tokens::LocCap>>,
         mysql::Error,
     > {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
-        self.disguiser
-            .apply(disguise.clone(), decrypt_cap, loc_caps)
+        self.disguiser.apply(disguise.clone(), decrypt_cap, loc_caps)
     }
 
     pub fn reverse_disguise(

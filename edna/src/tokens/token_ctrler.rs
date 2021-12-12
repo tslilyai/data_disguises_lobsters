@@ -93,21 +93,26 @@ pub struct PrincipalData {
     pub loc_caps: HashSet<EncData>,
 }
 
+// OWNER: who gets sent the locator for the bag
+// UID OF TOKENS: metadata about locator/how to encrypt at end/etc. uid for L_{uid-d}, but this
+// will get sent to OWNER
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Bag {
     pub difftoks: Vec<DiffTokenWrapper>,
     pub owntoks: Vec<OwnershipTokenWrapper>,
     pub pktoks: Vec<PrivkeyToken>,
+    pub owner: UID,
     pub random_padding: Vec<u8>,
 }
 impl Bag {
-    pub fn new() -> Bag {
+    pub fn new(owner: &UID) -> Bag {
         let mut rng = rand::thread_rng();
         let size = rng.gen_range(512..4096); 
         let mut padding: Vec<u8> = repeat(0u8).take(size).collect();
         rng.fill_bytes(&mut padding[..]);
 
         let mut bag : Bag = Default::default();
+        bag.owner = owner.clone();
         bag.random_padding = padding;
         bag
     }
@@ -235,45 +240,70 @@ impl TokenCtrler {
         self.tmp_loc_caps.get(&(uid.to_string(), did))
     }
 
-    pub fn save_and_clear<Q: Queryable>(&mut self, db: &mut Q) -> HashMap<(UID, DID), LocCap> {
+    pub fn save_and_clear<Q: Queryable>(&mut self, db: &mut Q) -> HashMap<(UID, DID), Vec<LocCap>> {
         // this creates dlcs and olcs btw, so we have to do it first
-        if self.batch {
-            self.insert_batch_tokens();
-        }
+        assert!(self.batch);
+        let mut lcs_to_return : HashMap<(UID, DID), Vec<LocCap>> = HashMap::new();
+        let bags = self.tmp_bags.keys().cloned().collect::<Vec<_>>();
+        for (uid, did) in &bags{
+            let lc = self.get_loc_cap(uid, *did);
+            let bag = self
+                .tmp_bags
+                .get(&(uid.to_string(), *did))
+                .unwrap()
+                .clone();
+            let owner = bag.owner.clone();
+            self.update_bag_at_loc(uid.to_string(), &lc, &bag);
+            warn!("EdnaBatch: Inserted {} bags for {}", bags.len(), uid);
 
-        let lcs = self.tmp_loc_caps.clone();
+            // if we are going to return this to a user, actually return it
+            if &owner != uid {
+                match lcs_to_return.get_mut(&(owner.clone(), *did)) {
+                    Some(lcs) => lcs.push(lc),
+                    None => {
+                        lcs_to_return.insert((owner.clone(), *did), vec![lc]);
+                    },
+                }
+                continue;
+            } else {
+                // otherwise, this pp should exist and be anon?
+                let p = self
+                    .principal_data
+                    .get_mut(uid)
+                    .expect(&format!("no user with uid {} when saving?", uid));
+                // save to principal data if no email (pseudoprincipal)
+                if p.is_anon {
+                    let enc_lc = EncData::encrypt_with_pubkey(&p.pubkey, &lc.to_be_bytes().to_vec()).clone();
+                    p.loc_caps.insert(enc_lc);
 
-        for ((uid, _), c) in lcs.iter() {
-            let p = self
-                .principal_data
-                .get_mut(uid)
-                .expect(&format!("no user with uid {} when saving?", uid));
-            // save to principal data if no email (pseudoprincipal)
-            if p.is_anon {
-                let enc_lc = EncData::encrypt_with_pubkey(&p.pubkey, &c.to_be_bytes().to_vec()).clone();
-                p.loc_caps.insert(enc_lc);
-
-                // update persistence
-                let uidstr = uid.trim_matches('\'');
-                db.query_drop(&format!(
-                    "UPDATE {} SET {} = \'{}\' WHERE {} = \'{}\'",
-                    PRINCIPAL_TABLE,
-                    "locs",
-                    serde_json::to_string(&p.loc_caps).unwrap(),
-                    UID_COL,
-                    uidstr
-                ))
-                .unwrap();
+                    // update persistence
+                    let uidstr = uid.trim_matches('\'');
+                    db.query_drop(&format!(
+                        "UPDATE {} SET {} = \'{}\' WHERE {} = \'{}\'",
+                        PRINCIPAL_TABLE,
+                        "locs",
+                        serde_json::to_string(&p.loc_caps).unwrap(),
+                        UID_COL,
+                        uidstr
+                    ))
+                    .unwrap();
+                } else {
+                    match lcs_to_return.get_mut(&(owner.clone(), *did)) {
+                        Some(lcs) => lcs.push(lc),
+                        None => {
+                            lcs_to_return.insert((owner.clone(), *did), vec![lc]);
+                        }
+                    }
+                }
             }
         }
-
         // actually remove the principals supposed to be removed
         for uid in self.tmp_remove_principals.clone().iter() {
             self.remove_principal::<Q>(&uid, db);
         }
         self.persist_principals::<Q>(db);
         self.clear_tmp();
-        lcs
+        lcs_to_return
     }
 
     // XXX note this doesn't allow for concurrent disguising right now
@@ -377,8 +407,8 @@ impl TokenCtrler {
             did,
             &private_key,
         );
-        self.insert_ownership_token_wrapper(&own_token_wrapped);
-        self.insert_privkey_token(&privkey_token);
+        self.insert_ownership_token_wrapper_for(&own_token_wrapped, uid);
+        self.insert_privkey_token_for(&privkey_token, uid);
         warn!(
             "Edna: register anon principal: {}",
             start.elapsed().as_micros()
@@ -437,7 +467,7 @@ impl TokenCtrler {
             return;
         }
         let mut ptoken = new_remove_principal_token_wrapper(uid, did, &p);
-        self.insert_user_diff_token_wrapper(&mut ptoken);
+        self.insert_user_diff_token_wrapper_for(&mut ptoken, uid);
         self.tmp_remove_principals.insert(uid.to_string());
         warn!(
             "Edna: mark principal {} to remove : {}",
@@ -495,27 +525,7 @@ impl TokenCtrler {
         warn!("EdnaBatch: Saved bag for {}", uid);
     }
 
-    fn insert_batch_tokens(&mut self) {
-        let start = time::Instant::now();
-        let bags = self.tmp_bags.keys().cloned().collect::<Vec<_>>();
-        for (uid, did) in &bags{
-            let lc = self.get_loc_cap(uid, *did);
-            let bag = self
-                .tmp_bags
-                .get(&(uid.to_string(), *did))
-                .unwrap()
-                .clone();
-            warn!("EdnaBatch: Inserted {} bags for {}", bags.len(), uid);
-            self.update_bag_at_loc(uid.to_string(), &lc, &bag);
-        }
-        warn!(
-            "EdnaBatch: Inserted {} user bags: {}",
-            bags.len(),
-            start.elapsed().as_micros(),
-        );
-    }
-
-    fn insert_privkey_token(&mut self, pppk: &PrivkeyToken) {
+    fn insert_privkey_token_for(&mut self, pppk: &PrivkeyToken, uid: &UID) {
         let start = time::Instant::now();
         let p = self.principal_data.get_mut(&pppk.old_uid);
         if p.is_none() {
@@ -523,19 +533,22 @@ impl TokenCtrler {
             return;
         }
         assert!(self.batch);
-        match self.tmp_bags.get_mut(&(pppk.old_uid.clone(), pppk.did.clone())) {
-            Some(bag) => bag.pktoks.push(pppk.clone()),
+        match self.tmp_bags.get_mut(&(uid.clone(), pppk.did.clone())) {
+            Some(bag) => {
+                bag.owner = uid.clone();
+                bag.pktoks.push(pppk.clone());
+            }
             None => {
-                let mut new_bag = Bag::new();
+                let mut new_bag = Bag::new(uid);
                 new_bag.pktoks.push(pppk.clone());
                 self.tmp_bags
-                    .insert((pppk.old_uid.clone(), pppk.did.clone()), new_bag);
+                    .insert((uid.clone(), pppk.did.clone()), new_bag);
             }
         }
         warn!("Inserted privkey token: {}", start.elapsed().as_micros());
     }
 
-    fn insert_ownership_token_wrapper(&mut self, pppk: &OwnershipTokenWrapper) {
+    fn insert_ownership_token_wrapper_for(&mut self, pppk: &OwnershipTokenWrapper, uid: &UID) {
         let start = time::Instant::now();
         let p = self.principal_data.get_mut(&pppk.old_uid);
         if p.is_none() {
@@ -547,9 +560,12 @@ impl TokenCtrler {
             .tmp_bags
             .get_mut(&(pppk.old_uid.clone(), pppk.did))
         {
-            Some(bag) => bag.owntoks.push(pppk.clone()),
+            Some(bag) => {
+                bag.owner = uid.clone();
+                bag.owntoks.push(pppk.clone());
+            }
             None => {
-                let mut new_bag = Bag::new();
+                let mut new_bag = Bag::new(uid);
                 new_bag.owntoks.push(pppk.clone());
                 self.tmp_bags
                     .insert((pppk.old_uid.clone(), pppk.did.clone()), new_bag);
@@ -558,20 +574,23 @@ impl TokenCtrler {
         warn!("Inserted own token: {}", start.elapsed().as_micros());
     }
 
-    pub fn insert_user_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
+    pub fn insert_user_diff_token_wrapper_for(&mut self, token: &DiffTokenWrapper, uid: &UID) {
         let start = time::Instant::now();
         let did = token.did;
-        let uid = &token.uid;
-        warn!("inserting user diff token with uid {} did {}", uid, did);
+        warn!("inserting user diff token for uid {} did {} of user {}", uid, did, token.uid);
 
         assert!(self.batch);
-        match self.tmp_bags.get_mut(&(uid.clone(), did.clone())) {
-            Some(bag) => bag.difftoks.push(token.clone()),
+        match self.tmp_bags.get_mut(&(token.uid.clone(), did.clone())) {
+            Some(bag) => {
+                assert!(&bag.owner == "" || &bag.owner == uid);
+                bag.owner = uid.clone();
+                bag.difftoks.push(token.clone());
+            }
             None => {
-                let mut new_bag = Bag::new();
+                let mut new_bag = Bag::new(uid);
                 new_bag.difftoks.push(token.clone());
                 self.tmp_bags
-                    .insert((uid.clone(), did.clone()), new_bag);
+                    .insert((token.uid.clone(), did.clone()), new_bag);
             }
         }
         warn!("Inserted diff token: {}", start.elapsed().as_micros());
@@ -580,7 +599,7 @@ impl TokenCtrler {
     /*
      * GLOBAL TOKEN FUNCTIONS
      */
-    pub fn insert_global_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
+    /*pub fn insert_global_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
         warn!(
             "Inserting global token disguise {} user {}",
             token.did, token.uid
@@ -666,12 +685,12 @@ impl TokenCtrler {
             self.insert_user_diff_token_wrapper(&new_token_modify(uid, did, old_token, new_token));
         }
         found
-    }
+    }*/
 
     /*
      * GET TOKEN FUNCTIONS
      */
-    pub fn get_all_global_diff_tokens(&self) -> Vec<DiffTokenWrapper> {
+    /*pub fn get_all_global_diff_tokens(&self) -> Vec<DiffTokenWrapper> {
         let mut tokens = vec![];
         for (_, global_diff_tokens) in self.global_diff_tokens.iter() {
             for (_, user_tokens) in global_diff_tokens.iter() {
@@ -726,7 +745,7 @@ impl TokenCtrler {
             }
         }
         vec![]
-    }
+    }*/
 
     //XXX could have flag to remove locators so we don't traverse twice
     //this would remove locators regardless of success in revealing
