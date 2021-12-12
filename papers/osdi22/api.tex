@@ -68,14 +68,15 @@ ForgetPrincipal(p: UID);
 // Disguise operations.
 StartDisguise() -> DisguiseID;
 EndDisguise(did: DisguiseID) -> Vec<Locator>;
-// Stores an encrypted diff with app-provided
-// content during active disguise, optionally in an
-// active user's bag.
-StoreDiff(p: UID, buffer: Vec<u8>, activeUser: Option<UID>);
-// Stores encrypted mapping that p1 speaks for p2
-// during active disguise, optionally in an 
-// active user's bag.
-StoreSpeaksFor(p1: UID, p2: UID, activeUser: Option<UID>);
+// Stores an encrypted diff associated with 
+// principal ownerP with app-provided content 
+// during active disguise, optionally in 
+// activeP's bag.
+StoreDiff(ownerP: UID, buffer: Vec<u8>, activeP: Option<UID>);
+// Stores encrypted mapping that oldP speaks 
+// for newP during active disguise, 
+// optionally in activeP's bag.
+StoreSpeaksFor(oldP: UID, newP: UID, activeP: Option<UID>);
 
 // Operations on data stored in Edna.
 // Obtain diffs at loc stored by disguise did.
