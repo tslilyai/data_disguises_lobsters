@@ -430,7 +430,7 @@ evaluate next.
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.45\textwidth]{figs/composition_stats}
+    \includegraphics{figs/composition_stats}
     \caption{Latency of account delete and restore before anonymization vs. composed after anonymization.}
     \label{f:composition}
 \end{figure}
@@ -491,8 +491,8 @@ be rightly sceptical to deploy \sys.
     \centering
 %    \begin{subfigure}[b]{0.49\textwidth}
         \includegraphics{figs/lobsters_concurrent_results}
-        \caption{Lobsters. Even continuous disguise/reveal operations by an expensive disguiser (>6k
-          data objects) has a small impact on application request latency. Bars show median latency,
+        \caption{Even continuous disguise/reveal operations by a heavy-hitter user in Lobsters (>6k
+          data objects) have a small impact on application request latency. Bars show median latency,
           error bars are the 5\textsuperscript{th}/95\textsuperscript{th} percentiles.}
         \label{f:concurrent-lobsters}
 %    \end{subfigure}
@@ -568,7 +568,7 @@ other user's application experience.
 While the experiment measured normal application request latency, the
 account deletions and restorations performed with high load take a median of 9 and 15ms
 respectively to
-complete (the rare case of an expensive disguiser requires 2-3 seconds to disguise and reveal). 
+complete (the rare case of an expensive disguiser requires 2-3 seconds to disguise and reveal).
 %
 This is also acceptable, as disguises aren't time critical.
 %
