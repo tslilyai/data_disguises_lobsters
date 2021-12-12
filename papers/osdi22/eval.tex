@@ -414,7 +414,7 @@ during disguises (\S\ref{s:impl}).
 The cost of \sys's other cryptographic operations scales linearly with the
 size of the stored data, but they are generally cheap (0.3--4.5ms).
 %
-A disguise or reveal operation requires encryption/decryption in
+A disguise or reveal operation requires a single encryption/decryption in
 the simple case when the application only applied one disguise to the
 data.
 %
@@ -439,8 +439,11 @@ disguises; we evaluate this cost next.
 \end{figure}
 
 \subsubsection{Applying Multiple Disguises}
+\sys may perform extra work to apply a second disguise applied with optional 
+to data decorrelated by a prior disguise, or
+to reveal such a subsequent disguise.
+%A secon
 
-\lyt{TODO}
 
 Account deletion post-anonymization requires \sys to perform temporary recorrelation find data of
 pseudoprincipals that the user is authorized to remove along with their account. \sys incurs latency
@@ -451,6 +454,9 @@ Account restoration may also restore pseudoprincipal-associated data, which requ
 recorrelation to access to pseudoprincipal-associated records produced from the account deletion.
 \sys thus additionally decrypt speaks-for records for all pseudoprincipals of the user, which causes
 the increase in latency.
+
+We measure 
+\lyt{TODO}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Resource Use}
