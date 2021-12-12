@@ -260,7 +260,8 @@ restoration).
   \caption{\sys cryptographic operations are cheap (0.3--4.5ms), except for
     pseudoprincipal key generation, which \sys amortizes by via a pre-generated
     key pool (\S\ref{s:impl}).
-    Encrypt/decrypt latency is linear in the the size of the bag.} \label{f:opstats}
+    Encrypt/decrypt latency has a baseline cost of 0.3/2.8ms, which then linearly increases.} 
+    \label{f:opstats}
 \end{figure}
 
 \paragraph{WebSubmit.}
