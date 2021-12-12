@@ -459,28 +459,35 @@ encryption for single pseudoprincipal $p$ had $p$'s data never been decorrelated
 As described in \S\ref{s:composition}, the application and \sys return a locator \lcapa{pd_2} to the
 client for every $q_i$ disguised, which points to $q_i$'s encrypted bag of records.
 %
-Upon reveal of $d_2$ with $p$'s private key, \lcapa{pd_1}, and the set of \lcapa{pd_2}s \sys decrypts and
+Upon reveal of $d_2$ with $p$'s private key and locators from $d_1$ and $d_2$, \sys decrypts and
 reveals all bags for both $p$ and the $q_i$. Similarly, \sys must perform one decryption per $q_i$; without
 composition, \sys could simply perform a single decryption of $p$'s bag at \lcapa{pd_1}.
 
-Figure~\ref{f:composition} shows these costs of interactively applying account deletion to user $p$
-after anonymization to further disguise $p$'s pseudoprincipals' data in WebSubmit and HotCRP, as
-well as the cost of subsequently revealing $p$'s account with the returned locators.
-As expected, restoration cost increases in absolute numbers substantionally more than deletion cost, since (with the
-typical small bag data sizes) decryption is an order of magnitude more expensive than encryption.
-WebSubmit account deletion and restoration latencies increase respectively by 5.5x and 5.7x; and in
-HotCRP, latencies increase by 3x and 10x.
-\lyt{TODO why?}
+Figure~\ref{f:composition} shows the average cost of interactively applying account deletion (and
+subsequent account revealing) after anonymization over all users $p$ in WebSubmit and all reviewers
+users in HotCRP.
+%
+WebSubmit account deletion and restoration latencies increase respectively by 5.5x and 5.7x; in
+HotCRP, these latencies increase by 3x and 10x.
+%
+The different multiplicative factors in HotCRP stems from the fact that account deletion in HotCRP
+operates on more data (with 7-8x more pseudoprincipals per user after anonymization) than in
+WebSubmit. Decryption is an order of magnitude more expensive than encryption with typically small
+bag data sizes, explaining the more significant difference between disguising and revealing
+latencies when more pseudoprincipals are disguised during deletion.
+%
 
 %
-Had deletion been non-iteractively applied, locators for the $q_i$ would be encrypted and stored with
-sys's metadata for $q_i$. This incurs an extra encryption cost per $q_i$ during $d_2$. However, the
-initial cost of decrypting speaks-for records would be eliminated.
+We show interactive compostion of deletion on top of anonymization;
+the cost of non-iteractive deletion show similar results, with the one difference being that \sys
+encrypts locators for the $q_i$ and stores them with $q_i$'s metadata. This incurs an extra
+encryption cost per $q_i$ during $d_2$. However, the initial cost of decrypting speaks-for records
+would be eliminated.
 %
-Revealing $d_2$ would simply take \lcapa{pd_1} and $p$'s private key (\S\ref{s:composition}); \sys
-recursively retrieves $q_i$'s records by decrypting the encrypted \lcapa{q_id_2},
+Similarly, revealing $d_2$ requires \sys to recursively retrieve $q_i$'s records by decrypting the
+encrypted \lcapa{q_id_2},
 %with $q$'s private key (retrived from \lcapa{pd_1} with $p$'s private key).
-which similarly incurs an additional decryption cost per $q_i$ disguised.
+which incurs an additional decryption cost per $q_i$ disguised.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Resource Use}
