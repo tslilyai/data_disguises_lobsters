@@ -552,16 +552,15 @@ when concurrent privacy transformations occur.
 %
 Figure~\ref{f:concurrent-lobsters} shows the results.
 %
-The median latency of normal application requests increases by 5--20\% (from
-1.7ms to 1.8--2ms under low load, and 2ms to 2.1--2.4ms under high load) when
+The median latency of normal application requests increases by 5--11\% (from
+1.6ms to 1.7 under low load, and 1.8ms to 1.9--2.0ms under high load) when
 random users delete and restore their accounts.
 %
-Transactional account deletion and restoration of the most expensive user
-results in a 53--60\% increase in median latency.
+Transactional account deletion and restoration of the most expensive user results in 5\% increse in
+median latency at low load, and a 40\% increase at high load.
 %
-These results show that \sys's data disguises, as well as operations over
-data under disguise (here, account restoration) have little impact on
-other user's application experience.
+These results show that \sys's data disguises, as well as operations over data under disguise (here,
+account restoration) have little impact on other user's application experience.
 %
 
 %
