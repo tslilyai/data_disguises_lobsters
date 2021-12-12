@@ -181,17 +181,28 @@ Figure~\ref{f:recursive} shows an example of how a client that provides
 the private key natural principal $p$ and locator \lcapa{pd_1} accesses
 \emph{both} $p$'s records for disguise $d_1$, the private
 keys of all pseudoprincipals ${q_0, \dots, q_k}$ created during disguise
-$d$, and all records encrypted for these pseudoprincipals during disguise
-$d_2$.
+$d_1$, and all records encrypted for these pseudoprincipals during disguise
+$d_2$. 
+
 %
+In the first case, $p$ was not active for $d_2$.
 \sys accesses $q_i$'s private key by decrypting (with $p$'s private key) the
-bag that contains the wrapped private key.
-%
+bag at \lcapa{pd_1} that contains the wrapped private key.
+Since $p$ was not active during $d_2$, \sys stored a locator for $q_i$'s encrypted records
+\lcapa{q_id_2} in $q\_i$'s metadata.
 With $q_i$'s private key, \sys decrypts \lcapa{q_id_2} from $q_i$'s metadata,
-and uses it to locates $q_i$'s encrypted records, decrypting the records
+and uses it to locate $q_i$'s encrypted records from $d_2$, decrypting the records
 with $q_i$'s private key.
 %
 
+%
+In the second case, $p$ had been active during $d_2$. \sys thus created a locator \lcapa{pd_2} for
+$q_i$'s records and sent this to $p$; $q_i$ has no affiliated encrypted locators. To access $q_i$'s
+records for disguise $d_2$, a client can simply provide \lcapa{pd_2} in addition to \lcapa{pd_1} and
+$p$'s private key. \sys still first retrieves $q_i$'s private key with $p$'s private key and
+\lcapa{pd_1}, and then uses \lcapa{pd_2} and $q_i$'s private key to directly locate $q_i$'s
+encrypted records and decrypt them.
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
