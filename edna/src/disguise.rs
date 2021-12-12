@@ -357,6 +357,7 @@ impl Disguiser {
                                     new_parents,
                                     &locked_guise_gen,
                                     &mut txn,
+                                    &original_uid,
                                 );
                             } else {
                                 decor_items::<mysql::PooledConn>(
@@ -372,6 +373,7 @@ impl Disguiser {
                                     new_parents,
                                     &locked_guise_gen,
                                     &mut db,
+                                    &original_uid,
                                 );
                             }
                             drop(locked_token_ctrler);
@@ -608,7 +610,7 @@ impl Disguiser {
                         &curtable_info.owner_cols,
                         &own_tokens,
                     );
-                    warn!("Got preds {:?} with own_tokens {:?}\n", preds, own_tokens);
+                    warn!("Got preds {:?} with {} own_tokens\n", preds, own_tokens.len());
                     for p in &preds {
                         let start = time::Instant::now();
                         let selection = predicate::pred_to_sql_where(p);
@@ -762,6 +764,7 @@ fn decor_items<Q: Queryable>(
     pseudoprincipals: Vec<(UID, Vec<RowVal>)>,
     guise_gen: &GuiseGen,
     db: &mut Q,
+    original_uid: &Option<UID>,
 ) {
     warn!(
         "Thread {:?} starting decor {}",
@@ -838,7 +841,7 @@ fn decor_items<Q: Queryable>(
             old_uid.to_string(),
             new_uid.to_string(),
         ));
-        token_ctrler.register_anon_principal::<Q>(&old_uid, &new_uid, did, own_token_bytes, db);
+        token_ctrler.register_anon_principal::<Q>(&old_uid, &new_uid, did, own_token_bytes, db, original_uid);
         warn!("Register anon principal: {}", start.elapsed().as_micros());
 
         // B. UPDATE CHILD FOREIGN KEY

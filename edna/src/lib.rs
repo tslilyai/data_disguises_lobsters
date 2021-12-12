@@ -227,6 +227,7 @@ impl EdnaClient {
         old_uid: UID,
         new_uid: UID,
         token_bytes: Vec<u8>,
+        acting_uid: Option<UID>,
     ) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         locked_token_ctrler.register_anon_principal(
@@ -235,6 +236,7 @@ impl EdnaClient {
             did,
             token_bytes,
             &mut self.get_conn().unwrap(),
+            &acting_uid,
         );
         drop(locked_token_ctrler);
     }

@@ -171,7 +171,7 @@ pub fn modify_predicate_with_owners(
         }
         new_pred.push(new_and_clauses);
     }
-    debug!("Modified pred {:?} to {:?} with ots {:?}\n", pred, new_pred, ots);
+    debug!("Modified pred {:?} to {:?} with {} ots\n", pred, new_pred, ots.len());
     if changed {
         (new_pred, Some(old_uid.to_string()))
     } else {

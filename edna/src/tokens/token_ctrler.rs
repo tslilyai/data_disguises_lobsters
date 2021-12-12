@@ -385,6 +385,7 @@ impl TokenCtrler {
         did: DID,
         ownership_token_data: Vec<u8>,
         db: &mut Q,
+        original_uid: &Option<UID>,
     ) {
         let start = time::Instant::now();
         let uidstr = uid.trim_matches('\'');
@@ -409,8 +410,12 @@ impl TokenCtrler {
             did,
             &private_key,
         );
-        self.insert_ownership_token_wrapper_for(&own_token_wrapped, uid);
-        self.insert_privkey_token_for(&privkey_token, uid);
+        let foruid = match original_uid {
+            None => uid,
+            Some(ouid) => ouid
+        };
+        self.insert_ownership_token_wrapper_for(&own_token_wrapped, foruid);
+        self.insert_privkey_token_for(&privkey_token, foruid);
         warn!(
             "Edna: register anon principal: {}",
             start.elapsed().as_micros()
@@ -584,7 +589,10 @@ impl TokenCtrler {
         assert!(self.batch);
         match self.tmp_bags.get_mut(&(token.uid.clone(), did.clone())) {
             Some(bag) => {
-                assert!(&bag.owner == "" || &bag.owner == uid);
+                if !(&bag.owner == "" || &bag.owner == uid) {
+                    warn!("Owner was {}, setting to {}", bag.owner, uid);
+                    assert!(false);
+                }
                 bag.owner = uid.clone();
                 bag.difftoks.push(token.clone());
             }
@@ -1113,7 +1121,7 @@ mod tests {
                         false,
                     );
                     remove_token.uid = u.to_string();
-                    ctrler.insert_user_diff_token_wrapper(&mut remove_token);
+                    ctrler.insert_user_diff_token_wrapper_for(&mut remove_token, &u.to_string());
                 }
                 let lcs = ctrler.save_and_clear::<mysql::PooledConn>(&mut db);
                 caps.extend(lcs);
@@ -1134,7 +1142,7 @@ mod tests {
 
             for d in 1..iters {
                 let lc = caps.get(&(u.to_string(), d as u64)).unwrap().clone();
-                let (diff_tokens, _, _) = ctrler.get_user_tokens(&priv_keys[u - 1], &lc);
+                let (diff_tokens, _, _) = ctrler.get_user_tokens(&priv_keys[u - 1], &lc[0]);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
@@ -1205,7 +1213,7 @@ mod tests {
                     false,
                 );
                 remove_token.uid = u.to_string();
-                ctrler.insert_user_diff_token_wrapper(&mut remove_token);
+                ctrler.insert_user_diff_token_wrapper_for(&mut remove_token, &u.to_string());
 
                 let anon_uid: u64 = rng.next_u64();
                 // create an anonymous user
@@ -1226,6 +1234,7 @@ mod tests {
                     d as u64,
                     own_token_bytes,
                     &mut db,
+                    &None,
                 );
                 let lc = ctrler.save_and_clear::<mysql::PooledConn>(&mut db);
                 caps.extend(lc);
@@ -1243,7 +1252,7 @@ mod tests {
             for d in 1..iters {
                 let lc = caps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 let (diff_tokens, own_tokens, _) =
-                    ctrler.get_user_tokens(&priv_keys[u as usize - 1], &lc);
+                    ctrler.get_user_tokens(&priv_keys[u as usize - 1], &lc[0]);
                 assert_eq!(diff_tokens.len(), 1);
                 assert_eq!(own_tokens.len(), 1);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);
