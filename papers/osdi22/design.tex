@@ -154,8 +154,9 @@ WebSubmit then applies database changes for the disguise.
 To delete principal $p$'s account, WebSubmit first retrieves the account record
 from \fn{users} and the principal's answers from \fn{answers}.
 %
-WebSubmit serializes the records describing $p$'s account and $p$'s answers into
-a buffer, and invokes \fn{StoreDiff(}$p$, $d$, \fn{buffer)}.
+WebSubmit serializes the records describing $p$'s account and $p$'s answers into a buffer, and
+invokes \fn{StoreDiff(}$p$, $d$, \fn{buffer), \texttt{Some}($p$))}.  Setting \fn{activeP} to
+\texttt{Some($p$)} indicates to \sys that $p$ actively invoked the disguise.
 %
 \sys securely stores these bytes until WebSubmit retrieves them to operate on
 disguised data (\S\ref{s:op-disg}).
@@ -181,8 +182,11 @@ To decorrelate, WebSubmit:
 \item updates the answers' foreign keys to \fn{users} to point to
   $p_{\textrm{anon}}$ instead of $p$; and
 %
-\item invokes \fn{StoreSpeaksFor(}$p$, $p_{\texttt{anon}}$, $d$\fn{)} to tell
-    \sys to securely store the speaks-for link between $p$ and $p_{\texttt{anon}}$.
+\item invokes \fn{StoreSpeaksFor(}$p$, $p_{\texttt{anon}}$, $d$, \texttt{None}\fn{)} to tell
+    \sys to securely store the speaks-for link between $p$ and $p_{\texttt{anon}}$. Setting
+        \fn{activeP} to \texttt{None} indicates to \sys that the disguise is performed by the
+        application or an instructor, without $p$'s active
+        participation.
 \end{enumerate}
 %
 
@@ -190,16 +194,17 @@ To decorrelate, WebSubmit:
 %
 When the disguise is complete, WebSubmit invokes \fn{EndDisguise}.
 %
-This informs \sys to complete any record encryption operations and return a
-locator \lcapa{pd} that will allow \sys to later locate the (encrypted) diff and
-speaks-for records stored during disguise $d$.
+This informs \sys to complete any record encryption operations and return locators \lcapa{pd} that
+will allow \sys to later locate the (encrypted) diff and speaks-for records stored during disguise
+$d$. 
+%\lyt{All records stored with $p$ as the active principal are encrypted and stored at $p$'s locator;
+%otherwise, \sys stores records stored with no active user at the owning principal's locator.}
 %
-\sys maintains the map from locators to encrypted record bags, but importantly
-forgets which principal and disguise produced the locator.
-\lyt{added}
+\sys maintains the map from locators to encrypted record bags, but importantly forgets which
+principal and disguise produced the locators. 
 %
-WebSubmit emails the locator to the client, and then forgets them to ensure
-that attackers cannot learn that $d$ was applied to $p$.
+WebSubmit emails all locators \lcapa{pd} where $p$ is a natural principal to the appropriate client,
+and then forgets all locators to ensure that attackers cannot learn that $d$ was applied to $p$.
 %
 Finally, WebSubmit deletes the natural principal's account from the database and
 invokes \fn{ForgetPrincipal} to remove \sys's state for the natural principal,
@@ -219,23 +224,26 @@ after class anonymization can still delete their anonymized answers.
 \head{(1) Restoring a Deleted Account.}
 %
 When a client wants to restore the account of natural principal $p$, the client
-supplies $p$'s private key and the locator \lcapa{pd} that WebSubmit emailed to
+supplies $p$'s private key and any locators \lcapa{pd} that WebSubmit emailed to
 the client when it applied the account deletion disguise $d$.
 %\lyt{The locator is actually a list because of composition: the client may introduce locators from
 %previous anonymization disguises so it can reveal data from disguise $d$ on pseudoprincipals. Not
 %sure if this is too complex for here, or where to put this in.}
 %
-WebSubmit receives the key and the locator, and invokes \fn{DiffsForDisguise} with
-\lcapa{pd} and the private key.
+WebSubmit receives the key and the locators, and invokes \fn{DiffsForDisguise} with
+each \lcapa{pd} and the private key.
+\lyt{These private keys are actually per-pseudoprincipal, and so WebSubmit needs to invoke
+\fn{DiffsForDisguise} with the right private key. This feels like too complex to put here?}
 %
+
 \sys uses the private key to decrypt the records stored earlier, and returns the
 set of (plaintext) database diffs, which WebSubmit then uses to return the
 application database to its original state.
 %
 Disguised data in \sys is no longer needed: WebSubmit invokes \fn{ForgetData} with
-the locator and the disguise ID $d$, which clears all stored records from $d$.
+each locator and the disguise ID $d$, which clears all stored records from $d$.
 %
-Finally, \sys and the application forget the locator and $p$'s private key.
+Finally, \sys and the application forget the locators and $p$'s private key.
 %
 
 %
@@ -257,17 +265,17 @@ pseudoprincipal (with some caveats described in \S\ref{s:composition}).
 \head{(2) Accessing Anonymized Answers.}
 %
 When a client chooses to edit their anonymized answer, the client provides $p$'s
-private key and the locator \lcapa{pd} emailed by WebSubmit when it applied
+private key and locators \lcapa{pd} emailed by WebSubmit when it applied
 the anonymization disguise $d$.
 
-When WebSubmit receives the request, it invokes \fn{PseudoprincipalsOf} with the
+When WebSubmit receives the request, it invokes \fn{PseudoprincipalsOf} with each
 \lcapa{pd} and private key to determine which pseudoprincipals $p$ may speak-for.
 %
 Once WebSubmit confirms that $p$ may speak-for the pseudoprincipal who is
 associated with the lecture answers in question in the application database,
 WebSubmit authorizes $p$ to edit the answers.
 %
-Finally, WebSubmit forgets the private key and locator provided by the client.
+Finally, WebSubmit forgets the private key and locators provided by the client.
 %
 
 \head{(3) Deleting Anonymized Answers.}
@@ -277,14 +285,14 @@ class.
 %
 To apply the account deletion disguise on top of the already-disguised (anonymized)
 data, the client supplies---along with the account deletion HTTP request---its
-private key and the locator \lcapa{pd} that WebSubmit sent when it applied the
+private key and locators \lcapa{pd} that WebSubmit sent when it applied the
 anonymization disguise $d$.
 %
-WebSubmit then invokes \fn{PseudoprincipalsOf} with the \lcapa{pd} and the private
+WebSubmit then invokes \fn{PseudoprincipalsOf} with each \lcapa{pd} and the private
 key to determine which pseudoprincipals $p$ may speak-for, and deletes the answers
 of these pseudoprincipals.
 %
-As before, WebSubmit then forgets the private key and locator, and also removes
+As before, WebSubmit then forgets the private key and locators, and also removes
 the pseudoprincipals from the application database.
 %
 (\sys must continue to remember the pseudoprincipals, however, so that the user

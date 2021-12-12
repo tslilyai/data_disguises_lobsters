@@ -17,7 +17,7 @@
 \begin{lstlisting}[language=Rust, style=rust]
 RegisterPrincipal(p: UID, pubk: PubKey);
 ApplyDisguise(p: UID, spec: DisguiseSpec, privk: PrivKey, locs: Vec<Locator>) -> (DisguiseID, Vec<Locator>);
-RevealDisguise(p: UID, did: DisguiseID, privk: PrivKey, locs: Locator);
+RevealDisguise(p: UID, did: DisguiseID, privk: PrivKey, locs: Vec<Locator>);
 \end{lstlisting}
 \caption{\sys's higher-level API.}
 \label{f:api-high}
@@ -67,13 +67,16 @@ ForgetPrincipal(p: UID);
 
 // Disguise operations.
 StartDisguise() -> DisguiseID;
-EndDisguise(did: DisguiseID) -> Locator;
-// Stores an encrypted diff with app-provided
-// content during active disguise.
-StoreDiff(p: UID, buffer: Vec<u8>);
-// Stores encrypted mapping that p1 speaks for p2
-// during active disguise.
-StoreSpeaksFor(p1: UID, p2: UID);
+EndDisguise(did: DisguiseID) -> Vec<Locator>;
+// Stores an encrypted diff associated with 
+// principal ownerP with app-provided content 
+// during active disguise, optionally in 
+// activeP's bag.
+StoreDiff(ownerP: UID, buffer: Vec<u8>, activeP: Option<UID>);
+// Stores encrypted mapping that oldP speaks 
+// for newP during active disguise, 
+// optionally in activeP's bag.
+StoreSpeaksFor(oldP: UID, newP: UID, activeP: Option<UID>);
 
 // Operations on data stored in Edna.
 // Obtain diffs at loc stored by disguise did.
