@@ -24,7 +24,7 @@ anonymized information) while the data under disguise remains secure.
 %
 
 %
-Importantly, a application developer who uses \sys needs not to worry about the
+Importantly, an application developer who uses \sys needs not to worry about the
 cryptographic details or interaction between disguises.
 %
 Instead, the developer works with a set of abstractions that fit a wide
@@ -81,7 +81,7 @@ learns \emph{nothing but}:
     \emph{after} time $t$; and
   \item data under disguise that \sys disguised prior to $t$, but which
     the user for whom the data was originally disguised actively accesses or
-    reveals.
+    reveals after time $t$.
 \end{enumerate}
 %
 We make standard assumptions about the security of cryptographic primitives: attackers
@@ -98,7 +98,7 @@ It's the application developer's job to invoke \sys, and \sys is normally
 hidden from end users of the web application.
 %
 However, the web application's UI may expose functionality that invokes \sys's
-data disguises behind the scenes, such as a ``Delete my account'' button.
+data disguises behind the scenes, such as a ``delete my account'' button.
 %
 
 %
@@ -113,8 +113,8 @@ administrators for global anonymization).
 \begin{figure}[t]
   \centering
     \includegraphics[width=0.5\textwidth]{figs/edna_arch}
-  \caption{\sys handles application requests to disguise or reveal data. Only the
-    encryption of \sys's stored records is trusted.}
+  \caption{\sys handles app requests to disguise or reveal data. Only the
+    encryption of \sys's stored records is trusted (blue).}
   \label{f:edna-overview}
 \end{figure}
 
