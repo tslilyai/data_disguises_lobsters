@@ -6,8 +6,8 @@
 Web applications today handle copious personal information, much of it
 sensitive, and store it for a long time.
 %
-For example, a user who books a room at a hotel once can find that their
-sensitive information like passport and phone numbers was compromised by
+For example, a user who booked a room at a hotel once can have sensitive
+information, such as their passport and phone numbers, compromised by
 an attacker years later~\cite{starwood-hack}.
 %
 %Users' privacy and their rights to exercise control over their data in these
@@ -183,9 +183,9 @@ In summary, our key contributions are:
 \end{enumerate}
 %
 Our empirical evaluation shows that \sys's operations have reasonable cost
-and complete with sub-second latency in most cases, and that normal application
-request latency remains stable even in the presence of disguise and reveal
-operations.
+and complete with sub-second latency in most cased, and that normal application
+request latency in the presence of disguise and reveal operations increases
+only by single-digit milliseconds.
 %
 
 %
@@ -197,7 +197,8 @@ Our prototype has some limitations, however.
 %
 It does not yet adapt revealed data if the application database schema has
 changed while the data was disguised; we plan to use standard schema upgrade
-techniques~\cite{xxx-from-noria} to address this.
+techniques~\cite{hotcrp-autoupgrade, f1-schema-change,
+automated-schema-evol-prism} to address this.
 %
 
 %
