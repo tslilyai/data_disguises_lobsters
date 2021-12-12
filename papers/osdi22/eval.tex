@@ -418,8 +418,10 @@ stored data, but they are generally cheap.
 However, a disguise or reveal operation may require multiple encryptions and
 decryptions.
 %
-Such scenarios occur when the operation is performed on previously-decorrelated data, \eg 
-an operation to reveal data or delete data decorrelated by a prior anonymization.
+\lyt{These all seem to be because of composition (or basically performing ops on
+previously-decorrelated data); maybe we should just move exmaples to the next section?}
+%Such scenarios occur when the operation is performed on previously-decorrelated data, \eg 
+%an operation to reveal data or delete data decorrelated by a prior anonymization.
 %For example, restoring an account 
 \ms{Discuss examples. Cost of restore, edit data after decorrelation.}
 %
@@ -449,9 +451,7 @@ modification queries for each discovered pseudoprincipal (in addition to the ori
 Account restoration may also restore pseudoprincipal-associated data, which requires temporary
 recorrelation to access to pseudoprincipal-associated records produced from the account deletion.
 \sys thus additionally decrypt speaks-for records for all pseudoprincipals of the user, which causes
-the the increase in latency.
-
-\lyt{Numbers?}
+the increase in latency.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Resource Use}
