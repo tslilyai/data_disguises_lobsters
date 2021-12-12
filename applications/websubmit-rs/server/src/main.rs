@@ -458,11 +458,14 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         let start = time::Instant::now();
 
         // set ownership capability as cookie
-        let response = client.get(format!("/edit/{}", owncap)).dispatch();
+        let response = client.get(format!("/edit")).dispatch();
         assert_eq!(response.status(), Status::Ok);
 
         // set decryption capability as cookie
-        let postdata = serde_urlencoded::to_string(&vec![("decryption_cap", decryptcap)]).unwrap();
+        let postdata = serde_urlencoded::to_string(&vec![
+            ("decryption_cap", decryptcap),
+            ("ownership_loc_caps", owncap)
+        ]).unwrap();
         let response = client
             .post("/edit")
             .body(postdata)
