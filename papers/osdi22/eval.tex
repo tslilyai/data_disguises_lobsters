@@ -25,7 +25,7 @@ We seek to answer the four questions:
  %
 \end{enumerate}
 %
-All benchmarks run on a 40-core server with Intel Xeon E5-2660 v3 CPUs and 66MB of RAM 
+All benchmarks run on a 40-core server with Intel Xeon E5-2660 v3 CPUs and 64 GB RAM,
 running Arch Linux 5.15.7.
 %
 We use the MariaDB RDMS with the InnoDB storage engine for application data storage, but
@@ -248,14 +248,14 @@ restoration).
 %Create + Register Principal & 0.1\\
 %\end{tabular}
 %\quad
-\begin{tabular}{ c c c }
-    \textbf{Crypto Op} & \multicolumn{2}{c}{\textbf{Time (ms)}}\\
+\begin{tabular}{ c c c c }
+    \textbf{Crypto Op} & \multicolumn{3}{c}{\textbf{Time (ms)}}\\
 \hline
-    Generate Keypair & \multicolumn{2}{c}{301}\\
+    Generate Keypair & \multicolumn{3}{c}{301}\\
 \hline
-    & \textbf{100B} & \textbf{1MB}\\
-    Encrypt Bag & 0.3 & 4.1\\
-    Decrypt Bag & 2.8 & 4.5\\
+    & \textbf{100B} & \textbf{1MB} & \textbf{10MB}\\
+    Encrypt Bag & 0.3 & 4.1 & 38.3\\
+    Decrypt Bag & 2.8 & 4.5 & 22.3\\
 \end{tabular}
   \caption{\sys cryptographic operations are cheap (0.3--4.5ms), except for
     pseudoprincipal key generation, which \sys amortizes by via a pre-generated
@@ -377,7 +377,7 @@ does).
 \sys necessarily adds some latency compared to a manual privacy transformation
 as it must encrypt and store data, as well as maintain its metadata.
 %
-Next, we break down \sys's added latency.
+Next, we break this down.
 %
 
 \subsubsection{\sys Per-Operation Drill-Down}
@@ -410,31 +410,30 @@ created.
 To avoid this cost, \sys keeps a pre-generated key pool that it draws on
 during disguises (\S\ref{s:impl}).
 %
-
 %
-The cost of \sys's other cryptographic operations depends on the size of the
-stored data, but they are generally cheap.
+The cost of \sys's other cryptographic operations scales linearly with the
+size of the stored data, but they are generally cheap (0.3--4.5ms).
 %
-However, a disguise or reveal operation may require multiple encryptions and
-decryptions.
+A disguise or reveal operation requires encryption/decryption in
+the simple case when the application only applied one disguise to the
+data.
 %
-\lyt{These all seem to be because of composition (or basically performing ops on
-previously-decorrelated data); maybe we should just move exmaples to the next section?}
-%Such scenarios occur when the operation is performed on previously-decorrelated data, \eg 
-%an operation to reveal data or delete data decorrelated by a prior anonymization.
-%For example, restoring an account 
-\ms{Discuss examples. Cost of restore, edit data after decorrelation.}
-%
-
-%
-The cost of these cryptographic primitives also affects \sys's latency when
-the application applies multiple disguises to the same data, which we
-evaluate next.
+Several may be required when the application has applied multiple
+disguises; we evaluate this cost next.
 %
 
 \begin{figure}[t]
     \centering
-    \includegraphics{figs/composition_stats}
+    \begin{subfigure}[b]{\columnwidth}
+        \includegraphics{figs/composition_stats_websubmit}
+        \caption{WebSubmit}
+        \label{f:comp-websubmit}
+      \end{subfigure}
+      \begin{subfigure}[b]{\columnwidth}
+        \includegraphics{figs/composition_stats_hotcrp}
+          \caption{HotCRP}
+        \label{f:comp-hotcrp}
+      \end{subfigure}
     \caption{Latency of account delete and restore before anonymization vs. composed after anonymization.}
     \label{f:composition}
 \end{figure}
