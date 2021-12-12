@@ -110,7 +110,7 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     pub fn start_disguise(&self, _did: DID) {}
 
-    pub fn end_disguise(&self) -> HashMap<(UID, DID), tokens::LocCap>
+    pub fn end_disguise(&self) -> HashMap<(UID, DID), Vec<tokens::LocCap>>
     {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let loc_caps = locked_token_ctrler.save_and_clear(&mut self.get_conn().unwrap());
@@ -148,21 +148,25 @@ impl EdnaClient {
         _did: DID,
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
-    ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+    ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>, HashMap<UID, tokens::DecryptCap>) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         //let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
         //let mut own_tokens = locked_token_ctrler.get_global_ownership_tokens_of_disguise(did);
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
+        let mut pk_tokens = HashMap::new();
         for lc in loc_caps {
             // XXX ignore did for now?
-            let (dts, ots) = locked_token_ctrler.get_user_tokens(
+            let (dts, ots, pks) = locked_token_ctrler.get_user_tokens(
                 //did,
                 &decrypt_cap,
                 &lc,
             );
             diff_tokens.extend(dts.iter().cloned());
             own_tokens.extend(ots.iter().cloned());
+            for (new_uid, pk) in &pks {
+                pk_tokens.insert(new_uid.clone(), pk.clone());
+            }            
         }
         drop(locked_token_ctrler);
         (
@@ -174,6 +178,7 @@ impl EdnaClient {
                 .iter()
                 .map(|wrapper| wrapper.token_data.clone())
                 .collect(),
+            pk_tokens
         )
     }
 
@@ -194,13 +199,15 @@ impl EdnaClient {
     // Save arbitrary diffs performed by the disguise for the purpose of later
     // restoring.
     //-----------------------------------------------------------------------------
-    pub fn save_diff_token(&self, uid: UID, did: DID, data: Vec<u8>, is_global: bool) {
+    pub fn save_diff_token(&self, uid: UID, did: DID, data: Vec<u8>, is_global: bool, acting_uid: Option<UID>) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let tok = tokens::new_generic_diff_token_wrapper(&uid, did, data, is_global);
-        if is_global {
+        /*if is_global {
             locked_token_ctrler.insert_global_diff_token_wrapper(&tok);
-        } else {
-            locked_token_ctrler.insert_user_diff_token_wrapper(&tok);
+        } else {*/
+        match acting_uid {
+            Some(u) =>locked_token_ctrler.insert_user_diff_token_wrapper_for(&tok, &u), 
+            None => locked_token_ctrler.insert_user_diff_token_wrapper_for(&tok, &uid), 
         }
         drop(locked_token_ctrler);
     }
@@ -220,6 +227,7 @@ impl EdnaClient {
         old_uid: UID,
         new_uid: UID,
         token_bytes: Vec<u8>,
+        acting_uid: Option<UID>,
     ) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         locked_token_ctrler.register_anon_principal(
@@ -228,6 +236,7 @@ impl EdnaClient {
             did,
             token_bytes,
             &mut self.get_conn().unwrap(),
+            &acting_uid,
         );
         drop(locked_token_ctrler);
     }
@@ -255,12 +264,11 @@ impl EdnaClient {
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
     ) -> Result<
-            HashMap<(UID, DID), tokens::LocCap>,
+            HashMap<(UID, DID), Vec<tokens::LocCap>>,
         mysql::Error,
     > {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
-        self.disguiser
-            .apply(disguise.clone(), decrypt_cap, loc_caps)
+        self.disguiser.apply(disguise.clone(), decrypt_cap, loc_caps)
     }
 
     pub fn reverse_disguise(

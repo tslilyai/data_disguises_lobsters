@@ -354,7 +354,7 @@ fn test_compose_anon_gdpr_disguises() {
         edna.apply_disguise(
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
-            vec![*lc],
+            lc.clone(),
         )
         .unwrap();
     }
