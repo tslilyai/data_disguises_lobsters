@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import csv
 import statistics
@@ -6,6 +7,16 @@ import numpy as np
 from textwrap import wrap
 
 plt.style.use('seaborn-deep')
+plt.figure(figsize = (3.33, 1.5))
+
+# plot styling for paper
+matplotlib.rc('font', family='serif', size=9)
+matplotlib.rc('text.latex', preamble='\\usepackage{times,mathptmx}')
+matplotlib.rc('text', usetex=True)
+matplotlib.rc('legend', fontsize=8)
+matplotlib.rc('figure', figsize=(3.33,1.5))
+matplotlib.rc('axes', linewidth=0.5)
+matplotlib.rc('lines', linewidth=0.5)
 
 def add_labels(x,y,ax,color,offset):
     for i in range(len(x)):
@@ -23,7 +34,7 @@ def get_yerr(durs):
         maxes.append(np.percentile(durs[i], 95)-statistics.median(durs[i]))
     return [mins, maxes]
 
-fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(5,5))
+fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(3.33,3))
 axes_flat = axes.flatten()
 barwidth = 0.25
 # positions
