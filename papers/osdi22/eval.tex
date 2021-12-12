@@ -36,92 +36,114 @@ store all databases on \fn{tmpfs} to avoid confounding factors related to persis
 \label{s:eval-security}
 
 %
-An attacker who compromises the server can immediately observe all application
+An attacker who compromises the server can observe all application
 database content, the public metadata in \sys, and the (encrypted) contents of
 \sys's store.
 %
 From this, the attacker can learn:
 \begin{enumerate}[nosep]
+  \item the application code, which contains the disguise specifications;
   \item any undisguised data in the application database;
   \item the number of encrypted bags in \sys and their sizes;
-  \item the number of active natural principals, via \sys's list of
+  \item the active natural principals, via \sys's list of
     registered principal public keys and the application DB;
   \item the IDs of all pseudoprincipals in existence, from \sys's metadata
     and the application DB;
   \item the IDs of deleted pseudoprincipals who still have data in \sys,
     by comparing the principals in the application DB to those in \sys; and
-  \item the number of disguises applied to each pseudoprincipal $q$,
-    by observing the size of the $q$'s encrypted locator set.
+  \item the number of non-interactive disguises applied to each
+    pseudoprincipal $q$, by observing the size of the $q$'s encrypted
+    locator set.
 \end{enumerate}
 %
-
-\ms{
-\begin{enumerate}[nosep]
-% \item Introduce assumption that attacker knows nothing about users’ disguise histories (in \S\ref{s:threat}?).
- \item Explain in how (2) in threat model comes to be (single disguise case).
- \item Note that other leaks (2+ disguises if PP w/ locators present) are already covered by that.
- \item Add that Edna leaks the number of disguises applied to a PP, but not how many applied to a NP.
-\end{enumerate}
-}
-
-
-\note{old text follows}
-\sys secures disguise records by encrypting them with the public key of a principal $p$.
+By construction, the attacker never has access to a natural principal's
+private key unless the natural principal actively provides it to the
+compromised server.
 %
-The corresponding private key for $p$ is on the client device and unavailable to the
-application and \sys until the client provides it as part of an operation over data
-under disguise.
+The attacker also cannot access the private key of any pseudoprincipal
+because it is stored in an encrypted bag that requires access to a
+(pseudoprincipal's or natural principal's) private key to open up.
 %
-Therefore, principals who remain inactive or only perform normal application operations
-that access the plaintext application DB always enjoy full privacy for their data under
-disguise, as an attacker who compromises the server cannot obtain their private key.
+By induction, the attacker cannot access any private keys.
 %
 
 %
-\sys uses locators to hide which disguises the application applied to which
-principals' data.
+Locators are opaque byte strings, so their existence reveals nothing to the
+attacker, and without a private key, the attacker cannot decrypt the
+locators associated with any pseudoprincipal.
 %
-A disguise creates \lcapa{pd} for disguise $d$ applied to principal $p$, and links it
-to the disguise's bag of ciphertexts via an index, \lcapa{pd}$\to$ bag, in \sys's
-public metadata.
-%
-The locator itself is a random byte string and does not contain $p$ or $d$, and
-only the client has knowledge of the $(p, d)$ that \lcapa{pd} corresponds to after
-the disguise completes.
-%
-Therefore, the the state of the index contains no metadata that lets the attacker
-identify $p$ or $d$.
-%
-While an attacker can learn that $n$ records exist for \emph{some} $p$ and $d$ by
-inspecting the index and bags, they cannot identify \emph{which} $p$ or $d$.
+Without knowing the locators for a principal, the attacker cannot associate
+bags with it, so the principals' ownership of bags remains hidden.
 %
 
 %
-Because \sys stores locators from disguises over pseudoprincipal-owned data as part
-of its pseudoprincipal metadata, \sys's disguise composition leaks that \emph{some}
-number of disguises have applied to pseudoprincipal $q$.
+The attacker could try to leverage bag and locator set sizes, as well as the
+known number of pseudoprincipals.
 %
-However, these locators are encrypted with $q$'s private key, which is only accessible
-by decrypting a bag protected by another principal's private key, a chain that extends
-back to some natural principal $p$.
-%
-This prevents an attacker from finding out which bags belong to $q$, and therefore
-also hides which bags correspond to natural principals' data.
-%
-Because $q$ is dissociated from the natural principal $p$ that speaks for $q$
-(possibly via intermediate principals), the attacker cannot determine if natural
-principal $p$ ever existed, nor if they have any data in \sys.
+We demonstrate that despite this knowledge, the attacker cannot do better
+than randomly guessing which natural principal owns a piece of disguised
+data in the application DB based on the statistics they can observe.
 %
 
 %
-If an attacker compromises the server at time $t$, they can harvest any private key
-that a client provides for operations after $t$.
+Consider the base case: a single natural principal has disguised their data
+by decorrelating it to $k$ pseudoprincipals.
+%
+The attacker will see a single encrypted bag, and the existence of $k$
+(non-deleted) pseudoprincipals.
+%
+This reveals that \sys applied at least one disguise (because one bag
+exists), and that all $k$ pseudoprincials belong to a single natural
+principal.
+%
+Now if there are two bags and $k$ (non-deleted) pseudoprincipals, one
+or two natural principals could have decorrelated their data, and the
+attacker can leverage knowledge about the disguise specification or
+the bag sizes to infer how many.
+%
+The attacker can also use the bag sizes as a proxy for the number of
+speaks-for tokens that each bag contains, and therefore for the number
+of pseudoprincipals that each natural principal has.\footnote{It is
+possible to use padding to hide bag sizes from the attacker, but this
+would be expensive; we discuss this in \S\ref{s:disc}.}
+%
+Say the attacker guesses $i$ and $j$ pseudoprincipals for two natural
+principals np$_1$ and np$_2$.
+%
+The attacker's goal is to separate the $k$ application database records
+currently owned by pseudoprincipals into $i$ owned by np$_1$ and $j$
+owned by np$_2$.
+%
+For each record, the attacker can guess that with $\sfrac{i}{k}$
+probability it was originally owned by np$_1$, and with $\sfrac{j}{k}$
+probability by np$_2$.
+%
+But no other information available to the attacker can increase
+the probability of a correct guess: the number of active natural
+principals is unrelated, the pseudoprincipal IDs carry no information,
+and the number of non-interactive disguises applied to a pseudoprincipal
+must by design be independent of the original data ownership, as the data
+was already decorrelated when any further disguises applied.
+%
+Thus, the best strategy available to the attacker is to randomly
+guess the identity of the natural principal for a given record.
+%
+The likelihood of the attacker guessing the natural principal correctly
+diminishes with the number of disguises applied, and thus with the
+number of bags and pseudoprincipals in \sys.
+%
+
+% Add that Edna leaks the number of disguises applied to a PP, but not how many applied to a NP.
+
+%
+After the attacker compromises the server at time $t$, they can harvest any
+private key that a client provides for operations after $t$.
 %
 The attacker can therefore reveal all current data under disguise stored in \sys and
 encrypted with this private key.
 %
-Likewise, when a client provides $(\lcapa{pd}, p, d)$ to operate over data under disguise,
-the attacker learns the correspondence between \lcapa{pd} and $(p, d)$.
+Likewise, when a client provides $(\lcapa{pd}, p, d)$ to operate over data under
+disguise, the attacker learns the correspondence between \lcapa{pd} and $(p, d)$.
 %
 But this merely makes the attack more efficient, as the attacker can already discover
 $p$'s disguise history by attempting to decrypt all bags with $p$'s private key.
