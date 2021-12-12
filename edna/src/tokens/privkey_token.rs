@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PrivkeyToken {
     pub token_id: u64,
-    pub revealed: bool,
     pub old_uid: UID,
     pub new_uid: UID,
     pub did: DID,
@@ -27,7 +26,6 @@ pub fn new_privkey_token(
 ) -> PrivkeyToken {
     let mut token: PrivkeyToken = Default::default();
     token.token_id = thread_rng().gen();
-    token.revealed = false;
     token.new_uid = new_uid;
     token.old_uid = old_uid;
     token.did = did;

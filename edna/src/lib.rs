@@ -148,21 +148,25 @@ impl EdnaClient {
         _did: DID,
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
-    ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+    ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>, HashMap<UID, tokens::DecryptCap>) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         //let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
         //let mut own_tokens = locked_token_ctrler.get_global_ownership_tokens_of_disguise(did);
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
+        let mut pk_tokens = HashMap::new();
         for lc in loc_caps {
             // XXX ignore did for now?
-            let (dts, ots) = locked_token_ctrler.get_user_tokens(
+            let (dts, ots, pks) = locked_token_ctrler.get_user_tokens(
                 //did,
                 &decrypt_cap,
                 &lc,
             );
             diff_tokens.extend(dts.iter().cloned());
             own_tokens.extend(ots.iter().cloned());
+            for (new_uid, pk) in &pks {
+                pk_tokens.insert(new_uid.clone(), pk.clone());
+            }            
         }
         drop(locked_token_ctrler);
         (
@@ -174,6 +178,7 @@ impl EdnaClient {
                 .iter()
                 .map(|wrapper| wrapper.token_data.clone())
                 .collect(),
+            pk_tokens
         )
     }
 

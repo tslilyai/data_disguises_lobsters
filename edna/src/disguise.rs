@@ -127,13 +127,7 @@ impl Disguiser {
 
         // XXX revealing all global tokens when a disguise is reversed
         let start = time::Instant::now();
-        let mut diff_tokens = vec![];
-        let mut own_tokens = vec![];
-        for lc in &loc_caps {
-            let (dts, ots) = locked_token_ctrler.get_user_tokens(&decrypt_cap, lc);
-            diff_tokens.extend(dts.iter().cloned());
-            own_tokens.extend(ots.iter().cloned());
-        }
+        let (dts, ots, _pks) = self.get_toks_and_privkeys_at_locs(&decrypt_cap, &loc_caps);
         warn!(
             "Edna: Get tokens for reveal: {}",
             start.elapsed().as_micros()
@@ -142,7 +136,7 @@ impl Disguiser {
 
         // reverse REMOVE tokens first
         let start = time::Instant::now();
-        for dwrapper in &diff_tokens {
+        for dwrapper in &dts {
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
             if dwrapper.did == did
                 && !dwrapper.revealed
@@ -160,7 +154,7 @@ impl Disguiser {
             }
         }
 
-        for dwrapper in &diff_tokens {
+        for dwrapper in &dts {
             // only reverse tokens of disguise if not yet revealed
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
             if dwrapper.did == did
@@ -180,7 +174,7 @@ impl Disguiser {
             }
         }
 
-        for owrapper in &own_tokens {
+        for owrapper in &ots {
             // XXX if we're not using ownership tokens from edna, then ignore reversal of ownership
             // links...
             match edna_own_token_from_bytes(&owrapper.token_data) {
@@ -214,30 +208,75 @@ impl Disguiser {
         Ok(())
     }
 
-    pub fn apply(
-        &mut self,
-        disguise: Arc<disguise::Disguise>,
-        decrypt_cap: tokens::DecryptCap,
-        loc_caps: Vec<tokens::LocCap>,
-    ) -> Result<HashMap<(UID, DID), Vec<tokens::LocCap>>, mysql::Error> {
-        let mut db = self.pool.get_conn()?;
-        let mut db2 = self.pool.get_conn()?;
-        let mut txn = db2.start_transaction(TxOpts::default())?;
-
-        let did = disguise.did;
+    fn get_toks_and_privkeys_at_locs(
+        &self,
+        decrypt_cap: &tokens::DecryptCap,
+        loc_caps: &Vec<tokens::LocCap>,
+    ) -> (
+        Vec<DiffTokenWrapper>,
+        Vec<OwnershipTokenWrapper>,
+        HashMap<UID, tokens::DecryptCap>,
+    ) {
         let start = time::Instant::now();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let global_diff_tokens = vec![];//locked_token_ctrler.get_all_global_diff_tokens();
+        let mut diff_tokens = vec![];
         let mut ownership_tokens = vec![];
-        for lc in &loc_caps {
-            let (_, mut ots) = locked_token_ctrler.get_user_tokens(&decrypt_cap, lc);
-            ownership_tokens.append(&mut ots);
+        let mut pk_tokens: HashMap<UID, tokens::DecryptCap> = HashMap::new();
+
+        // get tokens with the right private key
+        // we're screwed if we don't get them in the right order???
+        let mut failedlcs = vec![];
+        for lc in loc_caps {
+            if let Some(pk) = pk_tokens.get(&lc.uid) {
+                let (mut dts, mut ots, pks) = locked_token_ctrler.get_user_tokens(&pk, lc);
+                diff_tokens.append(&mut dts);
+                ownership_tokens.append(&mut ots);
+                for (new_uid, pk) in &pks {
+                    pk_tokens.insert(new_uid.clone(), pk.clone());
+                }
+            } else {
+                let (mut dts, mut ots, pks) = locked_token_ctrler.get_user_tokens(decrypt_cap, lc);
+                if dts.is_empty() && ots.is_empty() && pks.is_empty() {
+                    failedlcs.push(lc);
+                }
+                diff_tokens.append(&mut dts);
+                ownership_tokens.append(&mut ots);
+                for (new_uid, pk) in &pks {
+                    pk_tokens.insert(new_uid.clone(), pk.clone());
+                }
+            }
+        }
+        for lc in &failedlcs {
+            if let Some(pk) = pk_tokens.get(&lc.uid) {
+                let (_, mut ots, pks) = locked_token_ctrler.get_user_tokens(&pk, lc);
+                ownership_tokens.append(&mut ots);
+                for (new_uid, pk) in &pks {
+                    pk_tokens.insert(new_uid.clone(), pk.clone());
+                }
+            }
         }
         drop(locked_token_ctrler);
         warn!(
             "Edna: Get all user tokens for disguise: {}",
             start.elapsed().as_micros()
         );
+        (diff_tokens, ownership_tokens, pk_tokens)
+    }
+
+    pub fn apply(
+        &mut self,
+        disguise: Arc<disguise::Disguise>,
+        decrypt_cap: tokens::DecryptCap,
+        loc_caps: Vec<tokens::LocCap>,
+    ) -> Result<HashMap<(UID, DID), Vec<tokens::LocCap>>, mysql::Error> {
+        let start = time::Instant::now();
+        let mut db = self.pool.get_conn()?;
+        let mut db2 = self.pool.get_conn()?;
+        let mut txn = db2.start_transaction(TxOpts::default())?;
+        let global_diff_tokens = vec![]; //locked_token_ctrler.get_all_global_diff_tokens();
+
+        let did = disguise.did;
+        let (_, ownership_tokens, _pks) = self.get_toks_and_privkeys_at_locs(&decrypt_cap, &loc_caps);
 
         /*
          * Decor and modify
@@ -629,18 +668,20 @@ impl Disguiser {
                             );
                             for owner_col in &curtable_info.owner_cols {
                                 let curuid = get_value_of_col(&i, &owner_col).unwrap();
-                                
+
                                 // if this was predicated on belonging to the original principal,
                                 // then we should insert it into a bag whose locator should be sent
                                 // to the original principal (even though it's encrypted with the
                                 // pseudoprincipal's pubkey).
                                 // XXX think about this
                                 token.uid = curuid.clone();
-                                
+
                                 // insert the token in a bag for the original user if it exists
                                 match &original_uid {
-                                    Some(ouid) => locked_token_ctrler.insert_user_diff_token_wrapper_for(&token, &ouid),
-                                    None => locked_token_ctrler.insert_user_diff_token_wrapper_for(&token, &curuid),
+                                    Some(ouid) => locked_token_ctrler
+                                        .insert_user_diff_token_wrapper_for(&token, &ouid),
+                                    None => locked_token_ctrler
+                                        .insert_user_diff_token_wrapper_for(&token, &curuid),
                                 }
                                 //locked_token_ctrler.insert_global_diff_token_wrapper(&token);
                                 // if we're working on a guise table (e.g., a users table)
@@ -731,24 +772,36 @@ fn decor_items<Q: Queryable>(
     // first, insert all pseudoprincipals
     let start = time::Instant::now();
     // actually insert pseudoprincipals
-    let cols = pseudoprincipals[0].1
-            .iter()
-            .map(|rv| rv.column.clone())
-            .collect::<Vec<String>>()
-            .join(",");
-    let vals : Vec<String> = pseudoprincipals.iter().map(|pp|
-        format!("({})", 
-            pp.1.iter()
-                .map(|rv| rv.value.clone())
-                .collect::<Vec<String>>()
-                .join(","))).collect();
+    let cols = pseudoprincipals[0]
+        .1
+        .iter()
+        .map(|rv| rv.column.clone())
+        .collect::<Vec<String>>()
+        .join(",");
+    let vals: Vec<String> = pseudoprincipals
+        .iter()
+        .map(|pp| {
+            format!(
+                "({})",
+                pp.1.iter()
+                    .map(|rv| rv.value.clone())
+                    .collect::<Vec<String>>()
+                    .join(",")
+            )
+        })
+        .collect();
     db.query_drop(&format!(
         "INSERT INTO {} ({}) VALUES {};",
         guise_gen.guise_name,
         cols,
         vals.join(",")
-    )).unwrap();
-    warn!("Insert {} PPs: {}", pseudoprincipals.len(), start.elapsed().as_micros());
+    ))
+    .unwrap();
+    warn!(
+        "Insert {} PPs: {}",
+        pseudoprincipals.len(),
+        start.elapsed().as_micros()
+    );
 
     for (index, i) in items.iter().enumerate() {
         // TODO sort items by shared parent
