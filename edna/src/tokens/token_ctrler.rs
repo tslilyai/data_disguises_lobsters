@@ -245,26 +245,34 @@ impl TokenCtrler {
             bytes += size_of_val(&*pd);
         }
         bytes += size_of_val(&self.principal_data);
+        error!("pdata {}", bytes);
+        
+        let mut edbytes = 0;
         for (l, ed) in self.enc_map.iter() {
-            bytes += size_of_val(&l);
-            bytes += size_of_val(&*ed);
-            bytes += ed.enc_data.len() + ed.enc_key.len() + ed.iv.len();
+            edbytes += size_of_val(&l);
+            edbytes += size_of_val(&*ed);
+            edbytes += ed.enc_data.len() + ed.enc_key.len() + ed.iv.len();
         }
-        bytes += size_of_val(&self.enc_map);
+        edbytes += size_of_val(&self.enc_map);
+        error!("emap {}", edbytes);
+        
+        let mut poolbytes = 0;
         for (privkey, pubkey) in &self.pseudoprincipal_keys_pool {
-            bytes += size_of_val(&privkey);
-            bytes += size_of_val(&pubkey);
+            poolbytes += size_of_val(&privkey);
+            poolbytes += size_of_val(&pubkey);
         }
-        bytes += size_of_val(&self.pseudoprincipal_keys_pool);
+        poolbytes += size_of_val(&self.pseudoprincipal_keys_pool);
+        error!("pool {}", poolbytes);
+        
+        let mut ppuidbytes = 0;
         for ppuid in self.pps_to_remove.iter() {
-            bytes += size_of_val(&*ppuid);
+            ppuidbytes += size_of_val(&*ppuid);
         }
-        bytes += size_of_val(&self.pps_to_remove);
-        error!(
-            "PLAINTEXT {}, CIPHERTEXT {}: {} {} {}",
-            self.plaintext_sz, self.cipher_sz, self.ndts, self.nots, self.npts
-        );
-        bytes
+        ppuidbytes += size_of_val(&self.pps_to_remove);
+        error!("ppuid {}", ppuidbytes);
+        
+        error!("PLAINTEXT {}, CIPHERTEXT {}: {} {} {}", self.plaintext_sz, self.cipher_sz, self.ndts, self.nots, self.npts);
+        bytes + edbytes + poolbytes + ppuidbytes
     }
 
     pub fn repopulate_pseudoprincipal_keys_pool(&mut self) {
@@ -1093,16 +1101,16 @@ impl TokenCtrler {
             }
             // actually remove locs
             if no_diffs_at_loc && no_owns_at_loc && no_pks_at_loc {
-                let enc_bag = self.enc_map.remove(&lc.loc);
-                if let Some(enc_bag) = enc_bag {
-                    // estimate
-                    self.cipher_sz -=
+                let _enc_bag = self.enc_map.remove(&lc.loc);
+                //if let Some(enc_bag) = enc_bag {
+                    // not subtracting for now 
+                    /*self.cipher_sz -=
                         enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
                     self.plaintext_sz -= enc_bag.enc_data.len() - 10;
                     self.ndts -= bag.difftoks.len();
                     self.nots -= bag.owntoks.len();
-                    self.npts -= bag.pktoks.len();
-                }
+                    self.npts -= bag.pktoks.len();*/
+                //}
             } else if changed {
                 // update the encrypted store of stuff if changed at all
                 bag.pktoks = kept_privkeys;
@@ -1178,7 +1186,7 @@ mod tests {
             .filter_level(log::LevelFilter::Warn)
             // Ensure events are captured by `cargo test`
             .is_test(true)
-            // Ignore errors initializing the logger if tests race to configure it
+            // Ignore warns initializing the logger if tests race to configure it
             .try_init();
     }
 

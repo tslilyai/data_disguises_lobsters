@@ -538,6 +538,11 @@ fn run_stats_test(
     let mut rng = rand::thread_rng();
 
     for u in 0..sampler.nusers() {
+        // sample every other user
+        if u % 2 == 0{
+            continue;
+        }
+
         let user_id = u as u64 + 1;
         let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
         let mut user_stories = 0;
