@@ -137,6 +137,9 @@ pub struct TokenCtrler {
     // XXX remove me
     pub plaintext_sz: usize,
     pub cipher_sz: usize,
+    pub nots: usize,
+    pub ndts: usize,
+    pub npts: usize,
 
     // (p,d) capability -> set of token ciphertext for principal+disguise
     pub enc_map: HashMap<Loc, EncData>,
@@ -169,6 +172,9 @@ impl TokenCtrler {
             poolsize: poolsize,
             plaintext_sz: 0,
             cipher_sz: 0,
+            nots: 0,
+            ndts: 0,
+            npts: 0,
             batch: batch,
             dbserver: dbserver.to_string(),
             enc_map: HashMap::new(),
@@ -221,14 +227,15 @@ impl TokenCtrler {
             bytes += size_of_val(&pd.pubkey);
             for ed in pd.loc_caps.iter() {
                 bytes += size_of_val(&*ed);
+                bytes += ed.enc_data.len() + ed.enc_key.len() + ed.iv.len();
             }
             bytes += size_of_val(&*pd);
-            warn!("{}", bytes);
         }
         bytes += size_of_val(&self.principal_data);
         for (l, ed) in self.enc_map.iter() {
             bytes += size_of_val(&l);
             bytes += size_of_val(&*ed);
+            bytes += ed.enc_data.len() + ed.enc_key.len() + ed.iv.len();
         }
         bytes += size_of_val(&self.enc_map);
         for (privkey, pubkey) in &self.pseudoprincipal_keys_pool {
@@ -240,7 +247,7 @@ impl TokenCtrler {
             bytes += size_of_val(&*ppuid);
         }
         bytes += size_of_val(&self.pps_to_remove);
-        error!("PLAINTEXT {}, CIPHERTEXT {}", self.plaintext_sz, self.cipher_sz);
+        error!("PLAINTEXT {}, CIPHERTEXT {}: {} {} {}", self.plaintext_sz, self.cipher_sz, self.ndts, self.nots, self.npts);
         bytes
     }
 
@@ -570,7 +577,9 @@ impl TokenCtrler {
         let enc_bag = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
         self.plaintext_sz += plaintext.len();
         self.cipher_sz += enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
-        error!("bag {} {} {} plaintext size {} encsize {}", bag.difftoks.len(), bag.owntoks.len(), bag.pktoks.len(), plaintext.len(), &enc_bag.enc_data.len() + &enc_bag.enc_key.len() + &enc_bag.iv.len());
+        self.ndts += bag.difftoks.len();
+        self.nots += bag.owntoks.len();
+        self.npts += bag.pktoks.len();
         
         // insert the encrypted pppk into locating capability
         self.enc_map.insert(lc.loc, enc_bag);
@@ -939,7 +948,7 @@ impl TokenCtrler {
                 bag.owntoks = vec![];
             }
             let mut new_uids = vec![];
-            let tokens = bag.pktoks;
+            let tokens = bag.pktoks.clone();
             warn!(
                 "EdnaBatchCleanup: Decrypted pk tokens added {}: {}",
                 tokens.len(),
@@ -1012,7 +1021,10 @@ impl TokenCtrler {
                 if let Some(enc_bag) = enc_bag {
                     // estimate
                     self.cipher_sz -= enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
-                    self.plaintext_sz -= enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
+                    self.plaintext_sz -= enc_bag.enc_data.len() - 10;
+                    self.ndts -= bag.difftoks.len();
+                    self.nots -= bag.owntoks.len();
+                    self.npts -= bag.pktoks.len();
                 }
             } else if changed {
                 // update the encrypted store of stuff if changed at all

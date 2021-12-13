@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use std::time;
 use serde::{Deserialize, Serialize};
-use std::mem::size_of_val;
+//use std::mem::size_of_val;
 
 pub const REMOVE_GUISE: u8 = 0;
 pub const DECOR_GUISE: u8 = 1;
