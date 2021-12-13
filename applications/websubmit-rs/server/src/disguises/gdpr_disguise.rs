@@ -1,4 +1,5 @@
 use crate::backend::MySqlBackend;
+use crate::disguises::*;
 use edna::spec::*;
 use edna::predicate::*;
 use edna::tokens;
@@ -40,7 +41,9 @@ pub fn reveal(
     if is_baseline {
         return Ok(());
     }
-    bg.edna.lock().unwrap().reverse_disguise(get_did(), decryption_cap, loc_caps)
+    let tinfo = get_table_info();
+    let ti = tinfo.read().unwrap();
+    bg.edna.lock().unwrap().reverse_disguise(get_did(), &ti, decryption_cap, loc_caps)
 }
 
 fn get_disguise(user_email: UID) -> Disguise {
