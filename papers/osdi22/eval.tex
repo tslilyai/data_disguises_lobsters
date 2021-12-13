@@ -670,21 +670,20 @@ when concurrent privacy transformations occur.
 Figure~\ref{f:concurrent-lobsters} shows the results.
 %
 The median latency of normal application requests increases by 6--20\% (from
-1.5ms to 1.6--1.8ms under low load, and 1.8ms to 1.9--2.1ms under high load) when
+1.5ms to 1.6--1.7ms under low load, and 1.8ms to 1.9ms under high load) when
 random users delete and restore their accounts.
 %
 Transactional account deletion and restoration of the most expensive user
-results in a 16--50\% increase in median latency.
+results in a 20--27\% increase in median latency.
 %
 These results show that \sys's data disguises, as well as operations over data under disguise (here,
-account restoration) have little impact on other user's application experience.\lyt{The 50\%
-number seems to indicate that txns might have a large impact?}
+account restoration) have little impact on other user's application experience.
 %
 
 %
-While the experiment measured normal application request latency, the
-(non-transactional) account deletions and restorations performed with high load take 9ms and
-13ms to complete in the median \note(txnal deletion and restore take 28 and 72ms to complete).
+While the experiment measured normal application request latency, the (non-transactional) account
+deletions and restorations performed with high load take 9ms and 13ms to complete in the median
+\note(txnal deletion and restore take 12 and 20ms to complete).
 %
 The expensive user's account deletion and reveal take 2--4.5 seconds.
 %
