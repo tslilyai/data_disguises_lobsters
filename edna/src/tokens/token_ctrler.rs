@@ -1000,7 +1000,7 @@ impl TokenCtrler {
             } else if changed {
                 // update the encrypted store of stuff if changed at all
                 bag.pktoks = kept_privkeys;
-                //self.update_bag_at_loc(uid.to_string(), lc, &bag);
+                self.update_bag_at_loc(uid.to_string(), lc, &bag);
             }
         }
         // return whether we removed bags
