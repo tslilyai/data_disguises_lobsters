@@ -290,8 +290,8 @@ Normal operations have comparable latencies with and without \sys.
 baseline since \sys encrypts database diffs and speaks-for records, while
 the baseline only deletes data from the application DB.
 %
-The absolute latency of \sys's disguises is 10.8ms and the latencies for
-\sys's operations over data under disguise are 10--21ms.
+The absolute latency of \sys's disguises is 1.7--7.9ms and the latencies for
+\sys's operations over data under disguise are 7.5--10.9ms.
 %
 (These operations are impossible in the baseline.)
 %
@@ -318,14 +318,14 @@ Figure~\ref{f:ops-hotcrp} shows higher latencies in general, even for the manual
 privacy transformations in the baseline, which reflects the more complex
 disguises.
 %
-\sys takes 32--107ms to disguise and reveal a user's data, again owing to the
+\sys takes 37.7--74.3ms to disguise and reveal a user's data, again owing to the
 extra cryptographic operations necessary.
 %
 Note that account anonymization in HotCRP is an admin-applied disguises that
 runs for all PC members.
 %
 Its total latency is proportional to the PC size; \eg with 50 PC members, it takes
-five seconds, which is acceptable for a one-off operation.
+3 seconds, which is acceptable for a one-off operation.
 %
 As before, \sys adds minimal latency to normal application operations.
 %
@@ -355,11 +355,11 @@ expect some users' disguises to be much more expensive than the median user's.
 %
 The results are in Figure~\ref{f:ops-lobsters}.
 %
-The median latencies are small (10--25ms for \sys, and <0.1ms for the
+The median latencies are small (7.1--13.5ms for \sys, and <5ms for the
 baseline), since the median Lobsters user has little data.
 %
 But some highly active users have a lot of data, which raises the
-95\textsuperscript{th} percentile latency to 120--220ms for these users.
+95\textsuperscript{th} percentile latency to 75--180ms for these users.
 %
 
 \paragraph{Summary.}
