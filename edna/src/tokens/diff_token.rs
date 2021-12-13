@@ -118,8 +118,8 @@ pub fn new_token_modify(
 
     let mut edna_token: EdnaDiffToken = Default::default();
     edna_token.typ = MODIFY_TOKEN;
-    edna_token.oldblob = serde_json::to_string(old_token).unwrap();
-    edna_token.newblob = serde_json::to_string(changed_token).unwrap();
+    edna_token.oldblob = bincode::serialize(old_token).unwrap();
+    edna_token.newblob = bincode::serialize(changed_token).unwrap();
 
     token.token_data = edna_diff_token_to_bytes(&edna_token);
     token
@@ -133,7 +133,7 @@ pub fn new_token_remove(uid: UID, did: DID, changed_token: &DiffTokenWrapper) ->
 
     let mut edna_token: EdnaDiffToken = Default::default();
     edna_token.typ = REMOVE_TOKEN;
-    edna_token.oldblob = serde_json::to_string(changed_token).unwrap();
+    edna_token.oldblob = bincode::serialize(changed_token).unwrap();
 
     token.token_data = edna_diff_token_to_bytes(&edna_token);
     token
@@ -300,13 +300,13 @@ impl EdnaDiffToken {
             REMOVE_TOKEN => {
                 // restore global token (may or may not have been revealed, but oh well!)
                 /*let mut token: DiffTokenWrapper =
-                    serde_json::from_str(&self.oldblob).unwrap();
+                    bincode::deserialize(&self.oldblob).unwrap();
                 assert!(token.is_global);
                 //token_ctrler.insert_global_diff_token_wrapper(&mut token);*/
             }
             MODIFY_TOKEN => {
                 /*let new_token: DiffTokenWrapper =
-                    serde_json::from_str(&self.newblob).unwrap();
+                    bincode::deserialize(&self.newblob).unwrap();
                 assert!(new_token.is_global);
 
                 //let (revealed, eq) = token_ctrler.check_global_diff_token_for_match(&new_token);
@@ -318,7 +318,7 @@ impl EdnaDiffToken {
 
                 // actually update token
                 let old_token: DiffTokenWrapper =
-                    serde_json::from_str(&self.oldblob).unwrap();
+                    bincode::deserialize(&self.oldblob).unwrap();
                 //token_ctrler.update_global_diff_token_from_old_to(&new_token, &old_token, None);
 
                 // if token has been revealed, attempt to reveal old value of token
