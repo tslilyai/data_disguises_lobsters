@@ -229,11 +229,10 @@ impl EdnaDiffToken {
             // only ever called for a real principal
             REMOVE_PRINCIPAL => {
                 let start = time::Instant::now();
-                let pkbytes = base64::decode(&self.pubkey).unwrap();
-                let pubkey = if pkbytes.is_empty() {
+                let pubkey = if self.pubkey.is_empty() {
                     None
                 } else {
-                    Some(FromRsaPublicKey::from_pkcs1_der(&pkbytes).unwrap())
+                    Some(FromRsaPublicKey::from_pkcs1_der(&self.pubkey).unwrap())
                 };
                 let pdata = PrincipalData {
                     pubkey: pubkey,

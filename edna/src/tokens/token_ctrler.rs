@@ -1281,7 +1281,7 @@ mod tests {
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
                     assert_eq!(
-                        dt.old_value[0].value,
+                        dt.old_value[0].value(),
                         (old_fk_value + (i as u64)).to_string()
                     );
                 }
@@ -1385,7 +1385,7 @@ mod tests {
                 assert_eq!(own_tokens.len(), 1);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);
                 assert_eq!(
-                    dt.old_value[0].value,
+                    dt.old_value[0].value(),
                     (old_fk_value + (d as u64)).to_string()
                 );
             }

@@ -3,12 +3,13 @@ extern crate mysql;
 
 mod disguises;
 use edna::helpers;
-use mysql::Opts;
 use mysql::prelude::*;
-use rsa::pkcs1::{ToRsaPrivateKey};
+use mysql::Opts;
+use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::*;
+use disguises::get_table_info;
 
 const SCHEMA: &'static str = include_str!("./schema.sql");
 const USER_ITERS: u64 = 2;
@@ -29,9 +30,23 @@ fn test_app_rev_anon_disguise() {
     init_logger();
     let dbname = "testRevAnon".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, true, "127.0.0.1", &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
-    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
+    let mut edna = edna::EdnaClient::new(
+        true,
+        true,
+        "127.0.0.1",
+        &dbname,
+        SCHEMA,
+        true,
+        USER_ITERS as usize,
+        guise_gen,
+    );
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
+    )
+    .unwrap();
     assert_eq!(db.ping(), true);
+    let tinfo = get_table_info();
+    let ti = tinfo.read().unwrap();
 
     let mut priv_keys = vec![];
 
@@ -75,7 +90,8 @@ fn test_app_rev_anon_disguise() {
         .unwrap();
 
     // REVERSE ANON DISGUISE WITH NO PRIVATE DIFFS
-    edna.reverse_disguise(anon_disguise.did, vec![], vec![]).unwrap();
+    edna.reverse_disguise(anon_disguise.did, &ti, vec![], vec![])
+        .unwrap();
 
     // CHECK DISGUISE RESULTS: moderations have been restored
     // users exist
@@ -164,12 +180,13 @@ fn test_app_rev_anon_disguise() {
     // REVERSE DISGUISE WITH USER DIFFS
     for u in 1..USER_ITERS {
         // get diffs
-        let lc = match lcs.get(&(u.to_string(), 1)){
+        let lc = match lcs.get(&(u.to_string(), 1)) {
             Some(olc) => olc.clone(),
             None => vec![],
         };
         edna.reverse_disguise(
             anon_disguise.did,
+            &ti,
             priv_keys[u as usize - 1].clone(),
             lc,
         )
@@ -252,9 +269,23 @@ fn test_app_rev_gdpr_disguise() {
     init_logger();
     let dbname = "testRevGDPR".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, true, "127.0.0.1", &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
-    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
+    let mut edna = edna::EdnaClient::new(
+        true,
+        true,
+        "127.0.0.1",
+        &dbname,
+        SCHEMA,
+        true,
+        USER_ITERS as usize,
+        guise_gen,
+    );
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
+    )
+    .unwrap();
     assert_eq!(db.ping(), true);
+    let tinfo = get_table_info();
+    let ti = tinfo.read().unwrap();
 
     let mut priv_keys = vec![];
 
@@ -292,7 +323,7 @@ fn test_app_rev_gdpr_disguise() {
         let lcs_map = edna
             .apply_disguise(Arc::new(gdpr_disguise), vec![], vec![])
             .unwrap();
-        match lcs_map.get(&(u.to_string(), did)){
+        match lcs_map.get(&(u.to_string(), did)) {
             Some(dlc) => lcs.push(dlc.clone()),
             None => lcs.push(vec![]),
         }
@@ -303,6 +334,7 @@ fn test_app_rev_gdpr_disguise() {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         edna.reverse_disguise(
             gdpr_disguise.did,
+            &ti,
             priv_keys[u as usize - 1].clone(),
             lcs[u as usize - 1].clone(),
         )
@@ -370,9 +402,23 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     init_logger();
     let dbname = "testRevCompose".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, true, "127.0.0.1", &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
-    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
+    let mut edna = edna::EdnaClient::new(
+        true,
+        true,
+        "127.0.0.1",
+        &dbname,
+        SCHEMA,
+        true,
+        USER_ITERS as usize,
+        guise_gen,
+    );
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
+    )
+    .unwrap();
     assert_eq!(db.ping(), true);
+    let tinfo = get_table_info();
+    let ti = tinfo.read().unwrap();
 
     let mut priv_keys = vec![];
 
@@ -427,14 +473,14 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
             .apply_disguise(
                 Arc::new(gdpr_disguise),
                 priv_keys[u as usize - 1].clone(),
-                anon_lc
+                anon_lc,
             )
             .unwrap();
         // the problem here is that lcs_map may have pseudoprincipal tokens
         // but the pseudoprincipal data in edna may have been removed (because the item was deleted)
         // we need to pass in the pseudoprincipal private keys, but those are stored ownership
         // tokens of the original user
-        match lcs_map.get(&(u.to_string(), did)){
+        match lcs_map.get(&(u.to_string(), did)) {
             Some(dlc) => gdpr_lcs.push(dlc.clone()),
             None => gdpr_lcs.push(vec![]),
         }
@@ -521,7 +567,8 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     }
 
     // REVERSE ANON DISGUISE WITH NO DIFFS
-    edna.reverse_disguise(anon_disguise.did, vec![], vec![]).unwrap();
+    edna.reverse_disguise(anon_disguise.did, &ti, vec![], vec![])
+        .unwrap();
 
     // CHECK DISGUISE RESULTS: nothing restored
     {
@@ -609,10 +656,11 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         let mut lcs = gdpr_lcs[u as usize - 1].clone();
         match anon_lcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(dlc) => lcs.extend(&mut dlc.iter().cloned()),
-            None => (), 
+            None => (),
         }
         edna.reverse_disguise(
             gdpr_disguise.did,
+            &ti,
             priv_keys[u as usize - 1].clone(),
             lcs,
         )
@@ -710,6 +758,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         };
         edna.reverse_disguise(
             anon_disguise.did,
+            &ti,
             priv_keys[u as usize - 1].clone(),
             anon_lc,
         )
@@ -791,10 +840,25 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
 #[test]
 fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
     init_logger();
+    let tinfo = get_table_info();
+    let ti = tinfo.read().unwrap();
+
     let dbname = "testRevComposeTwo".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, true, "127.0.0.1", &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
-    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
+    let mut edna = edna::EdnaClient::new(
+        true,
+        true,
+        "127.0.0.1",
+        &dbname,
+        SCHEMA,
+        true,
+        USER_ITERS as usize,
+        guise_gen,
+    );
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
+    )
+    .unwrap();
     assert_eq!(db.ping(), true);
 
     let mut priv_keys = vec![];
@@ -843,17 +907,17 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         let did = gdpr_disguise.did;
         let anon_lc = match anon_lcs_map.get(&(u.to_string(), anon_disguise.did)) {
-            Some(lc) => lc.clone(), 
+            Some(lc) => lc.clone(),
             None => vec![],
         };
         let lcs_map = edna
             .apply_disguise(
                 Arc::new(gdpr_disguise),
                 priv_keys[u as usize - 1].clone(),
-                anon_lc
+                anon_lc,
             )
             .unwrap();
-        match lcs_map.get(&(u.to_string(), did)){
+        match lcs_map.get(&(u.to_string(), did)) {
             Some(dlc) => gdpr_lcs.push(dlc.clone()),
             None => (),
         }
@@ -862,11 +926,14 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
     // REVERSE ANON DISGUISE WITH DIFFS
     for u in 1..USER_ITERS {
         // get diffs
-        let anon_lc = anon_lcs_map.get(&(u.to_string(), anon_disguise.did)).unwrap();
+        let anon_lc = anon_lcs_map
+            .get(&(u.to_string(), anon_disguise.did))
+            .unwrap();
         edna.reverse_disguise(
             anon_disguise.did,
+            &ti,
             priv_keys[u as usize - 1].clone(),
-            anon_lc.clone()
+            anon_lc.clone(),
         )
         .unwrap();
     }
@@ -957,10 +1024,11 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
         let mut lcs = gdpr_lcs[u as usize - 1].clone();
         match anon_lcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(dlc) => lcs.extend(&mut dlc.iter().cloned()),
-            None => (), 
+            None => (),
         }
         edna.reverse_disguise(
             gdpr_disguise.did,
+            &ti,
             priv_keys[u as usize - 1].clone(),
             lcs,
         )
