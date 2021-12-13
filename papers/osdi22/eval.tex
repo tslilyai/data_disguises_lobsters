@@ -434,7 +434,12 @@ disguises; we evaluate this cost next.
           \caption{HotCRP}
         \label{f:comp-hotcrp}
       \end{subfigure}
-    \caption{Latency of account delete and restore before anonymization vs. composed after anonymization.}
+    \caption{Disguise composition over a decorrelating account
+      anonymization disguise increases latency proportionally
+      to the amount of data touched, as \sys performs
+      %3--5.5$\times$ and restoration by 5.7--10$\times$ as \sys
+      crypto operations linear in the number of pseudoprincipals
+      involved.}
     \label{f:composition}
 \end{figure}
 
@@ -444,21 +449,36 @@ Our next experiment considers the cost of user-initiated account
 deletion from an application that already invoked a prior disguise
 to anonymize and decorrelate all users' data.
 %
-We consider WebSubmit and HotCRP, and compare three costs: \one{}
+We consider WebSubmit and HotCRP, and compare three setups: \one{}
 manual account deletion (as before); \two{} account deletion and
 restoration \emph{without} prior a anonymization disguise; and
 \three{} account deletion and restoration \emph{with} a prior
 anonymization disguise.
 %
-When the application applies the account deletion disguise over data
-already decorrelated by anonymization, \sys associates any new
+When a natural principal deletes their account without a prior
+disguise, \sys creates a single bag with all user data and encrypts
+it as a batch.
+%
+But if the application applies the account deletion disguise over
+data already decorrelated by anonymization, \sys associates any new
 database diffs and speaks-for records with pseudoprincipals created
-by anonymization.
+by anonymization.\footnote{Since this is an interactive disguise, \sys
+can decrypt the natural principal's bag to find out which
+pseudoprincipals' data to disguise. Without this bag access, \sys
+by design can't know what data belongs to the deleted user.}
 %
 This requires \sys to create and encrypt
 $O(\textit{\# pseudoprincipals})$ bags, so the disguise is necessarily
-more expensive than a single, batched encryption for all data
-associated with a natural principal when there is no prior disguise.
+more expensive.
+%
+Account restoration follows a similar pattern: \sys takes the natural
+principal's private key and locator, decrypts their bag, decrypts
+the locator sets of the pseudoprincipals in that bag,
+followed by decrypting the bags they point to (a linear number of
+decryptions).
+%
+A good result for \sys would show a moderate increase in runtime,
+proportional to the amount of user data already under disguise.
 %
 
 %%
@@ -482,31 +502,37 @@ associated with a natural principal when there is no prior disguise.
 %reveals all bags for both $p$ and the $q_i$. Similarly, \sys must perform one decryption per $q_i$; without
 %composition, \sys could simply perform a single decryption of $p$'s bag at \lcapa{pd_1}.
 
-Figure~\ref{f:composition} shows the average cost of interactively applying account deletion (and
-subsequent account revealing) after anonymization over all users $p$ in WebSubmit and all reviewers
-users in HotCRP.
+Figure~\ref{f:composition} shows the disguise latencies.
 %
-WebSubmit account deletion and restoration latencies increase respectively by 5.5x and 5.7x; in
-HotCRP, these latencies increase by 3x and 10x.
+WebSubmit account deletion latency increases by 5.5$\times$ and restoration by 5.7$\times$; in
+HotCRP, deletion latency increases by 3$\times$ and restoration latency by 10$\times$.
 %
-The different multiplicative factors in HotCRP stems from the fact that account deletion in HotCRP
-operates on more data (with 7-8x more pseudoprincipals per user after anonymization) than in
-WebSubmit. Decryption is an order of magnitude more expensive than encryption with typically small
-bag data sizes, explaining the more significant difference between disguising and revealing
-latencies when more pseudoprincipals are disguised during deletion.
+Accounts in HotCRP have more data, and 7--8$\times$ more pseudoprincipals per user after
+anonymization than accounts in WebSubmit, so greater slowdowns in HotCRP make sense.
+%
+Restoring an account (\ie undoing a composed disguise) is more expensive than deleting an
+account (\ie composing a disguise atop another) because decryption is more expensive than
+encryption (Figure~\ref{f:opstats}).
+%
+Importantly, however, the disguise latencies are stable when \sys composes further
+disguises atop these two: the cost is proportional to the number of pseudoprincipals
+affected, and once the application has maximally decorrelated data (\ie one pseudoprincipal
+per record), this number is stable.
 %
 
 %
-We show interactive compostion of deletion on top of anonymization;
-the cost of non-iteractive deletion show similar results, with the one difference being that \sys
-encrypts locators for the $q_i$ and stores them with $q_i$'s metadata. This incurs an extra
-encryption cost per $q_i$ during $d_2$. However, the initial cost of decrypting speaks-for records
-would be eliminated.
+The experiment composed an interactive disguise (account delete) atop a
+non-interactive one (anonymization).
 %
-Similarly, revealing $d_2$ requires \sys to recursively retrieve $q_i$'s records by decrypting the
-encrypted \lcapa{q_id_2},
-%with $q$'s private key (retrived from \lcapa{pd_1} with $p$'s private key).
-which incurs an additional decryption cost per $q_i$ disguised.
+Interactive disguises let natural principals introduce locators for
+pseudoprincipal-owned bags that \sys forgot, which helps avoid the locator
+decryption step on revealing the composed disguise.
+%
+Composing a non-iteractive disguise requires this step as \sys stores the
+locators, but avoids the one-off cost of decrypting a natural
+principal's bag; overall, the cost is still linear in the number of
+pseudoprincipals touched.
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Resource Use}
