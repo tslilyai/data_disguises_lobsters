@@ -18,7 +18,7 @@ use std::convert::TryInto;
 use std::iter::repeat;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time;
-use  std::mem::size_of_val;
+use std::mem::size_of_val;
 
 pub type Loc = u64; // locator
 pub type DecryptCap = Vec<u8>; // private key

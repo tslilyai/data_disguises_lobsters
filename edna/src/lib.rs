@@ -274,11 +274,12 @@ impl EdnaClient {
     pub fn reverse_disguise(
         &mut self,
         did: DID,
+        table_info: &HashMap<String,spec::TableInfo>,
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
         warn!("EDNA: REVERSING Disguise {}", did);
-        self.disguiser.reverse(did, decrypt_cap, loc_caps)?;
+        self.disguiser.reverse(did, table_info, decrypt_cap, loc_caps)?;
         Ok(())
     }
 

@@ -1,15 +1,18 @@
 use crate::helpers::*;
 use crate::tokens::*;
+use crate::spec;
 use crate::{RowVal, DID, UID};
 use log::warn;
+use log::error;
 use mysql::prelude::*;
 use rand::{thread_rng, Rng};
 use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
 use sql_parser::ast::*;
 use std::collections::HashSet;
+use std::collections::HashMap;
 use std::time;
 use serde::{Deserialize, Serialize};
-use  std::mem::size_of_val;
+use std::mem::size_of_val;
 
 pub const REMOVE_GUISE: u8 = 0;
 pub const DECOR_GUISE: u8 = 1;
@@ -36,7 +39,7 @@ pub struct EdnaDiffToken {
 
     // guise information
     pub table: String,
-    pub tabids: Vec<RowVal>,
+    pub tabids: Vec<String>,
 
     // MODIFY/REMOVE : store old blobs
     pub old_value: Vec<RowVal>,
@@ -47,8 +50,8 @@ pub struct EdnaDiffToken {
     pub new_val: String,
 
     // REMOVE/MODIFY
-    pub oldblob: String,
-    pub newblob: String,
+    pub oldblob: Vec<u8>,
+    pub newblob: Vec<u8>,
 
     // REMOVE PRINCIPAL
     pub pubkey: Vec<u8>,
@@ -100,12 +103,12 @@ pub fn new_remove_principal_token_wrapper(
     edna_token.typ = REMOVE_PRINCIPAL;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
     error!("REMOVE PRINC: nonce {}, uid {}, did {}, pubkey {}, tp {}, all: {}", 
-        size_of_val(&*token.nonce),
+        size_of_val(&token.nonce),
         size_of_val(&*token.uid),
-        size_of_val(&*token.did),
+        size_of_val(&token.did),
         size_of_val(&*edna_token.pubkey),
-        size_of_val(&*edna_token.typ),
-        size_of_val(&*token),
+        size_of_val(&edna_token.typ),
+        size_of_val(&token),
     );
     token
 }
@@ -159,18 +162,18 @@ pub fn new_delete_token_wrapper(
     let mut edna_token: EdnaDiffToken = Default::default();
     edna_token.typ = REMOVE_GUISE;
     edna_token.table = table;
-    edna_token.tabids = tabids;
+    edna_token.tabids = tabids.iter().map(|rv| rv.value.clone()).collect();
     edna_token.old_value = old_value;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
 
     error!("REMOVE DATA: nonce {}, uid {}, did {}, table {}, tableid {}, tp {}, all: {}", 
-        size_of_val(&*token.nonce),
-        size_of_val(&*token.did),
+        size_of_val(&token.nonce),
+        size_of_val(&token.did),
         size_of_val(&*edna_token.table),
-        size_of_val(&*edna_token.tabid),
-        size_of_val(&*edna_token.typ),
+        size_of_val(&*edna_token.tabids),
+        size_of_val(&edna_token.typ),
         size_of_val(&*edna_token.old_value),
-        size_of_val(&*token),
+        size_of_val(&token),
     );
     token
 }
@@ -190,22 +193,22 @@ pub fn new_modify_token_wrapper(
     let mut edna_token: EdnaDiffToken = Default::default();
     edna_token.typ = MODIFY_GUISE;
     edna_token.table = table;
-    edna_token.tabids = tabids;
+    edna_token.tabids = tabids.iter().map(|rv| rv.value.clone()).collect();
     edna_token.col = col;
     edna_token.old_val = old_value;
     edna_token.new_val = new_value;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
 
-    error!("MODIFY DATA: nonce {}, uid {}, did {}, table {}, tableids {}, tp {}, col {}, oldval {}, newval {}, all: {}", 
-        size_of_val(&*token.nonce),
-        size_of_val(&*token.did),
+    error!("MODIFY DATA: nonce {}, did {}, table {}, tableids {}, tp {}, col {}, oldval {}, newval {}, all: {}", 
+        size_of_val(&token.nonce),
+        size_of_val(&token.did),
         size_of_val(&*edna_token.table),
         size_of_val(&*edna_token.tabids),
-        size_of_val(&*edna_token.typ),
+        size_of_val(&edna_token.typ),
         size_of_val(&*edna_token.col),
-        size_of_val(&*edna_token.old_value),
-        size_of_val(&*edna_token.new_value),
-        size_of_val(&*token),
+        size_of_val(&*edna_token.old_val),
+        size_of_val(&*edna_token.new_val),
+        size_of_val(&token),
     );
     token
 }
@@ -213,6 +216,8 @@ pub fn new_modify_token_wrapper(
 impl EdnaDiffToken {
     pub fn reveal<Q: Queryable>(
         &self,
+        timap: &HashMap<String, spec::TableInfo>,
+        dtw: &DiffTokenWrapper,
         token_ctrler: &mut TokenCtrler,
         db: &mut Q,
     ) -> Result<bool, mysql::Error> {
@@ -225,9 +230,9 @@ impl EdnaDiffToken {
                     is_anon: false,
                     loc_caps: HashSet::new(),
                 };
-                warn!("Going to reveal principal {}", self.uid);
+                warn!("Going to reveal principal {}", dtw.uid);
                 token_ctrler.register_saved_principal::<Q>(
-                    &self.uid,
+                    &dtw.uid,
                     false,
                     &pdata.pubkey,
                     HashSet::new(),
@@ -240,7 +245,8 @@ impl EdnaDiffToken {
             REMOVE_GUISE => {
                 let start = time::Instant::now();
                 // get current guise in db
-                let token_guise_selection = get_select_of_ids(&self.tabids);
+                let table_info = timap.get(&self.table).unwrap();
+                let token_guise_selection = get_select_of_ids_str(&table_info, &self.tabids);
                 let selected = get_query_rows_str_q::<Q>(
                     &str_select_statement(&self.table, &token_guise_selection.to_string()),
                     db,
@@ -288,7 +294,8 @@ impl EdnaDiffToken {
             }
             MODIFY_GUISE => {
                 // get current guise in db
-                let token_guise_selection = get_select_of_ids(&self.tabids);
+                let table_info = timap.get(&self.table).unwrap();
+                let token_guise_selection = get_select_of_ids_str(&table_info, &self.tabids);
                 let selected = get_query_rows_str_q(
                     &str_select_statement(&self.table, &token_guise_selection.to_string()),
                     db,

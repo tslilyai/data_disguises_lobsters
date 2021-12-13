@@ -1,6 +1,7 @@
 use crate::UID;
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
+use log::error;
 use  std::mem::size_of_val;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -25,9 +26,8 @@ pub fn new_privkey_token(
 
     error!("PK DATA: new_uid {}, pk {}, all: {}", 
         size_of_val(&*token.new_uid),
-        size_of_val(&*token.priv_key,
-        size_of_val(&*token),
+        size_of_val(&*token.priv_key),
+        size_of_val(&token),
     );
-
     token
 }

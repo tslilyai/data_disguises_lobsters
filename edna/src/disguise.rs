@@ -117,6 +117,7 @@ impl Disguiser {
     pub fn reverse(
         &mut self,
         did: DID,
+        tinfo: &HashMap<String, TableInfo>,
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
@@ -144,8 +145,8 @@ impl Disguiser {
                 && (d.typ == REMOVE_GUISE || d.typ == REMOVE_PRINCIPAL)
             {
                 warn!("Reversing remove token {:?}\n", d);
-                let revealed = d.reveal::<mysql::PooledConn>(&mut locked_token_ctrler, &mut db)?;
-                //let revealed = d.reveal::<mysql::Transaction>(&mut locked_token_ctrler, &mut txn)?;
+                let revealed = d.reveal::<mysql::PooledConn>(&tinfo, &dwrapper, &mut locked_token_ctrler, &mut db)?;
+                //let revealed = d.reveal::<mysql::Transaction>(&tinfo, &dwrapper, &mut locked_token_ctrler, &mut txn)?;
                 if revealed {
                     warn!("Remove Token reversed!\n");
                 } else {
@@ -163,8 +164,8 @@ impl Disguiser {
                 && d.typ != REMOVE_PRINCIPAL
             {
                 warn!("Reversing token {:?}\n", d);
-                let revealed = d.reveal(&mut locked_token_ctrler, &mut db)?;
-                //let revealed = d.reveal(&mut locked_token_ctrler, &mut txn)?;
+                let revealed = d.reveal(&tinfo, &dwrapper, &mut locked_token_ctrler, &mut db)?;
+                //let revealed = d.reveal(&tinfo, &dwrapper, &mut locked_token_ctrler, &mut txn)?;
                 if revealed {
                     warn!("NonRemove Diff Token reversed!\n");
                 } else {
@@ -182,8 +183,8 @@ impl Disguiser {
                 Ok(d) => {
                     if owrapper.did == did {
                         warn!("Reversing token {:?}\n", d);
-                        let revealed = d.reveal(owrapper, &locked_guise_gen, &mut locked_token_ctrler, &mut db)?;
-                        //let revealed = d.reveal(owrapper, &locked_guise_gen, &mut locked_token_ctrler, &mut txn)?;
+                        let revealed = d.reveal(&tinfo, owrapper, &locked_guise_gen, &mut locked_token_ctrler, &mut db)?;
+                        //let revealed = d.reveal(&tinfo, owrapper, &locked_guise_gen, &mut locked_token_ctrler, &mut txn)?;
                         if revealed {
                             warn!("Decor Ownership Token reversed!\n");
                         } else {

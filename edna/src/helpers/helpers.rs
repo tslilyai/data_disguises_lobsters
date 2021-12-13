@@ -40,6 +40,24 @@ pub fn get_ids(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Vec<RowVal> {
         .collect()
 }
 
+pub fn get_select_of_ids_str(tinfo: &spec::TableInfo, ids: &Vec<String>) -> Expr {
+    let cols = &tinfo.id_cols;
+    let mut selection = Expr::Value(Value::Boolean(true));
+    for (i, id) in ids.iter().enumerate() {
+        let eq_selection = Expr::BinaryOp {
+            left: Box::new(Expr::Identifier(vec![Ident::new(cols[i].clone())])),
+            op: BinaryOperator::Eq,
+            right: Box::new(Expr::Value(Value::String(id.clone()))),
+        };
+        selection = Expr::BinaryOp {
+            left: Box::new(selection),
+            op: BinaryOperator::And,
+            right: Box::new(eq_selection),
+        };
+    }
+    selection
+}
+
 pub fn get_select_of_ids(ids: &Vec<RowVal>) -> Expr {
     let mut selection = Expr::Value(Value::Boolean(true));
     for id in ids {

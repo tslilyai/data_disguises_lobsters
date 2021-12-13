@@ -1,8 +1,10 @@
 use crate::helpers::*;
 use mysql::prelude::*;
 use crate::tokens::*;
+use crate::spec;
 use crate::{RowVal, DID, UID};
 use log::warn;
+use log::error;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
@@ -20,8 +22,8 @@ pub struct OwnershipTokenWrapper {
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct EdnaOwnershipToken {
-    pub child_name: String,
-    pub child_ids: Vec<RowVal>,
+    pub cname: String,
+    pub cids: Vec<String>,
     pub fk_col: String,
 }
 
@@ -53,32 +55,31 @@ pub fn new_generic_ownership_token_wrapper(
     token.token_data = data;
 
     error!("OTW DATA: nonce {}, old_uid {}, new_uid {}, did {}, all: {}", 
-        size_of_val(&*token.nonce),
-        size_of_val(&*token.did),
+        size_of_val(&token.nonce),
+        size_of_val(&token.did),
         size_of_val(&*token.new_uid),
         size_of_val(&*token.old_uid),
-        size_of_val(&*token),
+        size_of_val(&token),
     );
  
     token
 }
 
 pub fn new_edna_ownership_token(
-    child_name: String,
-    child_ids: Vec<RowVal>,
+    cname: String,
+    cids: Vec<RowVal>,
     fk_col: String,
 ) -> EdnaOwnershipToken {
     let mut edna_token: EdnaOwnershipToken = Default::default();
-    edna_token.child_name = child_name;
-    edna_token.child_ids = child_ids;
+    edna_token.cname = cname;
+    edna_token.cids = cids.iter().map(|rv| rv.value.clone()).collect();
     edna_token.fk_col = fk_col;
 
     error!("EDNA OT: cn {}, cids {}, fkcol {}, total {}",
-        size_of_val(&*token.nonce),
-        size_of_val(&*edna_token.child_name),
-        size_of_val(&*edna_token.child_ids),
+        size_of_val(&*edna_token.cname),
+        size_of_val(&*edna_token.cids),
         size_of_val(&*edna_token.fk_col),
-        size_of_val(&*edna_token),
+        size_of_val(&edna_token),
     );
     edna_token
 }
@@ -86,6 +87,7 @@ pub fn new_edna_ownership_token(
 impl EdnaOwnershipToken {
     pub fn reveal<Q:Queryable>(
         &self,
+        timap: &HashMap<String, spec::TableInfo>,
         otw: &OwnershipTokenWrapper,
         guise_gen: &GuiseGen,
         token_ctrler: &mut TokenCtrler,
@@ -115,9 +117,10 @@ impl EdnaOwnershipToken {
         }
 
         // if foreign key is rewritten, don't reverse anything
-        let token_guise_selection = get_select_of_ids(&self.child_ids);
+        let table_info = timap.get(&self.cname).unwrap();
+        let token_guise_selection = get_select_of_ids_str(&table_info, &self.cids);
         let selected = get_query_rows_str_q::<Q>(
-            &str_select_statement(&self.child_name, &token_guise_selection.to_string()),
+            &str_select_statement(&self.cname, &token_guise_selection.to_string()),
             db,
         )?;
         if selected.len() > 0 {
@@ -140,7 +143,7 @@ impl EdnaOwnershipToken {
         }];
         db.query_drop(
             Statement::Update(UpdateStatement {
-                table_name: string_to_objname(&self.child_name),
+                table_name: string_to_objname(&self.cname),
                 assignments: updates,
                 selection: Some(token_guise_selection),
             })
