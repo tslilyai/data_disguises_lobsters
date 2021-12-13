@@ -4,19 +4,18 @@ cargo build --release
 rm *txt
 set -e
 
-RUST_LOG=error ../../target/release/lobsters \
-	--storage \
-	--scale 3 \
-	&> output/users.out
-echo "Ran storage test for users"
-
-# TODO get baselines
 #RUST_LOG=error ../../target/release/lobsters \
-#	--stats \
+#	--storage \
 #	--scale 3 \
 #	&> output/users.out
-#echo "Ran stats primed test for users"
+#echo "Ran storage test for users"
 
+# TODO get baselines
+RUST_LOG=error ../../target/release/lobsters \
+	--stats \
+	--scale 3 \
+	&> output/users.out
+echo "Ran stats primed test for users"
 
 #for u in 1 10 15; do
 	#for d in 'none' 'cheap' 'expensive'; do

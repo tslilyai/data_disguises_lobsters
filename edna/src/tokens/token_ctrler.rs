@@ -6,7 +6,7 @@ use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
-use log::{warn};
+use log::{error, warn};
 use mysql::prelude::*;
 use rand::{rngs::OsRng, Rng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
@@ -16,9 +16,9 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::iter::repeat;
+use std::mem::size_of_val;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time;
-use std::mem::size_of_val;
 
 pub type Loc = u64; // locator
 pub type DecryptCap = Vec<u8>; // private key
@@ -52,7 +52,11 @@ impl EncData {
         let cipher = Aes128Cbc::new_from_slices(&key, &self.iv).unwrap();
         let mut edata = self.enc_data.clone();
         let plaintext = cipher.decrypt_vec(&mut edata).unwrap();
-        warn!("decrypted len is {}: {}", plaintext.len(), start.elapsed().as_micros());
+        warn!(
+            "decrypted len is {}: {}",
+            plaintext.len(),
+            start.elapsed().as_micros()
+        );
         (true, plaintext)
     }
     pub fn encrypt_with_pubkey(pubkey: &RsaPublicKey, bytes: &Vec<u8>) -> EncData {
@@ -73,7 +77,12 @@ impl EncData {
         rng.fill_bytes(&mut iv[..]);
         let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
         let encrypted = cipher.encrypt_vec(bytes);
-        warn!("encrypted len is {}, {}: {}", enc_key.len(), encrypted.len(), start.elapsed().as_micros());
+        warn!(
+            "encrypted len is {}, {}: {}",
+            enc_key.len(),
+            encrypted.len(),
+            start.elapsed().as_micros()
+        );
         EncData {
             enc_key: enc_key,
             enc_data: encrypted,
@@ -84,7 +93,7 @@ impl EncData {
 
 #[derive(Clone)]
 pub struct PrincipalData {
-    pub pubkey: RsaPublicKey,
+    pub pubkey: Option<RsaPublicKey>,
     pub is_anon: bool,
 
     // only nonempty for pseudoprincipals!
@@ -203,8 +212,12 @@ impl TokenCtrler {
         .unwrap();
         for row in selected {
             let is_anon: bool = row[1].value() == "1";
-            let pubkey_bytes: Vec<u8> = base64::decode(&row[2].value()).unwrap();
-            let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
+            let pkbytes = base64::decode(&row[2].value()).unwrap();
+            let pubkey = if pkbytes.is_empty() {
+                None
+            } else {
+                Some(FromRsaPublicKey::from_pkcs1_der(&pkbytes).unwrap())
+            };
             let locs_bytes = base64::decode(&row[3].value()).unwrap();
             let locs = bincode::deserialize(&locs_bytes).unwrap();
             tctrler.register_saved_principal::<mysql::PooledConn>(
@@ -232,7 +245,7 @@ impl TokenCtrler {
             bytes += size_of_val(&*pd);
         }
         bytes += size_of_val(&self.principal_data);
-        warn!("pdata {}", bytes);
+        error!("pdata {}", bytes);
         
         let mut edbytes = 0;
         for (l, ed) in self.enc_map.iter() {
@@ -241,7 +254,7 @@ impl TokenCtrler {
             edbytes += ed.enc_data.len() + ed.enc_key.len() + ed.iv.len();
         }
         edbytes += size_of_val(&self.enc_map);
-        warn!("emap {}", edbytes);
+        error!("emap {}", edbytes);
         
         let mut poolbytes = 0;
         for (privkey, pubkey) in &self.pseudoprincipal_keys_pool {
@@ -249,16 +262,16 @@ impl TokenCtrler {
             poolbytes += size_of_val(&pubkey);
         }
         poolbytes += size_of_val(&self.pseudoprincipal_keys_pool);
-        warn!("pool {}", poolbytes);
+        error!("pool {}", poolbytes);
         
         let mut ppuidbytes = 0;
         for ppuid in self.pps_to_remove.iter() {
             ppuidbytes += size_of_val(&*ppuid);
         }
         ppuidbytes += size_of_val(&self.pps_to_remove);
-        warn!("ppuid {}", ppuidbytes);
+        error!("ppuid {}", ppuidbytes);
         
-        warn!("PLAINTEXT {}, CIPHERTEXT {}: {} {} {}", self.plaintext_sz, self.cipher_sz, self.ndts, self.nots, self.npts);
+        error!("PLAINTEXT {}, CIPHERTEXT {}: {} {} {}", self.plaintext_sz, self.cipher_sz, self.ndts, self.nots, self.npts);
         bytes + edbytes + poolbytes + ppuidbytes
     }
 
@@ -311,7 +324,14 @@ impl TokenCtrler {
             let bag = self.tmp_bags.get(&(uid.to_string(), *did)).unwrap().clone();
             let owner = bag.owner.clone();
             self.update_bag_at_loc(&lc, &bag);
-            warn!("EdnaBatch: Inserted bag with {} dt, {} wt, {} pks for owner {} uid {}", bag.difftoks.len(), bag.owntoks.len(), bag.pktoks.len(), bag.owner, uid);
+            warn!(
+                "EdnaBatch: Inserted bag with {} dt, {} wt, {} pks for owner {} uid {}",
+                bag.difftoks.len(),
+                bag.owntoks.len(),
+                bag.pktoks.len(),
+                bag.owner,
+                uid
+            );
 
             // if we are going to return this to a user, actually return it
             if &owner != uid {
@@ -332,7 +352,10 @@ impl TokenCtrler {
                     .expect(&format!("no user with uid {} when saving?", uid));
                 // save to principal data if no email (pseudoprincipal)
                 if p.is_anon {
-                    let enc_lc = EncData::encrypt_with_pubkey(&p.pubkey, &serialize_to_bytes(&lc));
+                    let enc_lc = EncData::encrypt_with_pubkey(
+                        &p.pubkey.as_ref().expect("no pubkey?"),
+                        &serialize_to_bytes(&lc),
+                    );
                     p.loc_caps.insert(enc_lc);
 
                     // update persistence
@@ -385,7 +408,10 @@ impl TokenCtrler {
                     did: did,
                 };
                 // temporarily save cap for future use
-                assert_eq!(self.tmp_loc_caps.insert((uid.clone(), did), cap.clone()), None);
+                assert_eq!(
+                    self.tmp_loc_caps.insert((uid.clone(), did), cap.clone()),
+                    None
+                );
                 return cap;
             }
         }
@@ -398,7 +424,7 @@ impl TokenCtrler {
         &mut self,
         uid: &UID,
         is_anon: bool,
-        pubkey: &RsaPublicKey,
+        pubkey: &Option<RsaPublicKey>,
         lc: HashSet<EncData>,
         persist: bool,
         db: &mut Q,
@@ -426,7 +452,7 @@ impl TokenCtrler {
         warn!("Registering principal {}", uid);
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
         let pdata = PrincipalData {
-            pubkey: pubkey,
+            pubkey: Some(pubkey),
             is_anon: is_anon,
             loc_caps: HashSet::new(),
         };
@@ -465,10 +491,7 @@ impl TokenCtrler {
             did,
             ownership_token_data,
         );
-        let privkey_token = new_privkey_token(
-            anon_uidstr.to_string(),
-            &private_key,
-        );
+        let privkey_token = new_privkey_token(anon_uidstr.to_string(), &private_key);
         let foruid = match original_uid {
             Some(ouid) => ouid,
             None => uid,
@@ -493,7 +516,10 @@ impl TokenCtrler {
         let start = time::Instant::now();
         let mut values = vec![];
         for (uid, pdata) in &self.tmp_principals_to_insert {
-            let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
+            let pubkey_vec = match &pdata.pubkey {
+                Some(pk) => pk.to_pkcs1_der().unwrap().as_der().to_vec(),
+                None => vec![],
+            };
             let v: Vec<String> = vec![];
             let empty_vec = base64::encode(&bincode::serialize(&v).unwrap());
             let uid = uid.trim_matches('\'');
@@ -551,7 +577,10 @@ impl TokenCtrler {
         }
         let pdata = pdata.unwrap();
         if !pdata.loc_caps.is_empty() {
-            // save as to_remove
+            // REMOVE PUBLIC KEY
+            pdata.pubkey = None;
+
+            // save as to_remove for when principal has no more locators
             self.pps_to_remove.insert(uid.to_string());
             // TODO persist this?
         } else {
@@ -585,19 +614,26 @@ impl TokenCtrler {
             .expect("no user with uid found?")
             .clone();
         let plaintext = bincode::serialize(bag).unwrap();
-        let enc_bag = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
+        let enc_bag =
+            EncData::encrypt_with_pubkey(&p.pubkey.expect("No pubkey?"), &plaintext);
         self.plaintext_sz += plaintext.len();
         self.cipher_sz += enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
         self.ndts += bag.difftoks.len();
         self.nots += bag.owntoks.len();
         self.npts += bag.pktoks.len();
-        
+
         // insert the encrypted pppk into locating capability
         self.enc_map.insert(lc.loc, enc_bag);
         warn!("EdnaBatch: Saved bag for {}", lc.uid);
     }
 
-    fn insert_privkey_token_for(&mut self, old_uid: &UID, did: DID, pppk: &PrivkeyToken, uid: &UID) {
+    fn insert_privkey_token_for(
+        &mut self,
+        old_uid: &UID,
+        did: DID,
+        pppk: &PrivkeyToken,
+        uid: &UID,
+    ) {
         let start = time::Instant::now();
         let p = self.principal_data.get_mut(old_uid);
         if p.is_none() {
@@ -610,20 +646,42 @@ impl TokenCtrler {
                 bag.owner = uid.clone();
                 // important: insert the mapping from new_uid to pppk
                 bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
-                warn!("Got bag for {} and {} with owntoks {} and privkeys {}", old_uid, did, bag.owntoks.len(), bag.pktoks.len());
+                warn!(
+                    "Got bag for {} and {} with owntoks {} and privkeys {}",
+                    old_uid,
+                    did,
+                    bag.owntoks.len(),
+                    bag.pktoks.len()
+                );
             }
             None => {
                 let mut new_bag = Bag::new(uid);
                 new_bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
-                warn!("Got new_bag for {} and {} with owntoks {} and privkeys {}", old_uid, did, new_bag.owntoks.len(), new_bag.pktoks.len());
+                warn!(
+                    "Got new_bag for {} and {} with owntoks {} and privkeys {}",
+                    old_uid,
+                    did,
+                    new_bag.owntoks.len(),
+                    new_bag.pktoks.len()
+                );
                 self.tmp_bags
                     .insert((old_uid.clone(), did.clone()), new_bag);
             }
         }
-        warn!("Inserted privkey token from uid {} for {}: {}", old_uid, uid, start.elapsed().as_micros());
+        warn!(
+            "Inserted privkey token from uid {} for {}: {}",
+            old_uid,
+            uid,
+            start.elapsed().as_micros()
+        );
     }
 
-    fn insert_ownership_token_wrapper_for(&mut self, pppk: &OwnershipTokenWrapper, old_uid: &UID, uid: &UID) {
+    fn insert_ownership_token_wrapper_for(
+        &mut self,
+        pppk: &OwnershipTokenWrapper,
+        old_uid: &UID,
+        uid: &UID,
+    ) {
         let start = time::Instant::now();
         let p = self.principal_data.get_mut(old_uid);
         if p.is_none() {
@@ -635,17 +693,34 @@ impl TokenCtrler {
             Some(bag) => {
                 bag.owner = uid.clone();
                 bag.owntoks.push(pppk.clone());
-                warn!("Got bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, bag.owntoks.len(), bag.pktoks.len());
+                warn!(
+                    "Got bag for {} and {} with owntoks {} and privkeys {}",
+                    old_uid,
+                    pppk.did,
+                    bag.owntoks.len(),
+                    bag.pktoks.len()
+                );
             }
             None => {
                 let mut new_bag = Bag::new(uid);
                 new_bag.owntoks.push(pppk.clone());
-                warn!("Got new_bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, new_bag.owntoks.len(), new_bag.pktoks.len());
+                warn!(
+                    "Got new_bag for {} and {} with owntoks {} and privkeys {}",
+                    old_uid,
+                    pppk.did,
+                    new_bag.owntoks.len(),
+                    new_bag.pktoks.len()
+                );
                 self.tmp_bags
                     .insert((old_uid.clone(), pppk.did.clone()), new_bag);
             }
         }
-        warn!("Inserted own token from uid {} for {}: {}", old_uid, uid, start.elapsed().as_micros());
+        warn!(
+            "Inserted own token from uid {} for {}: {}",
+            old_uid,
+            uid,
+            start.elapsed().as_micros()
+        );
     }
 
     pub fn insert_user_diff_token_wrapper_for(&mut self, token: &DiffTokenWrapper, uid: &UID) {
@@ -892,7 +967,7 @@ impl TokenCtrler {
                             self.get_user_tokens(&privkey, &lc);
                         diff_tokens.append(&mut pp_diff_tokens);
                         own_tokens.append(&mut pp_own_tokens);
-                        for (new_uid, pk) in &pp_pk_tokens{
+                        for (new_uid, pk) in &pp_pk_tokens {
                             pk_tokens.insert(new_uid.clone(), pk.clone());
                         }
                     }
@@ -929,9 +1004,7 @@ impl TokenCtrler {
 
             let (success, plaintext) = encbag.decrypt_encdata(decrypt_cap);
             if !success {
-                warn!(
-                    "Could not decrypt encdata at {:?} with decryptcap", lc 
-                );
+                warn!("Could not decrypt encdata at {:?} with decryptcap", lc);
                 return (false, false, false);
             }
             let mut bag: Bag = bincode::deserialize(&plaintext).unwrap();
@@ -1028,15 +1101,16 @@ impl TokenCtrler {
             }
             // actually remove locs
             if no_diffs_at_loc && no_owns_at_loc && no_pks_at_loc {
-                let enc_bag = self.enc_map.remove(&lc.loc);
-                if let Some(enc_bag) = enc_bag {
-                    // estimate
-                    self.cipher_sz -= enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
+                let _enc_bag = self.enc_map.remove(&lc.loc);
+                //if let Some(enc_bag) = enc_bag {
+                    // not subtracting for now 
+                    /*self.cipher_sz -=
+                        enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
                     self.plaintext_sz -= enc_bag.enc_data.len() - 10;
                     self.ndts -= bag.difftoks.len();
                     self.nots -= bag.owntoks.len();
-                    self.npts -= bag.pktoks.len();
-                }
+                    self.npts -= bag.pktoks.len();*/
+                //}
             } else if changed {
                 // update the encrypted store of stuff if changed at all
                 bag.pktoks = kept_privkeys;
@@ -1183,9 +1257,10 @@ mod tests {
                         d as u64,
                         guise_name.clone(),
                         guise_ids.clone(),
-                        vec![
-                            RowVal::new(fk_col.clone(), (old_fk_value + (i as u64)).to_string())
-                        ],
+                        vec![RowVal::new(
+                            fk_col.clone(),
+                            (old_fk_value + (i as u64)).to_string(),
+                        )],
                     );
                     remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token_wrapper_for(&mut remove_token, &u.to_string());
@@ -1214,7 +1289,7 @@ mod tests {
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
                     assert_eq!(
-                        dt.old_value[0].value,
+                        dt.old_value[0].value(),
                         (old_fk_value + (i as u64)).to_string()
                     );
                 }
@@ -1275,8 +1350,8 @@ mod tests {
                     guise_ids.clone(),
                     vec![RowVal::new(
                         fk_col.clone(),
-                        (old_fk_value + (d as u64)).to_string())
-                    ],
+                        (old_fk_value + (d as u64)).to_string(),
+                    )],
                 );
                 remove_token.uid = u.to_string();
                 ctrler.insert_user_diff_token_wrapper_for(&mut remove_token, &u.to_string());
@@ -1318,7 +1393,7 @@ mod tests {
                 assert_eq!(own_tokens.len(), 1);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);
                 assert_eq!(
-                    dt.old_value[0].value,
+                    dt.old_value[0].value(),
                     (old_fk_value + (d as u64)).to_string()
                 );
             }
