@@ -2,64 +2,54 @@
 \section{Interactions Between Disguises}
 \label{s:composition}
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.5\textwidth]{figs/edna_reveal}
-    \caption{\sys composes disguises by recursively disguising
-             pseudoprincipal-owned records.}
-    \label{f:recursive}
-\end{figure}
-
 %
 We imagine that \sys-enabled applications will contain multiple
-disguises, and that developers will invent and implement new disguises
+disguises, and that developers will implement new disguises
 over time.
 %
 For example, an application might start out with a disguise for account
 deletion only, then add a data decay disguise, and finally add a more
 fine-grained anonymization disguise that scrubs identifying keywords
-from content in addition to decorrelating them.
+from decorrelated content.
 %
 Or a disguise may have a bug that requires an additional disguise
 to remedy.
 %
-In all these cases, \sys must support disguises that potentially
-operate over already-disguised data.
+In all these cases, \sys must support disguises that operate
+over already-disguised data.
 %
 
 %
-The application database changes for a disguise $d_2$ that applies
-to data already disguised by earlier disguise $d_1$ are fairly
+The application DB changes for a disguise $d_2$ that applies
+to data already disguised by earlier disguise $d_1$ are
 straightforward: $d_2$ modifies the data again, deletes it, or
 decorrelates it to pseudoprincipals.
 %
 However, if \sys is to permit revealing $d_2$---\ie let a natural
-principal $p$ restore the state after as it was $d_1$ but before
+principal $p$ restore their data as it was after $d_1$, but before
 $d_2$---it must store encrypted records of $d_2$'s changes.
 %
 But now, a challenge arises: data decorrelated to pseudoprincipals
-by $d_1$ is owned by those pseudoprincipals in the application
-DB, rather than with a natural principal; indeed, the application
-and \sys \emph{must} have forgotten the association with a natural
-principal to be secure.
+by $d_1$ is owned by those pseudoprincipals in the application DB,
+and \sys no longer has $p$'s public key to encrypt $d_2$'s changes
+with.
 %
-Thus, \sys lacks a public key to encrypt $d_2$'s changes for $p$.
+%Thus, \sys lacks a public key to encrypt $d_2$'s changes for $p$.
 %
-Moreover, the application cannot convey the locators returned by
-\sys to a client without knowing the natural principal.
+%Moreover, the application cannot convey the locators returned by
+%\sys to a client without knowing the natural principal.
 %
-
 %
-To solve this challenge, \sys stores data for pseudoprincipals,
-and establishes ways for a natural principal to prove a speaks-for
-relationship with these pseudoprincipals.
-%
-For example, after the instructor anonymizes a class in WebSubmit, all
-answers are associated with pseudoprincipals.
-%
-If the instructor later decides to scrub identifiers from answer contents
-using another disguise, those disguise's will be associated with
+To solve this, \sys encrypts data for pseudoprincipals, and lets a
+natural principal prove a speaks-for relationship with these
 pseudoprincipals.
+%
+%For example, after the instructor anonymizes a class in WebSubmit, all
+%answers are associated with pseudoprincipals.
+%
+%If the instructor later decides to scrub identifiers from answer contents
+%using another disguise, those disguise's will be associated with
+%pseudoprincipals.
 %
 %However, if a client speaking for the pseudoprincipals interactively applies the disguise (\eg a user
 %deletes $p$'s account after anonymization), the deletion disguise's records can be associated with
@@ -172,6 +162,15 @@ deleted previously-stored data.
 %Once \sys has removed $q$'s metadata, then \sys removes all trace of
 %\lcapa{pd} since the referenced bag is empty.
 %
+
+\begin{figure}[t]
+    \centering
+    \includegraphics{figs/edna_reveal}
+    \caption{\sys composes disguises by recursively disguising
+             pseudoprincipal-owned records.}
+    \label{f:recursive}
+\end{figure}
+
 
 \head{Putting It Together.}
 %
