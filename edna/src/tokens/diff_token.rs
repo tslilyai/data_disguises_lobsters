@@ -95,7 +95,10 @@ pub fn new_remove_principal_token_wrapper(
     token.did = did;
 
     let mut edna_token: EdnaDiffToken = Default::default();
-    edna_token.pubkey = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
+    edna_token.pubkey = match &pdata.pubkey {
+        Some(pk) => pk.to_pkcs1_der().unwrap().as_der().to_vec(),
+        None => vec![],
+    };
     edna_token.typ = REMOVE_PRINCIPAL;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
     /*error!("REMOVE PRINC: nonce {}, uid {}, did {}, pubkey {}, tp {}, all: {}", 
@@ -226,8 +229,14 @@ impl EdnaDiffToken {
             // only ever called for a real principal
             REMOVE_PRINCIPAL => {
                 let start = time::Instant::now();
+                let pkbytes = base64::decode(&self.pubkey).unwrap();
+                let pubkey = if pkbytes.is_empty() {
+                    None
+                } else {
+                    Some(FromRsaPublicKey::from_pkcs1_der(&pkbytes).unwrap())
+                };
                 let pdata = PrincipalData {
-                    pubkey: FromRsaPublicKey::from_pkcs1_der(&self.pubkey).unwrap(),
+                    pubkey: pubkey,
                     is_anon: false,
                     loc_caps: HashSet::new(),
                 };
