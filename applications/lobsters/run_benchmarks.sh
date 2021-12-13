@@ -5,9 +5,8 @@ rm *txt
 set -e
 
 RUST_LOG=error ../../target/release/lobsters \
-    --prime \
 	--storage \
-	--scale 0.005 \
+	--scale 3 \
 	&> output/users.out
 echo "Ran storage test for users"
 

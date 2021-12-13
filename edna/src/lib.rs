@@ -24,10 +24,19 @@ pub type DID = u64;
 pub type UID = String;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
-pub struct RowVal {
-    pub column: String,
-    pub value: String,
+pub struct RowVal(String, String);
+impl RowVal {
+    pub fn column(&self) -> String {
+        self.0.clone()
+    }
+    pub fn value(&self) -> String {
+        self.1.clone()
+    }
+    pub fn new(c: String, r: String) -> RowVal {
+        RowVal(c, r)
+    }
 }
+
 pub struct GuiseGen {
     pub guise_name: String,
     pub guise_id_col: String,

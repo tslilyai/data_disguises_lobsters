@@ -72,7 +72,7 @@ pub fn new_edna_ownership_token(
 ) -> EdnaOwnershipToken {
     let mut edna_token: EdnaOwnershipToken = Default::default();
     edna_token.cname = cname;
-    edna_token.cids = cids.iter().map(|rv| rv.value.clone()).collect();
+    edna_token.cids = cids.iter().map(|rv| rv.value().clone()).collect();
     edna_token.fk_col = fk_col;
 
     error!("EDNA OT: cn {}, cids {}, fkcol {}, total {}",

@@ -64,10 +64,9 @@ pub fn get_query_rows_str_txn(
             .map(|v| {
                 let index = i;
                 i += 1;
-                RowVal {
-                    column: cols[index].clone(),
-                    value: mysql_val_to_string(v),
-                }
+                RowVal::new( cols[index].clone(),
+                    mysql_val_to_string(v),
+                )
             })
             .collect();
         rows.push(vals);
@@ -102,10 +101,10 @@ pub fn get_query_rows_str(
             .map(|v| {
                 let index = i;
                 i += 1;
-                RowVal {
-                    column: cols[index].clone(),
-                    value: mysql_val_to_string(v),
-                }
+                RowVal::new(
+                    cols[index].clone(),
+                    mysql_val_to_string(v),
+                )
             })
             .collect();
         rows.push(vals);
@@ -134,10 +133,10 @@ pub fn get_query_rows_str_q<Q:Queryable>(
             .map(|v| {
                 let index = i;
                 i += 1;
-                RowVal {
-                    column: cols[index].clone(),
-                    value: mysql_val_to_string(v),
-                }
+                RowVal::new(
+                    cols[index].clone(),
+                    mysql_val_to_string(v),
+                )
             })
             .collect();
         rows.push(vals);
@@ -177,10 +176,10 @@ pub fn get_query_rows_prime(
             .map(|v| {
                 let index = i;
                 i += 1;
-                RowVal {
-                    column: cols[index].clone(),
-                    value: mysql_val_to_string(v),
-                }
+                RowVal::new(
+                    cols[index].clone(),
+                    mysql_val_to_string(v),
+                )
             })
             .collect();
         rows.push(vals);

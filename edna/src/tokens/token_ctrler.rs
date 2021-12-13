@@ -136,6 +136,7 @@ pub struct TokenCtrler {
 
     // XXX remove me
     pub plaintext_sz: usize,
+    pub cipher_sz: usize,
 
     // (p,d) capability -> set of token ciphertext for principal+disguise
     pub enc_map: HashMap<Loc, EncData>,
@@ -167,6 +168,7 @@ impl TokenCtrler {
             pseudoprincipal_keys_pool: vec![],
             poolsize: poolsize,
             plaintext_sz: 0,
+            cipher_sz: 0,
             batch: batch,
             dbserver: dbserver.to_string(),
             enc_map: HashMap::new(),
@@ -194,13 +196,13 @@ impl TokenCtrler {
         )
         .unwrap();
         for row in selected {
-            let is_anon: bool = row[1].value == "1";
-            let pubkey_bytes: Vec<u8> = base64::decode(&row[2].value).unwrap();
+            let is_anon: bool = row[1].value() == "1";
+            let pubkey_bytes: Vec<u8> = base64::decode(&row[2].value()).unwrap();
             let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
-            let locs_bytes = base64::decode(&row[3].value).unwrap();
+            let locs_bytes = base64::decode(&row[3].value()).unwrap();
             let locs = bincode::deserialize(&locs_bytes).unwrap();
             tctrler.register_saved_principal::<mysql::PooledConn>(
-                &row[0].value,
+                &row[0].value(),
                 is_anon,
                 &pubkey,
                 locs,
@@ -216,23 +218,29 @@ impl TokenCtrler {
         let mut bytes = 0;
         for (key, pd) in self.principal_data.iter() {
             bytes += size_of_val(&*key);
+            bytes += size_of_val(&pd.pubkey);
+            for ed in pd.loc_caps.iter() {
+                bytes += size_of_val(&*ed);
+            }
             bytes += size_of_val(&*pd);
             warn!("{}", bytes);
         }
-        for (key, em) in self.enc_map.iter() {
-            bytes += size_of_val(&*key);
-            bytes += size_of_val(&*em);
-            warn!("{}", bytes);
+        bytes += size_of_val(&self.principal_data);
+        for (l, ed) in self.enc_map.iter() {
+            bytes += size_of_val(&l);
+            bytes += size_of_val(&*ed);
         }
-        for ppks in &self.pseudoprincipal_keys_pool {
-            bytes += size_of_val(&*ppks);
-            warn!("{}", bytes);
+        bytes += size_of_val(&self.enc_map);
+        for (privkey, pubkey) in &self.pseudoprincipal_keys_pool {
+            bytes += size_of_val(&privkey);
+            bytes += size_of_val(&pubkey);
         }
+        bytes += size_of_val(&self.pseudoprincipal_keys_pool);
         for ppuid in self.pps_to_remove.iter() {
             bytes += size_of_val(&*ppuid);
-            warn!("{}", bytes);
         }
-        error!("PLAINTEXT {}", self.plaintext_sz);
+        bytes += size_of_val(&self.pps_to_remove);
+        error!("PLAINTEXT {}, CIPHERTEXT {}", self.plaintext_sz, self.cipher_sz);
         bytes
     }
 
@@ -559,10 +567,12 @@ impl TokenCtrler {
             .expect("no user with uid found?")
             .clone();
         let plaintext = bincode::serialize(bag).unwrap();
-        self.plaintext_sz += plaintext.len();
         let enc_bag = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
+        self.plaintext_sz += plaintext.len();
+        self.cipher_sz += enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
+        error!("bag {} {} {} plaintext size {} encsize {}", bag.difftoks.len(), bag.owntoks.len(), bag.pktoks.len(), plaintext.len(), &enc_bag.enc_data.len() + &enc_bag.enc_key.len() + &enc_bag.iv.len());
+        
         // insert the encrypted pppk into locating capability
-        error!("plaintext size {} encsize {}", plaintext.len(), enc_bag.enc_data.len());
         self.enc_map.insert(lc.loc, enc_bag);
         warn!("EdnaBatch: Saved bag for {}", lc.uid);
     }
@@ -998,7 +1008,12 @@ impl TokenCtrler {
             }
             // actually remove locs
             if no_diffs_at_loc && no_owns_at_loc && no_pks_at_loc {
-                self.enc_map.remove(&lc.loc);
+                let enc_bag = self.enc_map.remove(&lc.loc);
+                if let Some(enc_bag) = enc_bag {
+                    // estimate
+                    self.cipher_sz -= enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
+                    self.plaintext_sz -= enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
+                }
             } else if changed {
                 // update the encrypted store of stuff if changed at all
                 bag.pktoks = kept_privkeys;
@@ -1145,10 +1160,9 @@ mod tests {
                         d as u64,
                         guise_name.clone(),
                         guise_ids.clone(),
-                        vec![RowVal {
-                            column: fk_col.clone(),
-                            value: (old_fk_value + (i as u64)).to_string(),
-                        }],
+                        vec![
+                            RowVal::new(fk_col.clone(), (old_fk_value + (i as u64)).to_string())
+                        ],
                     );
                     remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token_wrapper_for(&mut remove_token, &u.to_string());
@@ -1236,10 +1250,10 @@ mod tests {
                     d as u64,
                     guise_name.clone(),
                     guise_ids.clone(),
-                    vec![RowVal {
-                        column: fk_col.clone(),
-                        value: (old_fk_value + (d as u64)).to_string(),
-                    }],
+                    vec![RowVal::new(
+                        fk_col.clone(),
+                        (old_fk_value + (d as u64)).to_string())
+                    ],
                 );
                 remove_token.uid = u.to_string();
                 ctrler.insert_user_diff_token_wrapper_for(&mut remove_token, &u.to_string());

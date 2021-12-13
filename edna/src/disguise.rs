@@ -67,10 +67,10 @@ impl Disguiser {
                     if c == &guise_gen.guise_id_col {
                         uid_ix = ix;
                     }
-                    let rv = RowVal {
-                        value: new_parent_vals[ix].to_string(),
-                        column: c.to_string(),
-                    };
+                    let rv = RowVal::new(
+                        c.to_string(),
+                        new_parent_vals[ix].to_string(),
+                    );
                     ix += 1;
                     rv
                 })
@@ -542,9 +542,9 @@ impl Disguiser {
                 .map(|rv| {
                     let mut new_rv = rv.clone();
                     for a in &cols_to_update {
-                        if rv.column == a.id.to_string() {
+                        if rv.column() == a.id.to_string() {
                             new_rv = RowVal {
-                                column: rv.column.clone(),
+                                column: rv.column().clone(),
                                 value: a.value.to_string(),
                             };
                         }
@@ -558,9 +558,9 @@ impl Disguiser {
                 .map(|rv| {
                     let mut new_rv = rv.clone();
                     for a in &cols_to_update {
-                        if rv.column == a.id.to_string() {
+                        if rv.column() == a.id.to_string() {
                             new_rv = RowVal {
-                                column: rv.column.clone(),
+                                column: rv.column().clone(),
                                 value: a.value.to_string(),
                             };
                         }
@@ -780,7 +780,7 @@ fn decor_items<Q: Queryable>(
     let cols = pseudoprincipals[0]
         .1
         .iter()
-        .map(|rv| rv.column.clone())
+        .map(|rv| rv.column().clone())
         .collect::<Vec<String>>()
         .join(",");
     let vals: Vec<String> = pseudoprincipals
@@ -789,7 +789,7 @@ fn decor_items<Q: Queryable>(
             format!(
                 "({})",
                 pp.1.iter()
-                    .map(|rv| rv.value.clone())
+                    .map(|rv| rv.value().clone())
                     .collect::<Vec<String>>()
                     .join(",")
             )
@@ -887,7 +887,7 @@ fn modify_items<Q: Queryable>(
     // TOKEN INSERT
     let start = time::Instant::now();
     for i in items {
-        let old_val: &str = &i.iter().find(|rv| rv.column == col).unwrap().value;
+        let old_val: &str = &i.iter().find(|rv| rv.column() == col).unwrap().value();
         let ids = get_ids(&table_info.id_cols, &i);
         let mut update_token = new_modify_token_wrapper(
             did,

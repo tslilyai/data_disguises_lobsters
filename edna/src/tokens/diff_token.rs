@@ -49,10 +49,6 @@ pub struct EdnaDiffToken {
     pub old_val: String,
     pub new_val: String,
 
-    // REMOVE/MODIFY
-    pub oldblob: Vec<u8>,
-    pub newblob: Vec<u8>,
-
     // REMOVE PRINCIPAL
     pub pubkey: Vec<u8>,
 }
@@ -114,7 +110,7 @@ pub fn new_remove_principal_token_wrapper(
 }
 
 // create diff tokens about diff tokens
-pub fn new_token_modify(
+/*pub fn new_token_modify(
     uid: UID,
     did: DID,
     old_token: &DiffTokenWrapper,
@@ -146,7 +142,7 @@ pub fn new_token_remove(uid: UID, did: DID, changed_token: &DiffTokenWrapper) ->
 
     token.token_data = edna_diff_token_to_bytes(&edna_token);
     token
-}
+}*/
 
 // create diff tokens about db objects
 pub fn new_delete_token_wrapper(
@@ -162,17 +158,22 @@ pub fn new_delete_token_wrapper(
     let mut edna_token: EdnaDiffToken = Default::default();
     edna_token.typ = REMOVE_GUISE;
     edna_token.table = table;
-    edna_token.tabids = tabids.iter().map(|rv| rv.value.clone()).collect();
+    edna_token.tabids = tabids.iter().map(|rv| rv.value().clone()).collect();
     edna_token.old_value = old_value;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
-
-    error!("REMOVE DATA: nonce {}, did {}, table {}, tableid {}, tp {}, oldval {}, all: {}", 
+       
+    // XXX Remove
+    let mut old_val_rvs = 0;
+    for v in &edna_token.old_value {
+        old_val_rvs += size_of_val(&*v);
+    }
+    error!("REMOVE DATA: nonce {}, did {}, table {}, tableid {}, tp {}, oldvalblob {}, all: {}", 
         size_of_val(&token.nonce),
         size_of_val(&token.did),
         size_of_val(&*edna_token.table),
         size_of_val(&*edna_token.tabids),
         size_of_val(&edna_token.typ),
-        size_of_val(&*edna_token.old_value),
+        size_of_val(&*edna_token.old_value) + old_val_rvs,
         size_of_val(&token),
     );
     token
@@ -193,13 +194,13 @@ pub fn new_modify_token_wrapper(
     let mut edna_token: EdnaDiffToken = Default::default();
     edna_token.typ = MODIFY_GUISE;
     edna_token.table = table;
-    edna_token.tabids = tabids.iter().map(|rv| rv.value.clone()).collect();
+    edna_token.tabids = tabids.iter().map(|rv| rv.value().clone()).collect();
     edna_token.col = col;
     edna_token.old_val = old_value;
     edna_token.new_val = new_value;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
 
-    error!("MODIFY DATA: nonce {}, did {}, table {}, tableids {}, tp {}, col {}, oldval {}, newval {}, all: {}", 
+    error!("MODIFY DATA: nonce {}, did {}, table {}, tableids {}, tp {}, col {}, old_col_val {}, newval {}, all: {}", 
         size_of_val(&token.nonce),
         size_of_val(&token.did),
         size_of_val(&*edna_token.table),
@@ -261,23 +262,23 @@ impl EdnaDiffToken {
                 }
 
                 // otherwise insert it
-                let cols: Vec<String> = self.old_value.iter().map(|rv| rv.column.clone()).collect();
+                let cols: Vec<String> = self.old_value.iter().map(|rv| rv.column().clone()).collect();
                 let colstr = cols.join(",");
                 let vals: Vec<String> = self
                     .old_value
                     .iter()
                     .map(|rv| {
-                        if rv.value.is_empty() {
+                        if rv.value().is_empty() {
                             "\"\"".to_string()
-                        } else if rv.value == "NULL" {
+                        } else if rv.value() == "NULL" {
                             "NULL".to_string()
                         } else {
-                            for c in rv.value.chars() {
+                            for c in rv.value().chars() {
                                 if !c.is_numeric() {
-                                    return format!("\"{}\"", rv.value.clone());
+                                    return format!("\"{}\"", rv.value().clone());
                                 }
                             }
-                            rv.value.clone()
+                            rv.value().clone()
                         }
                     })
                     .collect();
@@ -306,11 +307,11 @@ impl EdnaDiffToken {
                     warn!("DiffTokenWrapper Reveal: Modified value no longer exists\n",);
                 }
                 for rv in &selected[0] {
-                    if rv.column == self.col {
-                        if rv.value != self.new_val {
+                    if rv.column() == self.col {
+                        if rv.value() != self.new_val {
                             warn!(
                                 "DiffTokenWrapper Reveal: Modified value {:?} not equal to new value {:?}\n",
-                                rv.value, self.new_val
+                                rv.value(), self.new_val
                             );
                             return Ok(false);
                         }

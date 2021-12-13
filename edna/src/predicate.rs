@@ -338,8 +338,8 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
     use PredClause::*;
     let matches = match p {
         ColInList { col, vals, neg } => {
-            let found = match row.iter().find(|rv| &rv.column == col) {
-                Some(rv) => vals.iter().find(|v| v.to_string() == rv.value).is_some(),
+            let found = match row.iter().find(|rv| &rv.column() == col) {
+                Some(rv) => vals.iter().find(|v| v.to_string() == rv.value()).is_some(),
                 None => false,
             };
             found != *neg
@@ -347,20 +347,20 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
         ColColCmp { col1, col2, op } => {
             let rv1: String;
             let rv2: String;
-            match row.iter().find(|rv| &rv.column == col1) {
-                Some(rv) => rv1 = rv.value.clone(),
+            match row.iter().find(|rv| &rv.column() == col1) {
+                Some(rv) => rv1 = rv.value().clone(),
                 None => unimplemented!("bad predicate, no col1 {:?}", p),
             }
-            match row.iter().find(|rv| &rv.column == col2) {
-                Some(rv) => rv2 = rv.value.clone(),
+            match row.iter().find(|rv| &rv.column() == col2) {
+                Some(rv) => rv2 = rv.value().clone(),
                 None => unimplemented!("bad predicate, no col2 {:?}", p),
             }
             vals_satisfy_cmp(&rv1, &rv2, &op)
         }
         ColValCmp { col, val, op } => {
             let rv1: String;
-            match row.iter().find(|rv| &rv.column == col) {
-                Some(rv) => rv1 = rv.value.clone(),
+            match row.iter().find(|rv| &rv.column() == col) {
+                Some(rv) => rv1 = rv.value().clone(),
                 None => {
                     debug!("Didn't find column {} in row {:?}", col, row);
                     return false; // this can happen if the row just isn't of the right guise type?

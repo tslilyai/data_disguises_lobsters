@@ -487,15 +487,14 @@ fn run_sizes_test(
     let nusers = sampler.nusers();
     let mut lcs_map_all = HashMap::new();
     let mut rng = rand::thread_rng();
-    for trial in 0..1 {
+    for _ in 0..1 {
         let mut users = vec![];
-        for i in 0..(nusers/5) as usize {
+        for _i in 0..(nusers/10) as usize {
             let mut user_id = rng.gen_range(0, nusers) as u64 + 1;
             users.push(user_id);
             let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
 
             // DECAY
-            let start = time::Instant::now();
             let mut lcs_map =
                 disguises::data_decay::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
             lcs_map_all.extend(lcs_map.clone());

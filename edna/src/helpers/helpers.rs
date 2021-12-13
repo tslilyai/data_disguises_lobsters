@@ -22,8 +22,8 @@ pub fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
 
 pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
     for rv in row {
-        if &rv.column == col {
-            return Some(rv.value.clone());
+        if &rv.column() == col {
+            return Some(rv.value().clone());
         }
     }
     debug!("No value for col {} in row {:?}", col, row);
@@ -33,10 +33,10 @@ pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
 pub fn get_ids(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Vec<RowVal> {
     id_cols
         .iter()
-        .map(|id_col| RowVal {
-            column: id_col.clone(),
-            value: get_value_of_col(row, &id_col).unwrap(),
-        })
+        .map(|id_col| RowVal::new(
+            id_col.clone(),
+            get_value_of_col(row, &id_col).unwrap(),
+        ))
         .collect()
 }
 
@@ -62,9 +62,9 @@ pub fn get_select_of_ids(ids: &Vec<RowVal>) -> Expr {
     let mut selection = Expr::Value(Value::Boolean(true));
     for id in ids {
         let eq_selection = Expr::BinaryOp {
-            left: Box::new(Expr::Identifier(vec![Ident::new(id.column.clone())])),
+            left: Box::new(Expr::Identifier(vec![Ident::new(id.column().clone())])),
             op: BinaryOperator::Eq,
-            right: Box::new(Expr::Value(Value::String(id.value.clone()))),
+            right: Box::new(Expr::Value(Value::String(id.value().clone()))),
         };
         selection = Expr::BinaryOp {
             left: Box::new(selection),
@@ -82,7 +82,7 @@ pub fn get_select_of_row(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Expr {
         let eq_selection = Expr::BinaryOp {
             left: Box::new(Expr::Identifier(vec![Ident::new(id_cols[i].clone())])),
             op: BinaryOperator::Eq,
-            right: Box::new(Expr::Value(Value::String(id.value.clone()))),
+            right: Box::new(Expr::Value(Value::String(id.value().clone()))),
         };
         selection = Expr::BinaryOp {
             left: Box::new(selection),
