@@ -5,11 +5,11 @@ use log::warn;
 use mysql::prelude::*;
 use rand::{thread_rng, Rng};
 use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
-use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::time;
+use serde::{Deserialize, Serialize};
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
@@ -53,8 +53,8 @@ pub struct EdnaDiffToken {
     pub new_val: String,
 
     // REMOVE/MODIFY
-    pub old_token_blob: String,
-    pub new_token_blob: String,
+    pub old_token_blob: Vec<u8>,
+    pub new_token_blob: Vec<u8>,
 
     // REMOVE PRINCIPAL
     pub uid: UID,
@@ -76,21 +76,19 @@ impl Hash for EdnaDiffToken {
 }
 
 pub fn diff_tokens_from_bytes(bytes: &Vec<u8>) -> Vec<DiffTokenWrapper> {
-    serde_json::from_slice(bytes).unwrap()
+    bincode::deserialize(bytes).unwrap()
 }
 pub fn diff_token_from_bytes(bytes: &Vec<u8>) -> DiffTokenWrapper {
-    serde_json::from_slice(bytes).unwrap()
+    bincode::deserialize(bytes).unwrap()
 }
 pub fn diff_token_to_bytes(token: &DiffTokenWrapper) -> Vec<u8> {
-    let s = serde_json::to_string(token).unwrap();
-    s.as_bytes().to_vec()
+    bincode::serialize(token).unwrap()
 }
 pub fn edna_diff_token_from_bytes(bytes: &Vec<u8>) -> EdnaDiffToken {
-    serde_json::from_slice(bytes).unwrap()
+    bincode::deserialize(bytes).unwrap()
 }
 pub fn edna_diff_token_to_bytes(token: &EdnaDiffToken) -> Vec<u8> {
-    let s = serde_json::to_string(token).unwrap();
-    s.as_bytes().to_vec()
+    bincode::serialize(token).unwrap()
 }
 
 // create diff token for generic data
@@ -154,8 +152,8 @@ pub fn new_token_modify(
 
     let mut edna_token: EdnaDiffToken = Default::default();
     edna_token.update_type = MODIFY_TOKEN;
-    edna_token.old_token_blob = serde_json::to_string(old_token).unwrap();
-    edna_token.new_token_blob = serde_json::to_string(changed_token).unwrap();
+    edna_token.old_token_blob = bincode::serialize(old_token).unwrap();
+    edna_token.new_token_blob = bincode::serialize(changed_token).unwrap();
     edna_token.token_id = token.token_id;
 
     token.token_data = edna_diff_token_to_bytes(&edna_token);
@@ -173,7 +171,7 @@ pub fn new_token_remove(uid: UID, did: DID, changed_token: &DiffTokenWrapper) ->
 
     let mut edna_token: EdnaDiffToken = Default::default();
     edna_token.update_type = REMOVE_TOKEN;
-    edna_token.old_token_blob = serde_json::to_string(changed_token).unwrap();
+    edna_token.old_token_blob = bincode::serialize(changed_token).unwrap();
     edna_token.token_id = token.token_id;
 
     token.token_data = edna_diff_token_to_bytes(&edna_token);

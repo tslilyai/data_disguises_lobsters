@@ -31,20 +31,19 @@ pub struct EdnaOwnershipToken {
     pub fk_col: String,
 }
 
-pub fn edna_own_token_from_bytes(bytes: &Vec<u8>) -> Result<EdnaOwnershipToken, serde_json::Error> {
-    serde_json::from_slice(bytes)
+pub fn edna_own_token_from_bytes(bytes: &Vec<u8>) -> Result<EdnaOwnershipToken, bincode::Error> {
+    bincode::deserialize(bytes)
 }
 
 pub fn edna_own_token_to_bytes(token: &EdnaOwnershipToken) -> Vec<u8> {
-    let s = serde_json::to_string(token).unwrap();
-    s.as_bytes().to_vec()
+    bincode::serialize(token).unwrap()
 }
 
 pub fn ownership_token_from_bytes(bytes: &Vec<u8>) -> OwnershipTokenWrapper {
-    serde_json::from_slice(bytes).unwrap()
+    bincode::deserialize(bytes).unwrap()
 }
 pub fn ownership_tokens_from_bytes(bytes: &Vec<u8>) -> Vec<OwnershipTokenWrapper> {
-    serde_json::from_slice(bytes).unwrap()
+    bincode::deserialize(bytes).unwrap()
 }
 pub fn new_generic_ownership_token_wrapper(
     old_uid: UID,

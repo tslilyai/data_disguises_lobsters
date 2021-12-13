@@ -195,9 +195,10 @@ impl TokenCtrler {
         .unwrap();
         for row in selected {
             let is_anon: bool = row[1].value == "1";
-            let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[2].value).unwrap();
+            let pubkey_bytes: Vec<u8> = base64::decode(&row[2].value).unwrap();
             let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
-            let locs = serde_json::from_str(&row[3].value).unwrap();
+            let locs_bytes = base64::decode(&row[3].value).unwrap();
+            let locs = bincode::deserialize(&locs_bytes).unwrap();
             tctrler.register_saved_principal::<mysql::PooledConn>(
                 &row[0].value,
                 is_anon,
@@ -314,7 +315,7 @@ impl TokenCtrler {
                         "UPDATE {} SET {} = \'{}\' WHERE {} = \'{}\'",
                         PRINCIPAL_TABLE,
                         "locs",
-                        serde_json::to_string(&p.loc_caps).unwrap(),
+                        base64::encode(&bincode::serialize(&p.loc_caps).unwrap()),
                         UID_COL,
                         uidstr
                     ))
@@ -470,13 +471,13 @@ impl TokenCtrler {
         for (uid, pdata) in &self.tmp_principals_to_insert {
             let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
             let v: Vec<String> = vec![];
-            let empty_vec = serde_json::to_string(&v).unwrap();
+            let empty_vec = base64::encode(&bincode::serialize(&v).unwrap());
             let uid = uid.trim_matches('\'');
             values.push(format!(
                 "(\'{}\', {}, \'{}\', \'{}\')",
                 uid,
                 if pdata.is_anon { 1 } else { 0 },
-                serde_json::to_string(&pubkey_vec).unwrap(),
+                base64::encode(&pubkey_vec),
                 empty_vec
             ));
         }
@@ -559,10 +560,12 @@ impl TokenCtrler {
             .get(&uid)
             .expect("no user with uid found?")
             .clone();
-        let plaintext = serialize_to_bytes(bag);
+        let plaintext = bincode::serialize(bag).unwrap();
+        error!("plaintext {:?}", plaintext);
         self.plaintext_sz += plaintext.len();
         let enc_bag = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
         // insert the encrypted pppk into locating capability
+        error!("plaintext size {} encsize {}", plaintext.len(), enc_bag.enc_data.len());
         self.enc_map.insert(lc.loc, enc_bag);
         warn!("EdnaBatch: Saved bag for {}", uid);
     }
@@ -819,7 +822,7 @@ impl TokenCtrler {
             if !succeeded {
                 return (diff_tokens, own_tokens, pk_tokens);
             }
-            let mut bag: Bag = serde_json::from_slice(&plaintext).unwrap();
+            let mut bag: Bag = bincode::deserialize(&plaintext).unwrap();
 
             // remove if we found a matching token for the disguise
             diff_tokens.append(&mut bag.difftoks);
@@ -853,7 +856,7 @@ impl TokenCtrler {
                         let tmp: [u8; 8] = lcbytes
                             .try_into()
                             .expect("Could not turn u64 vec into bytes?");
-                        let lc: LocCap = serde_json::from_slice(&tmp).unwrap();
+                        let lc: LocCap = bincode::deserialize(&tmp).unwrap();
                         let (mut pp_diff_tokens, mut pp_own_tokens, pp_pk_tokens) =
                             self.get_user_tokens(&privkey, &lc);
                         diff_tokens.append(&mut pp_diff_tokens);
@@ -900,7 +903,7 @@ impl TokenCtrler {
                 );
                 return (false, false, false);
             }
-            let mut bag: Bag = serde_json::from_slice(&plaintext).unwrap();
+            let mut bag: Bag = bincode::deserialize(&plaintext).unwrap();
             let tokens = bag.difftoks.clone();
             warn!(
                 "EdnaBatch: Decrypted diff tokens added {}: {}",
@@ -949,7 +952,7 @@ impl TokenCtrler {
 
                     for enclc in new_pp.loc_caps.clone() {
                         let (_, lcbytes) = enclc.decrypt_encdata(&pkt.priv_key);
-                        let pplc: LocCap = serde_json::from_slice(&lcbytes).unwrap();
+                        let pplc: LocCap = bincode::deserialize(&lcbytes).unwrap();
 
                         // for each locator that the pp has
                         // clean up the tokens at the locators
@@ -1020,7 +1023,7 @@ impl TokenCtrler {
                 let start = time::Instant::now();
                 // decrypt token with decrypt_cap provided by client
                 let (_, plaintext) = encbag.decrypt_encdata(decrypt_cap);
-                let bag: Bag = serde_json::from_slice(&plaintext).unwrap();
+                let bag: Bag = bincode::deserialize(&plaintext).unwrap();
                 let tokens = bag.owntoks;
                 for pk in &tokens {
                     if uids.is_empty() {
@@ -1041,7 +1044,7 @@ impl TokenCtrler {
                         let mut pplcs = HashSet::new();
                         for enclc in &pp.loc_caps {
                             let (_, lcbytes) = enclc.decrypt_encdata(&pk);
-                            pplcs.insert(serde_json::from_slice(&lcbytes).unwrap());
+                            pplcs.insert(bincode::deserialize(&lcbytes).unwrap());
                         }
                         let ppuids = self.get_user_pseudoprincipals(&pk, &pplcs);
                         uids.extend(ppuids.iter().cloned());
