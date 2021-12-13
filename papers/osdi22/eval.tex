@@ -253,7 +253,7 @@ restoration).
 \hline
     Generate Keypair & \multicolumn{3}{c}{301}\\
 \hline
-    & \textbf{100B} & \textbf{1MB} & \textbf{10MB}\\
+    & \textbf{Base (100B)} & \textbf{1MB} & \textbf{10MB}\\
     Encrypt Bag & 0.3 & 4.1 & 38.3\\
     Decrypt Bag & 2.8 & 4.5 & 22.3\\
 \end{tabular}
@@ -439,29 +439,48 @@ disguises; we evaluate this cost next.
 \end{figure}
 
 \subsubsection{Applying Multiple Disguises}
-The application and \sys may perform extra cryptographic work to apply a second disguise $d_2$ to
-data decorrelated by a prior disguise $d_1$.
+%
+Our next experiment considers the cost of user-initiated account
+deletion from an application that already invoked a prior disguise
+to anonymize and decorrelate all users' data.
+%
+We consider WebSubmit and HotCRP, and compare three costs: \one{}
+manual account deletion (as before); \two{} account deletion and
+restoration \emph{without} prior a anonymization disguise; and
+\three{} account deletion and restoration \emph{with} a prior
+anonymization disguise.
+%
+When the application applies the account deletion disguise over data
+already decorrelated by anonymization, \sys associates any new
+database diffs and speaks-for records with pseudoprincipals created
+by anonymization.
+%
+This requires \sys to create and encrypt
+$O(\textit{\# pseudoprincipals})$ bags, so the disguise is necessarily
+more expensive than a single, batched encryption for all data
+associated with a natural principal when there is no prior disguise.
+%
 
+%%
+%One such case occurs when a client interactively invokes $d_2$ on behalf of principal $p$ with private key $p$ and
+%locators \lcapa{pd_1} from anonymization disguise $d_1$, the application can ask \sys (via
+%\fn{PseudoprincipalsOf}) to decrypt all speaks-for records in $p$'s bag at \lcapa{pd_1} using $p$'s
+%private key.
+%This adds the cost of decrypting speaks-for records stored at \lcapa{pd_1}.
+%%
+%With these speaks-for tokens, the application and \sys can not only disguise
+%$p$'s data, but also disguise data of $p$'s pseudoprincipals $q_i$ produced by $d_1$.
+%\sys must perform one bag encryption \emph{per pseudoprincipal $q_i$}, rather than a single
+%encryption for single pseudoprincipal $p$ had $p$'s data never been decorrelated by $d_1$.
+%%
 %
-One such case occurs when a client interactively invokes $d_2$ on behalf of principal $p$ with private key $p$ and
-locators \lcapa{pd_1} from anonymization disguise $d_1$, the application can ask \sys (via
-\fn{PseudoprincipalsOf}) to decrypt all speaks-for records in $p$'s bag at \lcapa{pd_1} using $p$'s
-private key.
-This adds the cost of decrypting speaks-for records stored at \lcapa{pd_1}.
-%
-With these speaks-for tokens, the application and \sys can not only disguise
-$p$'s data, but also disguise data of $p$'s pseudoprincipals $q_i$ produced by $d_1$.
-\sys must perform one bag encryption \emph{per pseudoprincipal $q_i$}, rather than a single
-encryption for single pseudoprincipal $p$ had $p$'s data never been decorrelated by $d_1$.
-%
-
-%
-As described in \S\ref{s:composition}, the application and \sys return a locator \lcapa{pd_2} to the
-client for every $q_i$ disguised, which points to $q_i$'s encrypted bag of records.
-%
-Upon reveal of $d_2$ with $p$'s private key and locators from $d_1$ and $d_2$, \sys decrypts and
-reveals all bags for both $p$ and the $q_i$. Similarly, \sys must perform one decryption per $q_i$; without
-composition, \sys could simply perform a single decryption of $p$'s bag at \lcapa{pd_1}.
+%%
+%As described in \S\ref{s:composition}, the application and \sys return a locator \lcapa{pd_2} to the
+%client for every $q_i$ disguised, which points to $q_i$'s encrypted bag of records.
+%%
+%Upon reveal of $d_2$ with $p$'s private key and locators from $d_1$ and $d_2$, \sys decrypts and
+%reveals all bags for both $p$ and the $q_i$. Similarly, \sys must perform one decryption per $q_i$; without
+%composition, \sys could simply perform a single decryption of $p$'s bag at \lcapa{pd_1}.
 
 Figure~\ref{f:composition} shows the average cost of interactively applying account deletion (and
 subsequent account revealing) after anonymization over all users $p$ in WebSubmit and all reviewers
@@ -504,14 +523,14 @@ Clients keep track of keys and locators that are emailed to them, but these are 
 %
 
 We measure the size of all data stored by \sys when some randomly selected 1.7k users (10\% of all
-users in Lobsters) have deleted their accounts. 
+users in Lobsters) have deleted their accounts.
 Prior to any account deletion, \sys's metadata (public keys of natural principals) and the in-memory
 pool of keypairs already requires 4.3MB.
 
 After a random 10\% of users delete their accounts, \sys's storage requires 137MB. The cost is
 proportional to the number of pseudoprincipals produced: each pseudoprincipal requires storing a
 private key (1.1KB) and speaks-for record, which together consume 1.4KB. Deleting 10\% of all users
-produces 78.7k pseudoprincipals and requires 110MB; this dominates the overall metadata cost.  
+produces 78.7k pseudoprincipals and requires 110MB; this dominates the overall metadata cost.
 The cost of a private key is unavoidable if the application wants to further disguise decorrelated
 data and allow users to access their decorrelated disguised data.
 %
