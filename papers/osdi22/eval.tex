@@ -539,35 +539,50 @@ pseudoprincipals touched.
 \label{s:eval-res}
 
 %
-Each generated pseudoprincipal adds an additional users object to the application database.
+Each generated pseudoprincipal adds an additional users object to the application
+database.
 %
-\sys also stores public-key metadata for each principal (and pseudoprincipals), metadata about which
-pseudopricipals to be forgetten, (in-memory) encrypted ciphertexts for records, and an in-memory pool
-of pregenerated private-public keypairs.
+\sys also stores public-key metadata for each active principal and
+pseudoprincipal, metadata about which pseudopricipals to be forgotten,
+encrypted ciphertexts for records, and an in-memory pool of pregenerated
+private-public keypairs.
 %
-Clients keep track of keys and locators that are emailed to them, but these are small.
+Clients keep track of keys and locators, but these are small and encoded
+in application-specific ways.
+%
+To understand \sys's space footprint, we measure the size of all data stored
+by \sys before and after 1.7k random users in Lobsters (10\% of users)
+deleted their accounts.
+%
+Cryptographic material necessarily adds some overhead, and most of \sys's
+state can be on persistent storage.
 %
 
-We measure the size of all data stored by \sys when some randomly selected 1.7k users (10\% of all
-users in Lobsters) have deleted their accounts.
-Prior to any account deletion, \sys's metadata (public keys of natural principals) and the in-memory
-pool of keypairs already requires 4.3MB.
-
-After a random 10\% of users delete their accounts, \sys's storage requires 137MB. The cost is
-proportional to the number of pseudoprincipals produced: each pseudoprincipal requires storing a
-private key (1.1KB) and speaks-for record, which together consume 1.4KB. Deleting 10\% of all users
-produces 78.7k pseudoprincipals and requires 110MB; this dominates the overall metadata cost.
-The cost of a private key is unavoidable if the application wants to further disguise decorrelated
-data and allow users to access their decorrelated disguised data.
 %
-In addition, each pseudoprincipal inserts a public-key into \sys's metadata, adding $\approx$0.3KB
-per pseudoprincipal and 24MB combined (although the public keys in the metadata for the 1700 deleted
-users is now removed).
+Prior to any account deletion, \sys's metadata (public keys of natural
+principals) and the in-memory pool of keypairs uses 4.3 MB.
+%
+After the users delete their accounts, \sys's stores 137 MB of data.
+%
+The space used is primarily proportional to the number of pseudoprincipals
+produced: each pseudoprincipal requires storing 1.4 KB of speaks-for
+record, dominated by the private key (1.1 KB).
+%
+Deleting 10\% of Lobsters users produces 78.7k pseudoprincipals that use
+110 MB.
+%
+Storing a private key is necessary if the application wants to further
+disguise decorrelated data, but avoidable if disguises cannot compose.
+%
+In addition, each pseudoprincipal inserts a public key into \sys's
+metadata, adding $\approx$0.3 KB per pseudoprincipal and 24 MB combined,
+and \sys removes the public keys for the 1700 deleted natural principals.
+%
 
-The remaining $\approx$2.2MB come from diff records storing the removal of the user's account (about
-1KB for the user DB entry, and 0.3KB for user's public key metadata). These originate from data
-originally stored in the database (with 2.2MB being 0.8\% of the initial seeded Lobsters database
-size of 261MB).
+%
+The remaining $\approx$2.2 MB come from diff records that store the
+user's deleted data from the application database; 2.2MB are 0.8\% of the
+original Lobsters database size of 261 MB.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Impact On Concurrent Application Use}
