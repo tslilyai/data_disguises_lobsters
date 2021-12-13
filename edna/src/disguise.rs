@@ -229,11 +229,11 @@ impl Disguiser {
         // get tokens with the right private key
         // we're screwed if we don't get them in the right order???
         // one iter to get original pks
-        let mut changed_pks = true;
+        let mut changed_pks = false;
         for lc in loc_caps {
-            changed_pks = false;
             let (mut dts, mut ots, pks) = locked_token_ctrler.get_user_tokens(decrypt_cap, lc);
             if dts.is_empty() && ots.is_empty() && pks.is_empty() {
+                warn!("Try again for {}", lc.uid);
                 failedlcs.push(lc);
             }
             diff_tokens.append(&mut dts);
@@ -241,14 +241,18 @@ impl Disguiser {
             for (new_uid, pk) in &pks {
                 changed_pks = true;
                 pk_tokens.insert(new_uid.clone(), pk.clone());
+                warn!("Found pk for {}", new_uid);
             }
         }
         while changed_pks {
+            warn!("changed_pks");
             let mut newfailedlcs = vec![];
             changed_pks = false;
             // do one iter
             for lc in failedlcs {
+                warn!("failedlc {}", lc.uid);
                 if let Some(pk) = pk_tokens.get(&lc.uid) {
+                    warn!("Try again to get tokens for {}", lc.uid);
                     let (mut dts, mut ots, pks) = locked_token_ctrler.get_user_tokens(&pk, lc);
                     if dts.is_empty() && ots.is_empty() && pks.is_empty() {
                         newfailedlcs.push(lc);
@@ -256,6 +260,7 @@ impl Disguiser {
                     diff_tokens.append(&mut dts);
                     ownership_tokens.append(&mut ots);
                     for (new_uid, pk) in &pks {
+                        warn!("Found pk for {}", new_uid);
                         changed_pks = true;
                         pk_tokens.insert(new_uid.clone(), pk.clone());
                     }

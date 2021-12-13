@@ -47,7 +47,10 @@ impl EncData {
         let key: Vec<u8>;
         match priv_key.decrypt(padding, &self.enc_key) {
             Ok(k) => key = k.clone(),
-            _ => return (false, vec![]),
+            _ => {
+                warn!("failed to decrypt enckey!");
+                return (false, vec![]);
+            }
         }
         let cipher = Aes128Cbc::new_from_slices(&key, &self.iv).unwrap();
         let mut edata = self.enc_data.clone();
@@ -616,11 +619,11 @@ impl TokenCtrler {
         let plaintext = bincode::serialize(bag).unwrap();
         let enc_bag =
             EncData::encrypt_with_pubkey(&p.pubkey.expect("No pubkey?"), &plaintext);
-        self.plaintext_sz += plaintext.len();
-        self.cipher_sz += enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
-        self.ndts += bag.difftoks.len();
-        self.nots += bag.owntoks.len();
-        self.npts += bag.pktoks.len();
+        //self.plaintext_sz += plaintext.len();
+        //self.cipher_sz += enc_bag.enc_data.len() + enc_bag.enc_key.len() + enc_bag.iv.len();
+        //self.ndts += bag.difftoks.len();
+        //self.nots += bag.owntoks.len();
+        //self.npts += bag.pktoks.len();
 
         // insert the encrypted pppk into locating capability
         self.enc_map.insert(lc.loc, enc_bag);
@@ -926,6 +929,7 @@ impl TokenCtrler {
             // decrypt token with decrypt_cap provided by client
             let (succeeded, plaintext) = encbag.decrypt_encdata(decrypt_cap);
             if !succeeded {
+                warn!("Failed to decrypt bag {} with {}", lc.uid, decrypt_cap.len());
                 return (diff_tokens, own_tokens, pk_tokens);
             }
             let mut bag: Bag = bincode::deserialize(&plaintext).unwrap();

@@ -23,7 +23,6 @@ pub fn new_privkey_token(
     let mut token: PrivkeyToken = Default::default();
     token.new_uid = new_uid;
     token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
-
     /*error!("PK DATA: new_uid {}, pk {}, all: {}", 
         size_of_val(&*token.new_uid),
         size_of_val(&*token.priv_key),
