@@ -69,17 +69,24 @@ upper bound on how much data a user might have).
 %
 
 %
-Security against an attacker who compromises the server and observes future
-disguises is unaffected, as \sys only keys from the pool when it generates
-pseudoprincipals during disguises (when the keys would otherwise have been
-generated, and leaked to the attacker).
+An attacker can compromise the key pool, but \sys makes no security guarantees
+from the point when the server compromises happens.
 %
-However, an attacker who compromises the server, exfiltrates the keys, and
-leaves would be able to come back and use the keys later to reveal disguised
-data.
+To recover, an administrator must generate a new key pool, as well as resetting
+extant principals' keys.
 %
-A fixed-size pool and periodic refreshes bound the period of vulnerability and
-amount of data such an attacker can reveal.
+
+%Security against an attacker who compromises the server and observes future
+%disguises is unaffected, as \sys only keys from the pool when it generates
+%pseudoprincipals during disguises (when the keys would otherwise have been
+%generated, and leaked to the attacker).
+%%
+%However, an attacker who compromises the server, exfiltrates the keys, and
+%leaves would be able to come back and use the keys later to reveal disguised
+%data.
+%%
+%A fixed-size pool and periodic refreshes bound the period of vulnerability and
+%amount of data such an attacker can reveal.
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
