@@ -58,27 +58,24 @@ pseudoprincipals.
 
 \head{Storing Data for Pseudoprincipals.}
 %
-\sys must store data for pseudoprincipals in such a way that only a client
-with natural principal $p$'s private key can access the records of $p$'s
-pseudoprincipals.
+%\sys must store data for pseudoprincipals in such a way that only a client
+%with natural principal $p$'s private key can access the records of $p$'s
+%pseudoprincipals.
 %
 %Encrypting records for pseudoprincipal $q$ with $p$'s public key does not
 %always work, as \sys may not know which natural principal $p$ links to $q$.
 %
-Each time \sys creates a new pseudoprincipal $q$ for natural principal $p$,
-it also generates a keypair for $q$.
-%
-Just like with natural principals, \sys stores $q$'s public key and uses it
-to encrypt $q$'s records.
+Each time \sys creates a new pseudoprincipal $q$ for natural principal $p$
+during $d_1$ (with $p$'s public key still available), it generates a keypair
+for $q$.
 %
 \sys then ``wraps'' $q$'s private key by encrypting it with $p$'s public key,
-and forgets the plaintext private key.
+stores it in \lcapa{pd_1}, and forgets the plaintext private key.
 %
-As a result, access to $q$'s private key requires $p$'s private key, and, thus
-access to future records in \sys encrypted for $q$ does as well.
+Hence, access to $q$'s private key requires $p$'s private key, and thus
+so does access to records encrypted for $q$.
 %
-\sys stores $q$'s wrapped private key at location \lcapa{pd} along with
-$p$'s encrypted data.
+\sys stores $q$'s public key and uses it to encrypt $q$'s records.
 %
 
 %
@@ -93,28 +90,28 @@ pseudoprincipal $r$, granting any natural principal who can access
 $r$'s private key access to $q$ and its data.
 %
 
-\head{Storing Pseudoprincipals' Locators.}
-%
-When a disguise $d_2$ generates records owned by a pseudoprincipal $q$, \sys
-stores these encrypted records at some locator.
-%
-If the call to store the record indicates an interactive client speaking-for $p$,
-\sys stores the ciphertexts at \lcapa{pd}, and everything is fine (\lcapa{pd} is sent back to the
-client).
-%
-If \sys is not applying the disguise on behalf of a particular user, however, \sys stores encrypted records at some locator for $q$, \lcapa{qd}.
-%
-In this case, the application and \sys have nowhere to send \lcapa{qd} when the disguise completes, because $q$ is a
-pseudoprincipal.
-%
-To retain the ability to efficiently access the records via \lcapa{qd}, \sys encrypts \lcapa{qd}
-with the pseudoprincipal's public key and stores the resulting ciphertext in \sys's metadata for $q$
-(which also includes $q$'s public key).
-%
-It is fine to encrypt the locator, since it will only be needed to reveal
-the disguise---and at that point, $q$'s private key will be available,
-as the principal who speaks-for $q$ can unwrap it.
-%
+%\head{Storing Pseudoprincipals' Locators.}
+%%
+%When a disguise $d_2$ generates records owned by a pseudoprincipal $q$, \sys
+%stores these encrypted records at some locator.
+%%
+%If the call to store the record indicates an interactive client speaking-for $p$,
+%\sys stores the ciphertexts at \lcapa{pd}, and everything is fine (\lcapa{pd} is sent back to the
+%client).
+%%
+%If \sys is not applying the disguise on behalf of a particular user, however, \sys stores encrypted records at some locator for $q$, \lcapa{qd}.
+%%
+%In this case, the application and \sys have nowhere to send \lcapa{qd} when the disguise completes, because $q$ is a
+%pseudoprincipal.
+%%
+%To retain the ability to efficiently access the records via \lcapa{qd}, \sys encrypts \lcapa{qd}
+%with the pseudoprincipal's public key and stores the resulting ciphertext in \sys's metadata for $q$
+%(which also includes $q$'s public key).
+%%
+%It is fine to encrypt the locator, since it will only be needed to reveal
+%the disguise---and at that point, $q$'s private key will be available,
+%as the principal who speaks-for $q$ can unwrap it.
+%%
 
 \head{Pseudoprincipal Metadata.}
 %
