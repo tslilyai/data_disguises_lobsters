@@ -10,7 +10,7 @@ plt.style.use('seaborn-deep')
 plt.figure(figsize = (3.33, 1.5))
 
 # plot styling for paper
-matplotlib.rc('font', family='serif', size=9)
+matplotlib.rc('font', family='serif', size=8)
 matplotlib.rc('text.latex', preamble='\\usepackage{times,mathptmx}')
 matplotlib.rc('text', usetex=True)
 matplotlib.rc('legend', fontsize=8)
@@ -35,7 +35,7 @@ def get_yerr(durs):
     return [mins, maxes]
 
 # positions
-barwidth = 0.25
+barwidth = 0.4
 X = np.arange(6)
 labels = [
         'Create\nAccount',
@@ -65,12 +65,12 @@ for i in range(2):
     app = "hotcrp"
     filename_baseline = "results/hotcrp_results/hotcrp_disguise_stats_3080users_baseline.csv"
     filename_batch = "results/hotcrp_results/hotcrp_disguise_stats_3080users_batch.csv"
-    offset = 2
+    offset = 5
     if i == 0:
         app = "websubmit"
         filename_baseline = 'results/websubmit_results/disguise_stats_{}lec_{}users_baseline.csv'.format(20, 100)
         filename_batch = 'results/websubmit_results/disguise_stats_{}lec_{}users.csv'.format(20, 100)
-        offset = 0.5
+        offset = 2
     with open(filename_batch,'r') as csvfile:
         rows = csvfile.readlines()
         account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
