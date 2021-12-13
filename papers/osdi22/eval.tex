@@ -290,8 +290,8 @@ Normal operations have comparable latencies with and without \sys.
 baseline since \sys encrypts database diffs and speaks-for records, while
 the baseline only deletes data from the application DB.
 %
-The absolute latency of \sys's disguises is 10.8ms and the latencies for
-\sys's operations over data under disguise are 10--21ms.
+The absolute latency of \sys's disguises is 2.4--14.5ms and the latencies for
+\sys's operations over data under disguise are 7.8--22.3ms.
 %
 (These operations are impossible in the baseline.)
 %
@@ -318,14 +318,14 @@ Figure~\ref{f:ops-hotcrp} shows higher latencies in general, even for the manual
 privacy transformations in the baseline, which reflects the more complex
 disguises.
 %
-\sys takes 32--107ms to disguise and reveal a user's data, again owing to the
+\sys takes 38--77.4ms to disguise and reveal a user's data, again owing to the
 extra cryptographic operations necessary.
 %
 Note that account anonymization in HotCRP is an admin-applied disguises that
 runs for all PC members.
 %
 Its total latency is proportional to the PC size; \eg with 50 PC members, it takes
-five seconds, which is acceptable for a one-off operation.
+3 seconds, which is acceptable for a one-off operation.
 %
 As before, \sys adds minimal latency to normal application operations.
 %
@@ -355,11 +355,11 @@ expect some users' disguises to be much more expensive than the median user's.
 %
 The results are in Figure~\ref{f:ops-lobsters}.
 %
-The median latencies are small (10--25ms for \sys, and <0.1ms for the
+The median latencies are small (7.1--13.5ms for \sys, and <5ms for the
 baseline), since the median Lobsters user has little data.
 %
 But some highly active users have a lot of data, which raises the
-95\textsuperscript{th} percentile latency to 120--220ms for these users.
+95\textsuperscript{th} percentile latency to 75--180ms for these users.
 %
 
 \paragraph{Summary.}
@@ -504,8 +504,8 @@ proportional to the amount of user data already under disguise.
 
 Figure~\ref{f:composition} shows the disguise latencies.
 %
-WebSubmit account deletion latency increases by 5.5$\times$ and restoration by 5.7$\times$; in
-HotCRP, deletion latency increases by 3$\times$ and restoration latency by 10$\times$.
+WebSubmit account deletion latency increases by 6.5$\times$ and restoration by 9.2$\times$; in
+HotCRP, deletion latency increases by 3.2$\times$ and restoration latency by 16.4$\times$.
 %
 Accounts in HotCRP have more data, and 7--8$\times$ more pseudoprincipals per user after
 anonymization than accounts in WebSubmit, so greater slowdowns in HotCRP make sense.
@@ -669,23 +669,24 @@ when concurrent privacy transformations occur.
 %
 Figure~\ref{f:concurrent-lobsters} shows the results.
 %
-The median latency of normal application requests increases by 6--38\% (from
-1.6ms to 1.7ms under low load, and 1.8ms to 1.9--2.5ms under high load) when
+The median latency of normal application requests increases by 6--20\% (from
+1.5ms to 1.6--1.8ms under low load, and 1.8ms to 1.9--2.1ms under high load) when
 random users delete and restore their accounts.
 %
 Transactional account deletion and restoration of the most expensive user
-results in a 11--38\% increase in median latency.
+results in a 16--50\% increase in median latency.
 %
 These results show that \sys's data disguises, as well as operations over data under disguise (here,
-account restoration) have little impact on other user's application experience.
+account restoration) have little impact on other user's application experience.\lyt{The 50\%
+number seems to indicate that txns might have a large impact?}
 %
 
 %
 While the experiment measured normal application request latency, the
-account deletions and restorations performed with high load take 9ms and
-15ms to complete in the median.
+(non-transactional) account deletions and restorations performed with high load take 9ms and
+13ms to complete in the median \note(txnal deletion and restore take 28 and 72ms to complete).
 %
-The expensive user's account deletion and reveal take 2--3 seconds.
+The expensive user's account deletion and reveal take 2--4.5 seconds.
 %
 We believe this is acceptable, as disguises aren't time-critical.
 %
