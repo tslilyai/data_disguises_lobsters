@@ -4,7 +4,7 @@ use crate::tokens::*;
 use crate::spec;
 use crate::{RowVal, DID, UID};
 use log::warn;
-use log::error;
+//use log::error;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;

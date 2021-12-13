@@ -3,7 +3,7 @@ use crate::tokens::*;
 use crate::spec;
 use crate::{RowVal, DID, UID};
 use log::warn;
-use log::error;
+//use log::error;
 use mysql::prelude::*;
 use rand::{thread_rng, Rng};
 use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
@@ -98,14 +98,14 @@ pub fn new_remove_principal_token_wrapper(
     edna_token.pubkey = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
     edna_token.typ = REMOVE_PRINCIPAL;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
-    error!("REMOVE PRINC: nonce {}, uid {}, did {}, pubkey {}, tp {}, all: {}", 
+    /*error!("REMOVE PRINC: nonce {}, uid {}, did {}, pubkey {}, tp {}, all: {}", 
         size_of_val(&token.nonce),
         size_of_val(&*token.uid),
         size_of_val(&token.did),
         size_of_val(&*edna_token.pubkey),
         size_of_val(&edna_token.typ),
         size_of_val(&token),
-    );
+    );*/
     token
 }
 
@@ -163,7 +163,7 @@ pub fn new_delete_token_wrapper(
     token.token_data = edna_diff_token_to_bytes(&edna_token);
        
     // XXX Remove
-    let mut old_val_rvs = 0;
+    /*let mut old_val_rvs = 0;
     for v in &edna_token.old_value {
         old_val_rvs += size_of_val(&*v);
     }
@@ -175,7 +175,7 @@ pub fn new_delete_token_wrapper(
         size_of_val(&edna_token.typ),
         size_of_val(&*edna_token.old_value) + old_val_rvs,
         size_of_val(&token),
-    );
+    );*/
     token
 }
 
@@ -200,7 +200,7 @@ pub fn new_modify_token_wrapper(
     edna_token.new_val = new_value;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
 
-    error!("MODIFY DATA: nonce {}, did {}, table {}, tableids {}, tp {}, col {}, old_col_val {}, newval {}, all: {}", 
+    /*error!("MODIFY DATA: nonce {}, did {}, table {}, tableids {}, tp {}, col {}, old_col_val {}, newval {}, all: {}", 
         size_of_val(&token.nonce),
         size_of_val(&token.did),
         size_of_val(&*edna_token.table),
@@ -210,7 +210,7 @@ pub fn new_modify_token_wrapper(
         size_of_val(&*edna_token.old_val),
         size_of_val(&*edna_token.new_val),
         size_of_val(&token),
-    );
+    );*/
     token
 }
 
