@@ -506,21 +506,22 @@ Clients keep track of keys and locators that are emailed to them, but these are 
 We measure the size of all data stored by \sys when some randomly selected 1.7k users (10\% of all
 users in Lobsters) have deleted their accounts. 
 Prior to any account deletion, \sys's metadata (public keys of natural principals) and the in-memory
-pool of keypairs already requires 4.1MB.
+pool of keypairs already requires 4.3MB.
 
-After 10\% of users delete their accounts, \sys's storage requires on average 128MB. The cost is
+After a random 10\% of users delete their accounts, \sys's storage requires 137MB. The cost is
 proportional to the number of pseudoprincipals produced: each pseudoprincipal requires storing a
 private key (1.1KB) and speaks-for record, which together consume 1.4KB. Deleting 10\% of all users
-produces $\approx$74--75k pseudoprincipals and requires 104--105MB; this dominates the overall metadata cost.  
+produces 78.7k pseudoprincipals and requires 110MB; this dominates the overall metadata cost.  
 The cost of a private key is unavoidable if the application wants to further disguise decorrelated
 data and allow users to access their decorrelated disguised data.
 %
-In addition, each pseudoprincipal inserts a public-key into \sys's metadata, adding $\approx$0.25KB
-per pseudoprincipal and 18-19MB combined.
+In addition, each pseudoprincipal inserts a public-key into \sys's metadata, adding $\approx$0.3KB
+per pseudoprincipal and 24MB combined (although the public keys in the metadata for the 1700 deleted
+users is now removed).
 
-The remaining $\approx$2MB come from diff records storing the removal of the user's account (about
-1KB for the user DB entry, and 0.25KB for user's public key metadata). These originate from data
-originally stored in the database (with 2MB being 0.8\% of the initial seeded Lobsters database
+The remaining $\approx$2.2MB come from diff records storing the removal of the user's account (about
+1KB for the user DB entry, and 0.3KB for user's public key metadata). These originate from data
+originally stored in the database (with 2.2MB being 0.8\% of the initial seeded Lobsters database
 size of 261MB).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

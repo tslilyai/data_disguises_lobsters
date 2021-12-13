@@ -89,7 +89,7 @@
                loc: Locator) -> Vec<Vec<u8>>;
 // Gets principals at loc that p speaks for.
 (*\textbf{PseudoprincipalsOf}*)(p: UID, privk: PrivKey,
-                 loc: Locator) -> Vec<UID>;
+                 loc: Locator) -> Vec<(UID, PrivKey)>;
 // Drops encrypted data stored by did at loc.
 (*\textbf{ForgetData}*)(did: DisguiseID, loc: Locator);
 \end{lstlisting}
