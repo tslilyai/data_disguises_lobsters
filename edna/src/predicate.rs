@@ -180,7 +180,7 @@ pub fn modify_predicate_with_owners(
 }
 
 pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &EdnaDiffToken) -> bool {
-    if t.guise_name != name {
+    if t.table != name {
         return false;
     }
     if predicate_applies_to_val(pred, &t.col, &t.old_val) || predicate_applies_to_val(pred, &t.col, &t.new_val)

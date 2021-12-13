@@ -126,6 +126,7 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     pub fn cleanup_tokens_of_disguise(
         &self,
+        uid: &UID,
         did: DID,
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
@@ -134,6 +135,7 @@ impl EdnaClient {
         let mut db = self.get_conn().unwrap();
         for lc in loc_caps {
             locked_token_ctrler.cleanup_user_tokens(
+                uid,
                 did,
                 &decrypt_cap,
                 &lc,
@@ -199,9 +201,9 @@ impl EdnaClient {
     // Save arbitrary diffs performed by the disguise for the purpose of later
     // restoring.
     //-----------------------------------------------------------------------------
-    pub fn save_diff_token(&self, uid: UID, did: DID, data: Vec<u8>, is_global: bool, acting_uid: Option<UID>) {
+    pub fn save_diff_token(&self, uid: UID, did: DID, data: Vec<u8>, acting_uid: Option<UID>) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let tok = tokens::new_generic_diff_token_wrapper(&uid, did, data, is_global);
+        let tok = tokens::new_generic_diff_token_wrapper(&uid, did, data);
         /*if is_global {
             locked_token_ctrler.insert_global_diff_token_wrapper(&tok);
         } else {*/

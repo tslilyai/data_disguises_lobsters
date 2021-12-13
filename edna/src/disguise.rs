@@ -137,11 +137,11 @@ impl Disguiser {
         // reverse REMOVE tokens first
         let start = time::Instant::now();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        let locked_guise_gen = self.guise_gen.read().unwrap();
         for dwrapper in &dts {
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
             if dwrapper.did == did
-                && !dwrapper.revealed
-                && (d.update_type == REMOVE_GUISE || d.update_type == REMOVE_PRINCIPAL)
+                && (d.typ == REMOVE_GUISE || d.typ == REMOVE_PRINCIPAL)
             {
                 warn!("Reversing remove token {:?}\n", d);
                 let revealed = d.reveal::<mysql::PooledConn>(&mut locked_token_ctrler, &mut db)?;
@@ -159,9 +159,8 @@ impl Disguiser {
             // only reverse tokens of disguise if not yet revealed
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
             if dwrapper.did == did
-                && !dwrapper.revealed
-                && d.update_type != REMOVE_GUISE
-                && d.update_type != REMOVE_PRINCIPAL
+                && d.typ != REMOVE_GUISE
+                && d.typ != REMOVE_PRINCIPAL
             {
                 warn!("Reversing token {:?}\n", d);
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut db)?;
@@ -181,10 +180,10 @@ impl Disguiser {
             match edna_own_token_from_bytes(&owrapper.token_data) {
                 Err(_) => continue,
                 Ok(d) => {
-                    if d.did == did {
+                    if owrapper.did == did {
                         warn!("Reversing token {:?}\n", d);
-                        let revealed = d.reveal(&mut locked_token_ctrler, &mut db)?;
-                        //d.reveal(&mut locked_token_ctrler, &mut txn)?;
+                        let revealed = d.reveal(owrapper, &locked_guise_gen, &mut locked_token_ctrler, &mut db)?;
+                        //let revealed = d.reveal(owrapper, &locked_guise_gen, &mut locked_token_ctrler, &mut txn)?;
                         if revealed {
                             warn!("Decor Ownership Token reversed!\n");
                         } else {
@@ -194,12 +193,13 @@ impl Disguiser {
                 }
             }
         }
+        drop(locked_guise_gen);
         //txn.commit().unwrap();
 
         if !failed {
             // NOTE: could also do everythign per-loc-cap granualrity
             for lc in &loc_caps {
-                locked_token_ctrler.cleanup_user_tokens(did, &decrypt_cap, lc, &mut db);
+                locked_token_ctrler.cleanup_user_tokens(&lc.uid, did, &decrypt_cap, lc, &mut db);
             }
         }
         warn!("Reveal tokens: {}", start.elapsed().as_micros());
@@ -274,7 +274,7 @@ impl Disguiser {
         let mut db = self.pool.get_conn()?;
         let mut db2 = self.pool.get_conn()?;
         let mut txn = db2.start_transaction(TxOpts::default())?;
-        let global_diff_tokens = vec![]; //locked_token_ctrler.get_all_global_diff_tokens();
+        //let global_diff_tokens = vec![]; //locked_token_ctrler.get_all_global_diff_tokens();
 
         let did = disguise.did;
         let (_, ownership_tokens, _pks) = self.get_toks_and_privkeys_at_locs(&decrypt_cap, &loc_caps);
@@ -388,7 +388,6 @@ impl Disguiser {
                             if disguise.use_txn {
                                 modify_items::<mysql::Transaction>(
                                     did,
-                                    t.global,
                                     &mut locked_token_ctrler,
                                     &table,
                                     curtable_info,
@@ -402,7 +401,6 @@ impl Disguiser {
                             } else {
                                 modify_items::<mysql::PooledConn>(
                                     did,
-                                    t.global,
                                     &mut locked_token_ctrler,
                                     &table,
                                     curtable_info,
@@ -453,14 +451,12 @@ impl Disguiser {
         if disguise.use_txn {
             self.execute_removes::<mysql::Transaction>(
                 disguise.clone(),
-                &global_diff_tokens,
                 &ownership_tokens,
                 &mut txn,
             );
         } else {
             self.execute_removes::<mysql::PooledConn>(
                 disguise.clone(),
-                &global_diff_tokens,
                 &ownership_tokens,
                 &mut db,
             );
@@ -585,7 +581,6 @@ impl Disguiser {
     fn execute_removes<Q: Queryable>(
         &self,
         disguise: Arc<Disguise>,
-        diff_tokens: &Vec<DiffTokenWrapper>,
         own_tokens: &Vec<OwnershipTokenWrapper>,
         db: &mut Q,
     ) {
@@ -597,7 +592,7 @@ impl Disguiser {
         let mut drop_me_later = vec![];
         for (table, transforms) in disguise.table_disguises.clone() {
             let did = disguise.did;
-            let mut locked_diff_tokens = self.global_diff_tokens_to_modify.write().unwrap();
+            //let locked_diff_tokens = self.global_diff_tokens_to_modify.write().unwrap();
 
             let locked_table_info = disguise.table_info.read().unwrap();
             let curtable_info = locked_table_info.get(&table).unwrap().clone();
@@ -667,7 +662,6 @@ impl Disguiser {
                                 table.to_string(),
                                 ids.clone(),
                                 i.to_vec(),
-                                t.global,
                             );
                             for owner_col in &curtable_info.owner_cols {
                                 let curuid = get_value_of_col(&i, &owner_col).unwrap();
@@ -709,9 +703,9 @@ impl Disguiser {
 
                         // MARK MATCHING GLOBAL DIFF TOKENS FOR REMOVAL
                         let start = time::Instant::now();
-                        for dwrapper in diff_tokens {
-                            let dt = edna_diff_token_from_bytes(&dwrapper.token_data);
-                            if dwrapper.is_global
+                        /*for dwrapper in diff_tokens {
+                            //let dt = edna_diff_token_from_bytes(&dwrapper.token_data);
+                            /*if dwrapper.is_global
                                 && predicate::diff_token_matches_pred(&p, &table, &dt)
                             {
                                 warn!("ApplyRemoves: Inserting global token {:?} to update\n", dt);
@@ -722,8 +716,8 @@ impl Disguiser {
                                             .insert(dwrapper.clone(), vec![t.clone()]);
                                     }
                                 }
-                            }
-                        }
+                            }*/
+                        }*/
                         warn!(
                             "get matching global tokens to remove: {}",
                             start.elapsed().as_micros()
@@ -833,14 +827,9 @@ fn decor_items<Q: Queryable>(
         // token is always inserted ``privately''
         let start = time::Instant::now();
         let own_token_bytes = edna_own_token_to_bytes(&new_edna_ownership_token(
-            did,
             child_name.to_string(),
             child_ids,
-            fk_name.to_string(),
-            guise_gen.guise_id_col.clone(),
             fk_col.to_string(),
-            old_uid.to_string(),
-            new_uid.to_string(),
         ));
         token_ctrler.register_anon_principal::<Q>(&old_uid, &new_uid, did, own_token_bytes, db, original_uid);
         warn!("Register anon principal: {}", start.elapsed().as_micros());
@@ -866,7 +855,6 @@ fn decor_items<Q: Queryable>(
 
 fn modify_items<Q: Queryable>(
     did: DID,
-    global: bool,
     token_ctrler: &mut TokenCtrler,
     table: &str,
     table_info: &TableInfo,
@@ -901,7 +889,6 @@ fn modify_items<Q: Queryable>(
             old_val.to_string(),
             new_val.clone(),
             col.to_string(),
-            global,
         );
         for owner_col in &table_info.owner_cols {
             let owner_uid = get_value_of_col(&i, &owner_col).unwrap();

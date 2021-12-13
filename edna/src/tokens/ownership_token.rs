@@ -6,11 +6,10 @@ use log::warn;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
+use crate::*;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct OwnershipTokenWrapper {
-    pub token_id: u64,
-    pub revealed: bool,
     pub old_uid: UID,
     pub new_uid: UID,
     pub did: DID,
@@ -20,14 +19,8 @@ pub struct OwnershipTokenWrapper {
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct EdnaOwnershipToken {
-    pub did: DID,
-    pub uid: UID,
-    pub new_uid: UID,
-
     pub child_name: String,
     pub child_ids: Vec<RowVal>,
-    pub pprincipal_name: String,
-    pub pprincipal_id_col: String,
     pub fk_col: String,
 }
 
@@ -52,8 +45,6 @@ pub fn new_generic_ownership_token_wrapper(
     data: Vec<u8>,
 ) -> OwnershipTokenWrapper {
     let mut token: OwnershipTokenWrapper = Default::default();
-    token.token_id = thread_rng().gen();
-    token.revealed = false;
     token.new_uid = new_uid;
     token.old_uid = old_uid;
     token.did = did;
@@ -63,30 +54,22 @@ pub fn new_generic_ownership_token_wrapper(
 }
 
 pub fn new_edna_ownership_token(
-    did: DID,
     child_name: String,
     child_ids: Vec<RowVal>,
-    pprincipal_name: String,
-    pprincipal_id_col: String,
     fk_col: String,
-    cur_uid: UID,
-    new_uid: UID,
 ) -> EdnaOwnershipToken {
     let mut edna_token: EdnaOwnershipToken = Default::default();
-    edna_token.uid = cur_uid;
-    edna_token.did = did;
-    edna_token.new_uid = new_uid;
     edna_token.child_name = child_name;
     edna_token.child_ids = child_ids;
     edna_token.fk_col = fk_col;
-    edna_token.pprincipal_name = pprincipal_name;
-    edna_token.pprincipal_id_col = pprincipal_id_col;
     edna_token
 }
 
 impl EdnaOwnershipToken {
     pub fn reveal<Q:Queryable>(
         &self,
+        otw: &OwnershipTokenWrapper,
+        guise_gen: &GuiseGen,
         token_ctrler: &mut TokenCtrler,
         db: &mut Q,
     ) -> Result<bool, mysql::Error> {
@@ -96,19 +79,19 @@ impl EdnaOwnershipToken {
         // if original entity does not exist, do not recorrelate
         let selection = Expr::BinaryOp {
             left: Box::new(Expr::Identifier(vec![Ident::new(
-                self.pprincipal_id_col.clone(),
+                guise_gen.guise_id_col.clone(),
             )])),
             op: BinaryOperator::Eq,
-            right: Box::new(Expr::Value(Value::Number(self.uid.to_string()))),
+            right: Box::new(Expr::Value(Value::Number(otw.old_uid.to_string()))),
         };
         let selected = get_query_rows_str_q::<Q>(
-            &str_select_statement(&self.pprincipal_name, &selection.to_string()),
+            &str_select_statement(&guise_gen.guise_name, &selection.to_string()),
             db,
         )?;
         if selected.is_empty() {
             warn!(
                 "OwnToken Reveal: Original entity col {} = {} does not exist\n",
-                self.pprincipal_id_col, self.uid
+                guise_gen.guise_id_col, otw.old_uid
             );
             return Ok(false);
         }
@@ -122,10 +105,10 @@ impl EdnaOwnershipToken {
         if selected.len() > 0 {
             assert_eq!(selected.len(), 1);
             let curval = get_value_of_col(&selected[0], &self.fk_col).unwrap();
-            if curval != self.new_uid {
+            if curval != otw.new_uid {
                 warn!(
                     "OwnToken Reveal: Foreign key col {} rewritten from {} to {}\n",
-                    self.fk_col, self.new_uid, curval
+                    self.fk_col, otw.new_uid, curval
                 );
                 return Ok(false);
             }
@@ -135,7 +118,7 @@ impl EdnaOwnershipToken {
         // rewrite it to original and if pseudoprincipal is still present, remove it
         let updates = vec![Assignment {
             id: Ident::new(self.fk_col.clone()),
-            value: Expr::Value(Value::Number(self.uid.to_string())),
+            value: Expr::Value(Value::Number(otw.old_uid.to_string())),
         }];
         db.query_drop(
             Statement::Update(UpdateStatement {
@@ -149,20 +132,20 @@ impl EdnaOwnershipToken {
         // remove the pseudoprincipal
         db.query_drop(
             Statement::Delete(DeleteStatement {
-                table_name: string_to_objname(&self.pprincipal_name),
+                table_name: string_to_objname(&guise_gen.guise_name),
                 selection: Some(Expr::BinaryOp {
                     left: Box::new(Expr::Identifier(vec![Ident::new(
-                        self.pprincipal_id_col.to_string(),
+                        guise_gen.guise_id_col.to_string(),
                     )])),
                     op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::Number(self.new_uid.clone()))),
+                    right: Box::new(Expr::Value(Value::Number(otw.new_uid.clone()))),
                 }),
             })
             .to_string(),
         )?;
         // remove the principal from being registered by the token ctrler
         //XXX LYT keep principal around for now until all locators are gone
-        token_ctrler.remove_principal::<Q>(&self.new_uid, db);
+        token_ctrler.remove_principal::<Q>(&otw.new_uid, db);
         Ok(true)
     }
 }

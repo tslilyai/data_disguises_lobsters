@@ -440,17 +440,15 @@ impl TokenCtrler {
             ownership_token_data,
         );
         let privkey_token = new_privkey_token(
-            uidstr.to_string(),
             anon_uidstr.to_string(),
-            did,
             &private_key,
         );
         let foruid = match original_uid {
             None => uid,
             Some(ouid) => ouid
         };
-        self.insert_ownership_token_wrapper_for(&own_token_wrapped, foruid);
-        self.insert_privkey_token_for(&privkey_token, foruid);
+        self.insert_ownership_token_wrapper_for(&own_token_wrapped, uid, foruid);
+        self.insert_privkey_token_for(uid, did, &privkey_token, foruid);
         warn!(
             "Edna: register anon principal: {}",
             start.elapsed().as_micros()
@@ -570,15 +568,15 @@ impl TokenCtrler {
         warn!("EdnaBatch: Saved bag for {}", uid);
     }
 
-    fn insert_privkey_token_for(&mut self, pppk: &PrivkeyToken, uid: &UID) {
+    fn insert_privkey_token_for(&mut self, old_uid: &UID, did: DID, pppk: &PrivkeyToken, uid: &UID) {
         let start = time::Instant::now();
-        let p = self.principal_data.get_mut(&pppk.old_uid);
+        let p = self.principal_data.get_mut(old_uid);
         if p.is_none() {
-            warn!("no user with uid {} found?", pppk.old_uid);
+            warn!("no user with uid {} found?", old_uid);
             return;
         }
         assert!(self.batch);
-        match self.tmp_bags.get_mut(&(uid.clone(), pppk.did.clone())) {
+        match self.tmp_bags.get_mut(&(uid.clone(), did.clone())) {
             Some(bag) => {
                 bag.owner = uid.clone();
                 // important: insert the mapping from new_uid to pppk
@@ -588,21 +586,21 @@ impl TokenCtrler {
                 let mut new_bag = Bag::new(uid);
                 new_bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
                 self.tmp_bags
-                    .insert((uid.clone(), pppk.did.clone()), new_bag);
+                    .insert((uid.clone(), did.clone()), new_bag);
             }
         }
         warn!("Inserted privkey token from uid {} for {}: {}", pppk.new_uid, uid, start.elapsed().as_micros());
     }
 
-    fn insert_ownership_token_wrapper_for(&mut self, pppk: &OwnershipTokenWrapper, uid: &UID) {
+    fn insert_ownership_token_wrapper_for(&mut self, pppk: &OwnershipTokenWrapper, old_uid: &UID, uid: &UID) {
         let start = time::Instant::now();
-        let p = self.principal_data.get_mut(&pppk.old_uid);
+        let p = self.principal_data.get_mut(old_uid);
         if p.is_none() {
-            warn!("no user with uid {} found?", pppk.old_uid);
+            warn!("no user with uid {} found?", old_uid);
             return;
         }
         assert!(self.batch);
-        match self.tmp_bags.get_mut(&(pppk.old_uid.clone(), pppk.did)) {
+        match self.tmp_bags.get_mut(&(old_uid.clone(), pppk.did)) {
             Some(bag) => {
                 bag.owner = uid.clone();
                 bag.owntoks.push(pppk.clone());
@@ -611,7 +609,7 @@ impl TokenCtrler {
                 let mut new_bag = Bag::new(uid);
                 new_bag.owntoks.push(pppk.clone());
                 self.tmp_bags
-                    .insert((pppk.old_uid.clone(), pppk.did.clone()), new_bag);
+                    .insert((old_uid.clone(), pppk.did.clone()), new_bag);
             }
         }
         warn!("Inserted own token: {}", start.elapsed().as_micros());
@@ -874,6 +872,7 @@ impl TokenCtrler {
 
     pub fn cleanup_user_tokens(
         &mut self,
+        uid: &UID,
         did: DID,
         decrypt_cap: &DecryptCap,
         lc: &LocCap,
@@ -957,7 +956,7 @@ impl TokenCtrler {
                         // for each locator that the pp has
                         // clean up the tokens at the locators
                         let (no_diffs_at_loc, no_owns_at_loc, no_pks_at_loc) =
-                            self.cleanup_user_tokens(did, &pkt.priv_key, &pplc, db);
+                            self.cleanup_user_tokens(new_uid, did, &pkt.priv_key, &pplc, db);
 
                         // remove loc from pp if nothing's left at that loc
                         let mut removed = false;
@@ -1148,7 +1147,6 @@ mod tests {
                             column: fk_col.clone(),
                             value: (old_fk_value + (i as u64)).to_string(),
                         }],
-                        false,
                     );
                     remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token_wrapper_for(&mut remove_token, &u.to_string());
@@ -1240,7 +1238,6 @@ mod tests {
                         column: fk_col.clone(),
                         value: (old_fk_value + (d as u64)).to_string(),
                     }],
-                    false,
                 );
                 remove_token.uid = u.to_string();
                 ctrler.insert_user_diff_token_wrapper_for(&mut remove_token, &u.to_string());
@@ -1249,14 +1246,9 @@ mod tests {
                 // create an anonymous user
                 // and insert some token for the anon user
                 let own_token_bytes = edna_own_token_to_bytes(&new_edna_ownership_token(
-                    d as u64,
-                    guise_name.to_string(),
+                    referenced_name.to_string(),
                     vec![],
-                    referenced_name.to_string(),
-                    referenced_name.to_string(),
                     fk_col.to_string(),
-                    u.to_string(),
-                    anon_uid.to_string(),
                 ));
                 ctrler.register_anon_principal(
                     &u.to_string(),
