@@ -10,10 +10,10 @@ pub struct PrivkeyToken {
 }
 
 pub fn privkey_token_from_bytes(bytes: &Vec<u8>) -> PrivkeyToken {
-    serde_json::from_slice(bytes).unwrap()
+    bincode::deserialize(bytes).unwrap()
 }
 pub fn privkey_tokens_from_bytes(bytes: &Vec<u8>) -> Vec<PrivkeyToken> {
-    serde_json::from_slice(bytes).unwrap()
+    bincode::deserialize(bytes).unwrap()
 }
 pub fn new_privkey_token(
     new_uid: UID,
