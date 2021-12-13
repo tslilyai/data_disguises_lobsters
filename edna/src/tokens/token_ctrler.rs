@@ -284,7 +284,7 @@ impl TokenCtrler {
             let lc = self.get_loc_cap(uid, *did);
             let bag = self.tmp_bags.get(&(uid.to_string(), *did)).unwrap().clone();
             let owner = bag.owner.clone();
-            self.update_bag_at_loc(uid.to_string(), &lc, &bag);
+            self.update_bag_at_loc(&lc, &bag);
             warn!("EdnaBatch: Inserted bag with {} dt, {} wt, {} pks for owner {} uid {}", bag.difftoks.len(), bag.owntoks.len(), bag.pktoks.len(), bag.owner, uid);
 
             // if we are going to return this to a user, actually return it
@@ -552,10 +552,10 @@ impl TokenCtrler {
     /*
      * PRINCIPAL TOKEN INSERT
      */
-    fn update_bag_at_loc(&mut self, uid: UID, lc: &LocCap, bag: &Bag) {
+    fn update_bag_at_loc(&mut self, lc: &LocCap, bag: &Bag) {
         let p = self
             .principal_data
-            .get(&uid)
+            .get(&lc.uid)
             .expect("no user with uid found?")
             .clone();
         let plaintext = bincode::serialize(bag).unwrap();
@@ -564,7 +564,7 @@ impl TokenCtrler {
         // insert the encrypted pppk into locating capability
         error!("plaintext size {} encsize {}", plaintext.len(), enc_bag.enc_data.len());
         self.enc_map.insert(lc.loc, enc_bag);
-        warn!("EdnaBatch: Saved bag for {}", uid);
+        warn!("EdnaBatch: Saved bag for {}", lc.uid);
     }
 
     fn insert_privkey_token_for(&mut self, old_uid: &UID, did: DID, pppk: &PrivkeyToken, uid: &UID) {
@@ -580,14 +580,14 @@ impl TokenCtrler {
                 bag.owner = uid.clone();
                 // important: insert the mapping from new_uid to pppk
                 bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
-                warn!("Got bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, bag.owntoks.len(), bag.pktoks.len());
+                warn!("Got bag for {} and {} with owntoks {} and privkeys {}", old_uid, did, bag.owntoks.len(), bag.pktoks.len());
             }
             None => {
                 let mut new_bag = Bag::new(uid);
                 new_bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
+                warn!("Got new_bag for {} and {} with owntoks {} and privkeys {}", old_uid, did, new_bag.owntoks.len(), new_bag.pktoks.len());
                 self.tmp_bags
                     .insert((old_uid.clone(), did.clone()), new_bag);
-                warn!("Got new_bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, new_bag.owntoks.len(), new_bag.pktoks.len());
             }
         }
         warn!("Inserted privkey token from uid {} for {}: {}", old_uid, uid, start.elapsed().as_micros());
@@ -610,9 +610,9 @@ impl TokenCtrler {
             None => {
                 let mut new_bag = Bag::new(uid);
                 new_bag.owntoks.push(pppk.clone());
+                warn!("Got new_bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, new_bag.owntoks.len(), new_bag.pktoks.len());
                 self.tmp_bags
                     .insert((old_uid.clone(), pppk.did.clone()), new_bag);
-                warn!("Got new_bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, new_bag.owntoks.len(), new_bag.pktoks.len());
             }
         }
         warn!("Inserted own token from uid {} for {}: {}", old_uid, uid, start.elapsed().as_micros());
@@ -875,7 +875,6 @@ impl TokenCtrler {
 
     pub fn cleanup_user_tokens(
         &mut self,
-        uid: &UID,
         did: DID,
         decrypt_cap: &DecryptCap,
         lc: &LocCap,
@@ -959,7 +958,7 @@ impl TokenCtrler {
                         // for each locator that the pp has
                         // clean up the tokens at the locators
                         let (no_diffs_at_loc, no_owns_at_loc, no_pks_at_loc) =
-                            self.cleanup_user_tokens(new_uid, did, &pkt.priv_key, &pplc, db);
+                            self.cleanup_user_tokens(did, &pkt.priv_key, &pplc, db);
 
                         // remove loc from pp if nothing's left at that loc
                         let mut removed = false;
@@ -1003,7 +1002,7 @@ impl TokenCtrler {
             } else if changed {
                 // update the encrypted store of stuff if changed at all
                 bag.pktoks = kept_privkeys;
-                self.update_bag_at_loc(uid.to_string(), lc, &bag);
+                self.update_bag_at_loc(lc, &bag);
             }
         }
         // return whether we removed bags

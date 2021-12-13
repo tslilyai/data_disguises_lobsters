@@ -199,7 +199,7 @@ impl Disguiser {
         if !failed {
             // NOTE: could also do everythign per-loc-cap granualrity
             for lc in &loc_caps {
-                locked_token_ctrler.cleanup_user_tokens(&lc.uid, did, &decrypt_cap, lc, &mut db);
+                locked_token_ctrler.cleanup_user_tokens(did, &decrypt_cap, lc, &mut db);
             }
         }
         warn!("Reveal tokens: {}", start.elapsed().as_micros());
@@ -223,38 +223,44 @@ impl Disguiser {
         let mut diff_tokens = vec![];
         let mut ownership_tokens = vec![];
         let mut pk_tokens: HashMap<UID, tokens::DecryptCap> = HashMap::new();
+        let mut failedlcs = vec![];
 
         // get tokens with the right private key
         // we're screwed if we don't get them in the right order???
-        let mut failedlcs = vec![];
+        // one iter to get original pks
+        let mut changed_pks = true;
         for lc in loc_caps {
-            if let Some(pk) = pk_tokens.get(&lc.uid) {
-                let (mut dts, mut ots, pks) = locked_token_ctrler.get_user_tokens(&pk, lc);
-                diff_tokens.append(&mut dts);
-                ownership_tokens.append(&mut ots);
-                for (new_uid, pk) in &pks {
-                    pk_tokens.insert(new_uid.clone(), pk.clone());
-                }
-            } else {
-                let (mut dts, mut ots, pks) = locked_token_ctrler.get_user_tokens(decrypt_cap, lc);
-                if dts.is_empty() && ots.is_empty() && pks.is_empty() {
-                    failedlcs.push(lc);
-                }
-                diff_tokens.append(&mut dts);
-                ownership_tokens.append(&mut ots);
-                for (new_uid, pk) in &pks {
-                    pk_tokens.insert(new_uid.clone(), pk.clone());
-                }
+            changed_pks = false;
+            let (mut dts, mut ots, pks) = locked_token_ctrler.get_user_tokens(decrypt_cap, lc);
+            if dts.is_empty() && ots.is_empty() && pks.is_empty() {
+                failedlcs.push(lc);
+            }
+            diff_tokens.append(&mut dts);
+            ownership_tokens.append(&mut ots);
+            for (new_uid, pk) in &pks {
+                changed_pks = true;
+                pk_tokens.insert(new_uid.clone(), pk.clone());
             }
         }
-        for lc in &failedlcs {
-            if let Some(pk) = pk_tokens.get(&lc.uid) {
-                let (_, mut ots, pks) = locked_token_ctrler.get_user_tokens(&pk, lc);
-                ownership_tokens.append(&mut ots);
-                for (new_uid, pk) in &pks {
-                    pk_tokens.insert(new_uid.clone(), pk.clone());
-                }
+        while changed_pks {
+            let mut newfailedlcs = vec![];
+            changed_pks = false;
+            // do one iter
+            for lc in failedlcs {
+                if let Some(pk) = pk_tokens.get(&lc.uid) {
+                    let (mut dts, mut ots, pks) = locked_token_ctrler.get_user_tokens(&pk, lc);
+                    if dts.is_empty() && ots.is_empty() && pks.is_empty() {
+                        newfailedlcs.push(lc);
+                    }
+                    diff_tokens.append(&mut dts);
+                    ownership_tokens.append(&mut ots);
+                    for (new_uid, pk) in &pks {
+                        changed_pks = true;
+                        pk_tokens.insert(new_uid.clone(), pk.clone());
+                    }
+                } 
             }
+            failedlcs = newfailedlcs;
         }
         drop(locked_token_ctrler);
         warn!(
