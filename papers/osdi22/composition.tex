@@ -45,28 +45,25 @@ principal to be secure.
 %
 Thus, \sys lacks a public key to encrypt $d_2$'s changes for $p$.
 %
-
-%
-Moreover, the application will struggle to convey the locators returned by \sys to the right client
-without the original client introducing information, as the application cannot know which principal
-originally owned the data.
-%
-For example, after the instructor anonymizes a class in WebSubmit, all
-answers are associated with pseudoprincipals.
-%
-If the instructor later decides to scrub identifiers from answer contents
-using another disguise, those disguise's records must be associated with
-pseudoprincipals.
-%
-%However, if a client speaking for the pseudoprincipals interactively applies the disguise (\eg a user
-%deletes $p$'s account after anonymization), the deletion disguise's records can be associated with
-%$p$, rather than the pseudoprincipals that own $p$'s data after anonymization.
+Moreover, the application cannot convey the locators returned by
+\sys to a client without knowing the natural principal.
 %
 
 %
 To solve this challenge, \sys stores data for pseudoprincipals,
 and establishes ways for a natural principal to prove a speaks-for
 relationship with these pseudoprincipals.
+%
+For example, after the instructor anonymizes a class in WebSubmit, all
+answers are associated with pseudoprincipals.
+%
+If the instructor later decides to scrub identifiers from answer contents
+using another disguise, those disguise's will be associated with
+pseudoprincipals.
+%
+%However, if a client speaking for the pseudoprincipals interactively applies the disguise (\eg a user
+%deletes $p$'s account after anonymization), the deletion disguise's records can be associated with
+%$p$, rather than the pseudoprincipals that own $p$'s data after anonymization.
 %
 
 \head{Storing Data for Pseudoprincipals.}
@@ -96,20 +93,22 @@ $p$'s encrypted data.
 
 %
 Finally, this idea applies recursively: in the above example, $p$ itself may
-be a pseudoprincipal $s$ and not a natural principal.
+be a pseudoprincipal $r$ and not a natural principal.
 %
 (This is why the application cannot \eg simply email $q$'s private key to
-$p$ when it creates a pseudoprincipal $q$ for $p$.)
+$p$ when it creates a pseudoprincipal $q$.)
 %
 In this case, \sys encrypts $q$'s private key with the public key of
-pseudoprincipal $s$, granting any natural principal who can access
-$s$'s private key access to $q$ and its data.
+pseudoprincipal $r$, granting any natural principal who can access
+$r$'s private key access to $q$ and its data.
 %
 
 \head{Storing Pseudoprincipals' Locators.}
 %
-When a disguise $d$ generates records owned by a pseudoprincipal $q$, \sys stores these encrypted
-records at some locator. If the call to store the record indicates an interactive client speaking-for $p$,
+When a disguise $d_2$ generates records owned by a pseudoprincipal $q$, \sys
+stores these encrypted records at some locator.
+%
+If the call to store the record indicates an interactive client speaking-for $p$,
 \sys stores the ciphertexts at \lcapa{pd}, and everything is fine (\lcapa{pd} is sent back to the
 client).
 %
@@ -130,7 +129,7 @@ as the principal who speaks-for $q$ can unwrap it.
 \head{Pseudoprincipal Metadata.}
 %
 \fn{ForgetPrincipal} tells \sys to remove any metadata about a principal
-$p$, which would ordinary imply
+$p$.
 %
 However, \sys must sometimes retain part of $q$'s metadata, as it may include
 encrypted locators that \sys must keep to later efficiently find $q$'s
@@ -140,7 +139,7 @@ Given that \sys cannot decrypt $q$'s locators, nor send them to a
 client, \sys retains pseudoprincipal metadata if it contains encrypted locators
 when the application calls \fn{ForgetPrincipal}.
 %
-However, \sys flips a boolean flag in the encrypted metadata, so that \sys
+However, \sys records that the pseudoprincipal is forgotten, so that \sys
 knows to delete $q$'s metadata when future \fn{ForgetData} calls remove
 the locators.
 %
