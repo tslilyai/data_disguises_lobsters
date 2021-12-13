@@ -290,8 +290,8 @@ Normal operations have comparable latencies with and without \sys.
 baseline since \sys encrypts database diffs and speaks-for records, while
 the baseline only deletes data from the application DB.
 %
-The absolute latency of \sys's disguises is 1.7--7.9ms and the latencies for
-\sys's operations over data under disguise are 7.5--10.9ms.
+The absolute latency of \sys's disguises is 2.4--14.5ms and the latencies for
+\sys's operations over data under disguise are 7.8--22.3ms.
 %
 (These operations are impossible in the baseline.)
 %
@@ -318,7 +318,7 @@ Figure~\ref{f:ops-hotcrp} shows higher latencies in general, even for the manual
 privacy transformations in the baseline, which reflects the more complex
 disguises.
 %
-\sys takes 37.7--74.3ms to disguise and reveal a user's data, again owing to the
+\sys takes 38--77.4ms to disguise and reveal a user's data, again owing to the
 extra cryptographic operations necessary.
 %
 Note that account anonymization in HotCRP is an admin-applied disguises that
@@ -504,8 +504,8 @@ proportional to the amount of user data already under disguise.
 
 Figure~\ref{f:composition} shows the disguise latencies.
 %
-WebSubmit account deletion latency increases by 5.5$\times$ and restoration by 5.7$\times$; in
-HotCRP, deletion latency increases by 3$\times$ and restoration latency by 10$\times$.
+WebSubmit account deletion latency increases by 6.5$\times$ and restoration by 9.2$\times$; in
+HotCRP, deletion latency increases by 3.2$\times$ and restoration latency by 16.4$\times$.
 %
 Accounts in HotCRP have more data, and 7--8$\times$ more pseudoprincipals per user after
 anonymization than accounts in WebSubmit, so greater slowdowns in HotCRP make sense.
