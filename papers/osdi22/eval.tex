@@ -674,16 +674,14 @@ The median latency of normal application requests increases by 6--20\% (from
 random users delete and restore their accounts.
 %
 Transactional account deletion and restoration of the most expensive user
-results in a 20--27\% increase in median latency.
-%
-These results show that \sys's data disguises, as well as operations over data under disguise (here,
-account restoration) have little impact on other user's application experience.
+results in a 20--27\% increase in median latency, but latencies remain low (<3ms).
+These results show that \sys's data disguises, as well as operations over data under disguise (here, account restoration) have little impact on other user's application experience.
 %
 
 %
 While the experiment measured normal application request latency, the (non-transactional) account
 deletions and restorations performed with high load take 9ms and 13ms to complete in the median
-\note(txnal deletion and restore take 12 and 20ms to complete).
+\note{txnal deletion and restore take 12 and 20ms to complete}.
 %
 The expensive user's account deletion and reveal take 2--4.5 seconds.
 %
