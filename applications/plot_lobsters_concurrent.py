@@ -114,7 +114,7 @@ yerr=get_yerr([
     op_results[10][1],
 
 ]),
-color='b', capsize=3, width=barwidth, label="Random Disguiser", edgecolor='black')
+color='y', capsize=3, width=barwidth, label="Random Disguiser", edgecolor='black')
 add_labels((X-barwidth),
 [
     statistics.median(op_results[1][1]),
@@ -131,7 +131,7 @@ yerr=get_yerr([
     op_results_txn[10][1],
 
 ]),
-color='b', hatch='////', capsize=3, width=barwidth, label="Random Disguiser (Txn)", edgecolor='black', alpha=.99)
+color='y', hatch='////', capsize=3, width=barwidth, label="Random Disguiser (Txn)", edgecolor='black', alpha=.99)
 add_labels((X),
 [
     statistics.median(op_results_txn[1][1]),
