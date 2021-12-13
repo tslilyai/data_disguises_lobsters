@@ -4,9 +4,10 @@ cargo build --release
 rm *txt
 set -e
 
-RUST_LOG=warn ../../target/release/lobsters \
+RUST_LOG=error ../../target/release/lobsters \
+    --prime \
 	--storage \
-	--scale 3 \
+	--scale 0.005 \
 	&> output/users.out
 echo "Ran storage test for users"
 

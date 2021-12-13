@@ -21,7 +21,9 @@ pub fn reveal(
     decryption_cap: tokens::DecryptCap,
     loc_caps: Vec<tokens::LocCap>,
 ) -> Result<(), mysql::Error> {
-    edna.reverse_disguise(get_disguise_id(), decryption_cap, loc_caps)
+    let tinfo = disguises::get_table_info();
+    let ti = tinfo.read().unwrap();
+    edna.reverse_disguise(get_disguise_id(), &ti, decryption_cap, loc_caps)
 }
 
 fn get_eq_pred(col: &str, val: String) -> Vec<Vec<PredClause>> {

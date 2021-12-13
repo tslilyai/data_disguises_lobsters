@@ -7,11 +7,11 @@ mkdir output
 set -e
 
 for baseline in '--baseline' ''; do
-	RUST_LOG=warn ../../target/release/hotcrp --prime \
-		--nusers_nonpc 30\
-		--nusers_pc 20\
-		--npapers_rej 50 \
-		--npapers_acc 10 \
+	RUST_LOG=error ../../target/release/hotcrp --prime \
+		--nusers_nonpc 3000\
+		--nusers_pc 80\
+		--npapers_rej 500 \
+		--npapers_acc 50 \
 		$baseline \
 		&> output/users_$baseline.out
 	echo "Ran $baseline test for users"

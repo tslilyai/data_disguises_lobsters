@@ -166,7 +166,7 @@ pub fn new_delete_token_wrapper(
     edna_token.old_value = old_value;
     token.token_data = edna_diff_token_to_bytes(&edna_token);
 
-    error!("REMOVE DATA: nonce {}, uid {}, did {}, table {}, tableid {}, tp {}, all: {}", 
+    error!("REMOVE DATA: nonce {}, did {}, table {}, tableid {}, tp {}, oldval {}, all: {}", 
         size_of_val(&token.nonce),
         size_of_val(&token.did),
         size_of_val(&*edna_token.table),
