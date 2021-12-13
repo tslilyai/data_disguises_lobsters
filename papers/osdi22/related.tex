@@ -16,14 +16,14 @@ capacity for useful application features based on server-side compute, and they 
 the current, ad-based application revenue model.
 %
 In contrast, data disguising helps application developers support privacy
-transformations without changing the application data model or business model.
+transformations without changing the application data model or business model,
+and allows today's server-side processing.
 %
 
 %
 Other platforms attest that server-side processing respects
-\textbf{user-defined policies} over their data, via cryptographic means (as in
-\eg Zeph~\cite{zeph}) or systems security mechanisms (as in \eg Riverbed~\cite{riverbed}
-and Ryoan~\cite{ryoan}).
+\textbf{user-defined policies} over their data, via cryptographic means~\cite{zeph}
+or systems security mechanisms~\cite{riverbed}.
 %
 The application functionality is typically restricted, in terms of the feasible
 operations (\eg additively homomorphic ones) and in whether data with different policies
@@ -31,9 +31,19 @@ can be combined.
 %
 Data disguising only provides assurances about data privacy after the application has
 disguised the data (possibly on user request), but in exchange allows unrestricted
-application functionality without any overheads outside of disguise-related
-operations.
+application functionality without any overhead.
 %
+
+%
+Other systems enforce developer-specified \textbf{visibility and access control policies}
+based on information flow control (IFC)~\cite{static, jeeves, jif, hails, ifdb},
+authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewriting database
+queries~\cite{qapla, sieve}.
+%
+Data disguising transforms the actual data stored, and, unlike these systems, protects
+against full server compromise.
+%
+
 
 %
 New privacy laws have led researchers to propose \textbf{database designs
@@ -55,7 +65,7 @@ fine-grained IFC.
 challenge of correctly removing a user's to provide them with post-deletion
 privacy.
 %
-While cryptographically-verified deletion is difficult and expensive~\cite{vanish},
+While cryptographically-guaranteed deletion is difficult and expensive~\cite{vanish},
 practical systems that help developers get deletion right exist.
 %
 DELF~\cite{delf}, a framework for data deletion at Facebook helps developers write
@@ -77,16 +87,6 @@ potentially later reveal it.
 %
 
 %
-Other systems enforce developer-specified \textbf{visibility and access control policies}
-based on general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb},
-authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewriting database
-queries~\cite{qapla, sieve}.
-%
-Data disguising transforms the actual data stored, and---unlike the above systems---protects
-against an attacker who compromises the server.
-%
-
-%
 Our work shares some ideas with \textbf{encrypted storage systems}.
 %
 However, the deployment scenarios for these systems assume that all data is
@@ -103,8 +103,8 @@ Mylar~\cite{mylar}, or Keybase~\cite{keybase}, and protects confidentiality of
 data under disguise against similar server compromises.
 %
 Data disguising encrypts users' private data that is currently ``under disguise'',
-and provides limited functionality over it (which reveals the data to
-the server), but is efficient and still protects inactive users' privacy.
+and provides limited functionality over it, but is efficient and still protects
+inactive users' privacy.
 %
 
 %

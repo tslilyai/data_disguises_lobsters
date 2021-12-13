@@ -70,7 +70,7 @@ for i in range(2):
     ################ add baseline closer to red line for anonymize
     plt.bar((X-barwidth)[:1], [statistics.median(delete_durs_baseline)],
             yerr=get_yerr([delete_durs_baseline]),
-            color='g', capsize=5, width=barwidth)
+            color='g', capsize=5, width=barwidth, label="Manual (No Edna"")")
     add_labels((X-barwidth)[:1], [statistics.median(delete_durs_baseline)], plt, 'g', offset)
     add_text_labels((X-barwidth)[1:], ["N/A"], plt, 'g', offset)
 
@@ -83,7 +83,7 @@ for i in range(2):
         delete_durs_batch_noanon,
         restore_durs_batch_noanon,
     ]),
-    color='m', capsize=5, width=barwidth, label="No Composition")
+    color='m', capsize=5, width=barwidth, label="Direct Disguise")
     add_labels((X),
     [
         statistics.median(delete_durs_batch_noanon),
@@ -99,7 +99,7 @@ for i in range(2):
         delete_durs_batch,
         restore_durs_batch,
     ]),
-    color='c', capsize=5, width=barwidth, label="Composed After Anonymization")
+    color='c', capsize=5, width=barwidth, label="Disguise on Decorrelated Data")
     add_labels((X+barwidth),
     [
         statistics.median(delete_durs_batch),

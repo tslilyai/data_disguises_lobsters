@@ -4,15 +4,14 @@ use crate::backend::MySqlBackend;
 use crate::config::Config;
 use crate::disguises;
 use crate::email;
-//use chrono::prelude::*;
+use edna::tokens::LocCap;
 use mysql::from_value;
 use rocket::form::{Form, FromForm};
 use rocket::http::{Cookie, CookieJar};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
-use std::collections::{HashMap};
-use edna::tokens::LocCap;
+use std::collections::HashMap;
 
 #[derive(Serialize)]
 pub(crate) struct LectureQuestion {
@@ -68,12 +67,9 @@ pub(crate) fn anonymize_answers(
     config: &State<Config>,
 ) -> Redirect {
     let olcs = disguises::universal_anon_disguise::apply(&*bg, config.is_baseline).unwrap();
-    warn!(bg.log, "olcs are {:?}", olcs);
     //let local: DateTime<Local> = Local::now();
     for ((uid, _did), olcs) in olcs {
-        assert!(!olcs.is_empty());
         email::send(
-            bg.log.clone(),
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![uid],
             "Your Websubmit Answers Have Been Anonymized".into(),
@@ -137,11 +133,9 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     let decryption_cap = cookies.get("decryptioncap").unwrap().value();
     let lcs: Vec<LocCap> = serde_json::from_str(&cookies.get("lcs").unwrap().value()).unwrap();
     let edna = bg.edna.lock().unwrap();
-    
+
     // get all the UIDs that this user can access
-    let pps = edna
-        .get_pseudoprincipals(base64::decode(decryption_cap).unwrap(), lcs);
-    warn!(bg.log, "Got pps {:?}", pps);
+    let pps = edna.get_pseudoprincipals(base64::decode(decryption_cap).unwrap(), lcs);
     drop(edna);
 
     // get all answers for lectures
@@ -149,14 +143,12 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     let mut apikey = String::new();
     for pp in pps {
         let answers_res = bg.query_exec("my_answers_for_lec", vec![lid.into(), pp.clone().into()]);
-        warn!(bg.log, "Got answers of user {}: {:?}", pp, answers_res);
         if !answers_res.is_empty() {
             for r in answers_res {
                 let qid: u64 = from_value(r[2].clone());
                 let atext: String = from_value(r[3].clone());
                 answers.insert(qid, atext);
             }
-            warn!(bg.log, "Getting ApiKey of User {}", pp.clone());
             let apikey_res = bg.query_exec("apikey_by_user", vec![pp.clone().into()]);
             apikey = from_value(apikey_res[0][0].clone());
             break;
@@ -164,7 +156,6 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     }
 
     let res = bg.query_exec("qs_by_lec", vec![lid.into()]);
-    warn!(bg.log, "Setting API key to user key {}", apikey);
     let mut qs: Vec<LectureQuestion> = vec![];
     for r in res {
         let qid: u64 = from_value(r[1].clone());
@@ -218,7 +209,6 @@ pub(crate) fn delete_submit(
         vec![]
     };
 
-    warn!(bg.log, "Going to deserialize lcs {}", data.loc_caps);
     // get caps from data for composition of GDPR on top of anonymization
     let loc_caps: Vec<LocCap> = serde_json::from_str(&data.loc_caps).unwrap();
     let lcsmap = disguises::gdpr_disguise::apply(
@@ -235,7 +225,6 @@ pub(crate) fn delete_submit(
     }
 
     email::send(
-        bg.log.clone(),
         "no-reply@csci2390-submit.cs.brown.edu".into(),
         vec![apikey.user.clone()],
         "You Have Deleted Your Websubmit Account".into(),
@@ -265,13 +254,8 @@ pub(crate) fn restore_account(
         base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
     let loc_caps: Vec<LocCap> = serde_json::from_str(&data.loc_caps).unwrap();
 
-    disguises::gdpr_disguise::reveal(
-        &*bg,
-        decryption_cap,
-        loc_caps,
-        config.is_baseline,
-    )
-    .expect("Failed to reverse GDPR deletion disguise");
+    disguises::gdpr_disguise::reveal(&*bg, decryption_cap, loc_caps, config.is_baseline)
+        .expect("Failed to reverse GDPR deletion disguise");
 
     Redirect::to(format!("/login"))
 }

@@ -14,12 +14,18 @@
 %        \lyt{In practice this takes a set of \lcapa{} from different disguises because of
 %        pseudoprincipals}
 %\end{tabular}
-\begin{lstlisting}[language=Rust, style=rust]
-RegisterPrincipal(p: UID, pubk: PubKey);
-ApplyDisguise(p: UID, spec: DisguiseSpec, privk: PrivKey, locs: Vec<Locator>) -> (DisguiseID, Vec<Locator>);
-RevealDisguise(p: UID, did: DisguiseID, privk: PrivKey, locs: Vec<Locator>);
+\begin{lstlisting}[style=rust,escapeinside={(*}{*)}]
+(*\textbf{RegisterPrincipal}*)(p: UID, pubk: PubKey);
+// Applies disguise to principal p, optionally
+// over already-disguised data for compose_on ((*\S\ref{s:composition}*))
+(*\textbf{ApplyDisguise}*)(p: UID, spec: DisguiseSpec,
+    compose_on: Option<(PrivKey, Vec<Locator>)>)
+    -> (DisguiseID, Vec<Locator>);
+// Reveals did for p, using p's private key. locs
+// are bags p can decrypt (possibly via pseudop.).
+(*\textbf{RevealDisguise}*)(p: UID, did: DisguiseID, privk: PrivKey, locs: Vec<Locator>);
 \end{lstlisting}
-\caption{\sys's higher-level API.}
+\caption{\sys's high-level API (Rust-like syntax).}
 \label{f:api-high}
 \end{figure}
 
@@ -59,34 +65,35 @@ RevealDisguise(p: UID, did: DisguiseID, privk: PrivKey, locs: Vec<Locator>);
 %        The decryption capability and set of locators enable \sys to access speaks-for records that
 %        reveal links between $p$ and its pseudoprincipals.\\
 %    \end{tabular}
-\begin{lstlisting}[language=Rust, style=rust]
+\begin{lstlisting}[style=rust,escapeinside={(*}{*)}]
 // Principal operations.
-RegisterPrincipal(p: UID, pubk: PubKey);
-RegisterPseudoprincipal(pp: UID);
-ForgetPrincipal(p: UID);
+(*\textbf{RegisterPrincipal}*)(p: UID, pubk: PubKey);
+(*\textbf{RegisterPseudoprincipal}*)(pp: UID);
+(*\textbf{ForgetPrincipal}*)(p: UID);
 
-// Disguise operations.
-StartDisguise() -> DisguiseID;
-EndDisguise(did: DisguiseID) -> Vec<Locator>;
-// Stores an encrypted diff associated with 
-// principal ownerP with app-provided content 
-// during active disguise, optionally in 
-// activeP's bag.
-StoreDiff(ownerP: UID, buffer: Vec<u8>, activeP: Option<UID>);
-// Stores encrypted mapping that oldP speaks 
-// for newP during active disguise, 
-// optionally in activeP's bag.
-StoreSpeaksFor(oldP: UID, newP: UID, activeP: Option<UID>);
+// Starts a new disguise, returns disguise ID.
+(*\textbf{StartDisguise}*)() -> DisguiseID;
+// During active disguise, encrypts & stores diff
+// with app-provided content for principal ownerP.
+(*\textbf{StoreDiff}*)(ownerP: UID, buffer: Vec<u8>,
+         remember_loc_on_compose: bool);
+// During active disguise, encrypts and stores
+// mapping that oldP speaks for newP.
+(*\textbf{StoreSpeaksFor}*)(oldP: UID, newP: UID,
+             remember_loc_on_compose: bool);
+// Finishes disguise, returns accumulated locators
+(*\textbf{EndDisguise}*)(did: DisguiseID) -> Vec<Locator>;
 
-// Operations on data stored in Edna.
-// Obtain diffs at loc stored by disguise did.
-DiffsForDisguise(did: DisguiseID, privk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
-// Principals that p speaks for (stored at loc).
-PseudoprincipalsOf(p: UID, privk: PrivKey, loc: Locator) -> Vec<UID>;
-// Drop encrypted data stored by disguise did at locator (irreversible).
-ForgetData(did: DisguiseID, loc: Locator);
+// Obtains diffs at loc stored by disguise did.
+(*\textbf{DiffsForDisguise}*)(did: DisguiseID, privk: PrivKey,
+               loc: Locator) -> Vec<Vec<u8>>;
+// Gets principals at loc that p speaks for.
+(*\textbf{PseudoprincipalsOf}*)(p: UID, privk: PrivKey,
+                 loc: Locator) -> Vec<UID>;
+// Drops encrypted data stored by did at loc.
+(*\textbf{ForgetData}*)(did: DisguiseID, loc: Locator);
 \end{lstlisting}
-\caption{\sys's low-level API.}
+\caption{\sys's low-level API (Rust-like syntax).}
 \label{f:api-low}
 \end{figure}
 

@@ -29,45 +29,41 @@ operate over already-disguised data.
 
 %
 The application database changes for a disguise $d_2$ that applies
-to data already disguised by earlier disguise $d_1$ is fairly
+to data already disguised by earlier disguise $d_1$ are fairly
 straightforward: $d_2$ modifies the data again, deletes it, or
 decorrelates it to pseudoprincipals.
 %
 However, if \sys is to permit revealing $d_2$---\ie let a natural
-principal $p$ restore the state after $d_1$ but before $d_2$---it must
-store encrypted records of $d_2$'s changes.
+principal $p$ restore the state after as it was $d_1$ but before
+$d_2$---it must store encrypted records of $d_2$'s changes.
 %
-But now, a challenges arises: data decorrelated to pseudoprincipals
-by $d_1$ is associated with those pseudoprincipals in the application
+But now, a challenge arises: data decorrelated to pseudoprincipals
+by $d_1$ is owned by those pseudoprincipals in the application
 DB, rather than with a natural principal; indeed, the application
-and \sys \emph{must} have forgotten its association with a natural
+and \sys \emph{must} have forgotten the association with a natural
 principal to be secure.
 %
-Consequently, \sys lacks a public key to encrypt $d_2$'s changes
-for $p$.
+Thus, \sys lacks a public key to encrypt $d_2$'s changes for $p$.
 %
-
-%
-Moreover, the application will struggle to convey the locators returned by \sys to the right client
-without the original client introducing information, as the application cannot know which principal
-originally owned the data.
-%
-For example, after the instructor anonymizes a class in WebSubmit, all
-answers are associated with pseudoprincipals.
-%
-If the instructor later decides to scrub identifiers from answer contents
-using another disguise, those disguise's records must be associated with
-pseudoprincipals.
-%
-However, if a client speaking for the pseudoprincipals actively applies the disguise (\eg a user
-deletes $p$'s account after anonymization), the deletion disguise's records can be associated with
-$p$, rather than the pseudoprincipals that own $p$'s data after anonymization. 
+Moreover, the application cannot convey the locators returned by
+\sys to a client without knowing the natural principal.
 %
 
 %
 To solve this challenge, \sys stores data for pseudoprincipals,
 and establishes ways for a natural principal to prove a speaks-for
 relationship with these pseudoprincipals.
+%
+For example, after the instructor anonymizes a class in WebSubmit, all
+answers are associated with pseudoprincipals.
+%
+If the instructor later decides to scrub identifiers from answer contents
+using another disguise, those disguise's will be associated with
+pseudoprincipals.
+%
+%However, if a client speaking for the pseudoprincipals interactively applies the disguise (\eg a user
+%deletes $p$'s account after anonymization), the deletion disguise's records can be associated with
+%$p$, rather than the pseudoprincipals that own $p$'s data after anonymization.
 %
 
 \head{Storing Data for Pseudoprincipals.}
@@ -97,24 +93,26 @@ $p$'s encrypted data.
 
 %
 Finally, this idea applies recursively: in the above example, $p$ itself may
-be a pseudoprincipal $s$ and not a natural principal.
+be a pseudoprincipal $r$ and not a natural principal.
 %
 (This is why the application cannot \eg simply email $q$'s private key to
-$p$ when it creates a pseudoprincipal $q$ for $p$.)
+$p$ when it creates a pseudoprincipal $q$.)
 %
 In this case, \sys encrypts $q$'s private key with the public key of
-pseudoprincipal $s$, granting any natural principal who can access
-$s$'s private key access to $q$ and its data.
+pseudoprincipal $r$, granting any natural principal who can access
+$r$'s private key access to $q$ and its data.
 %
 
 \head{Storing Pseudoprincipals' Locators.}
 %
-When a disguise $d$ generates records owned by a pseudoprincipal $q$, \sys stores these encrypted
-records at some locator. If the call to store the record indicates an active client speaking-for $p$,
-\sys stores the ciphertexts at \lcapa{pd}, and everything is fine (\lcapa{pd} is sent back to the
-active client). 
+When a disguise $d_2$ generates records owned by a pseudoprincipal $q$, \sys
+stores these encrypted records at some locator.
 %
-If no active user is present, however, \sys stores encrypted records at some locator for $q$, \lcapa{qd}.
+If the call to store the record indicates an interactive client speaking-for $p$,
+\sys stores the ciphertexts at \lcapa{pd}, and everything is fine (\lcapa{pd} is sent back to the
+client).
+%
+If \sys is not applying the disguise on behalf of a particular user, however, \sys stores encrypted records at some locator for $q$, \lcapa{qd}.
 %
 In this case, the application and \sys have nowhere to send \lcapa{qd} when the disguise completes, because $q$ is a
 pseudoprincipal.
@@ -131,7 +129,7 @@ as the principal who speaks-for $q$ can unwrap it.
 \head{Pseudoprincipal Metadata.}
 %
 \fn{ForgetPrincipal} tells \sys to remove any metadata about a principal
-$p$, which would ordinary imply
+$p$.
 %
 However, \sys must sometimes retain part of $q$'s metadata, as it may include
 encrypted locators that \sys must keep to later efficiently find $q$'s
@@ -141,7 +139,7 @@ Given that \sys cannot decrypt $q$'s locators, nor send them to a
 client, \sys retains pseudoprincipal metadata if it contains encrypted locators
 when the application calls \fn{ForgetPrincipal}.
 %
-However, \sys flips a boolean flag in the encrypted metadata, so that \sys
+However, \sys records that the pseudoprincipal is forgotten, so that \sys
 knows to delete $q$'s metadata when future \fn{ForgetData} calls remove
 the locators.
 %
@@ -182,13 +180,14 @@ the private key natural principal $p$ and locator \lcapa{pd_1} accesses
 \emph{both} $p$'s records for disguise $d_1$, the private
 keys of all pseudoprincipals ${q_0, \dots, q_k}$ created during disguise
 $d_1$, and all records encrypted for these pseudoprincipals during disguise
-$d_2$. 
+$d_2$.
 
 %
-In the first case, $p$ was not active for $d_2$.
+In the first case, $p$ did not interactively apply $d_2$, and thus \sys does not have $p$'s private
+key or locators.
 \sys accesses $q_i$'s private key by decrypting (with $p$'s private key) the
 bag at \lcapa{pd_1} that contains the wrapped private key.
-Since $p$ was not active during $d_2$, \sys stored a locator for $q_i$'s encrypted records
+Since $p$ did not invoke $d_2$, \sys stored a locator for $q_i$'s encrypted records
 \lcapa{q_id_2} in $q\_i$'s metadata.
 With $q_i$'s private key, \sys decrypts \lcapa{q_id_2} from $q_i$'s metadata,
 and uses it to locate $q_i$'s encrypted records from $d_2$, decrypting the records
@@ -196,7 +195,7 @@ with $q_i$'s private key.
 %
 
 %
-In the second case, $p$ had been active during $d_2$. \sys thus created a locator \lcapa{pd_2} for
+In the second case, $p$ interactively invoked $d_2$. \sys thus created a locator \lcapa{pd_2} for
 $q_i$'s records and sent this to $p$; $q_i$ has no affiliated encrypted locators. To access $q_i$'s
 records for disguise $d_2$, a client can simply provide \lcapa{pd_2} in addition to \lcapa{pd_1} and
 $p$'s private key. \sys still first retrieves $q_i$'s private key with $p$'s private key and

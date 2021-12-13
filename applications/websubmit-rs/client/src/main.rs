@@ -79,7 +79,6 @@ fn main() {
         ))
         .unwrap();
     }
-    info!(log, "Inserted {} lecs with {} qs", args.nlec, args.nusers);
 
     for u in 0..args.nusers + ndisguising {
         let email = format!("{}@mail.edu", u);
@@ -95,7 +94,6 @@ fn main() {
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
         buf_reader.read_to_string(&mut apikey).unwrap();
-        info!(log, "Got email {} with apikey {}", &email, apikey);
         user2apikey.insert(email.clone(), apikey);
 
         // get decryption cap
@@ -103,7 +101,6 @@ fn main() {
         let mut buf_reader = BufReader::new(file);
         let mut decryptcap = String::new();
         buf_reader.read_to_string(&mut decryptcap).unwrap();
-        info!(log, "Got email {} with decryptcap {}", &email, decryptcap);
         user2decryptcap.insert(email, decryptcap);
     }
 
@@ -128,7 +125,6 @@ fn main() {
             )
         }));
     }
-    info!(log, "Waiting for barrier!");
     barrier.wait();
 
     let my_delete_durations = delete_durations.clone();
@@ -156,19 +152,6 @@ fn main() {
     for j in normal_threads {
         j.join().expect("Could not join?").unwrap();
     }
-    info!(
-        log,
-        "normal threads completed: {}",
-        start.elapsed().as_micros()
-    );
-    print_stats(
-        &args,
-        ndisguises,
-        ndisguising as u64,
-        &edit_durations.lock().unwrap(),
-        &delete_durations.lock().unwrap(),
-        &restore_durations.lock().unwrap(),
-    );
 }
 
 fn run_normal(
@@ -208,11 +191,6 @@ fn run_normal(
             format!("answers.{}", q),
             format!("new_answer_user_{}_lec_{}", uid, lec),
         ));
-        info!(
-            log,
-            "Posting to questions for lec {} answers {:?}", lec, answers
-        );
-
         let response = client
             .post(format!("{}/questions/{}", SERVER, 0)) // testing lecture 0 for now
             .form(&answers)
@@ -361,8 +339,6 @@ fn run_disguising_thread(
     let mut buf_reader = BufReader::new(file);
     let mut diffcap = String::new();
     buf_reader.read_to_string(&mut diffcap).unwrap();
-    info!(log, "Got email {} with diffcap {}", &email, diffcap);
-
     // wait for any concurrent disguisers to finish
     barrier.wait();
     // sleep for nsleep milliseconds, then restore
@@ -370,7 +346,6 @@ fn run_disguising_thread(
 
     // restore
     let start = time::Instant::now();
-    info!(log, "Restoring user {} with diffcap {}", &email, diffcap);
     let response = client
         .post(&format!("{}/restore", SERVER))
         .form(&vec![
@@ -393,66 +368,3 @@ fn run_disguising_thread(
     Ok(())
 }
 
-fn print_stats(
-    args: &args::Args,
-    ndisguises: u64,
-    ndisguising: u64,
-    edit_durations: &Vec<(Duration, Duration)>,
-    delete_durations: &Vec<(Duration, Duration)>,
-    restore_durations: &Vec<(Duration, Duration)>,
-) {
-    let filename = format!("concurrent_{}users_{}sleep_{}disguisers.csv", args.nusers, args.nsleep, ndisguising);
-
-    // print out stats
-    let mut f = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&filename)
-        .unwrap();
-
-    writeln!(f, "{}", ndisguises).unwrap();
-
-    writeln!(
-        f,
-        "{}",
-        edit_durations
-            .iter()
-            .map(|d| format!(
-                "{}:{}",
-                d.0.as_millis().to_string(),
-                d.1.as_micros().to_string()
-            ))
-            .collect::<Vec<String>>()
-            .join(",")
-    )
-    .unwrap();
-    writeln!(
-        f,
-        "{}",
-        delete_durations
-            .iter()
-            .map(|d| format!(
-                "{}:{}",
-                d.0.as_millis().to_string(),
-                d.1.as_micros().to_string()
-            ))
-            .collect::<Vec<String>>()
-            .join(",")
-    )
-    .unwrap();
-    writeln!(
-        f,
-        "{}",
-        restore_durations
-            .iter()
-            .map(|d| format!(
-                "{}:{}",
-                d.0.as_millis().to_string(),
-                d.1.as_micros().to_string()
-            ))
-            .collect::<Vec<String>>()
-            .join(",")
-    )
-    .unwrap();
-}

@@ -1,16 +1,39 @@
 \section{Discussion}
 \label{s:disc}
 
-\lyt{Should we note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric
-crypto; otherwise, we could just send the symmetric key to the original user being disguised?}
+%
+In our prototype, \sys's encrypted store is co-located with the application
+database, but an alternative design might store the encrypted bags externally.
+%
+For example, a more decentralized version of \sys could push database diffs and
+speaks-for records to an external ``vault'' under the control of the user (\eg
+an S3 storage bucket), or ask the user to download the data under disguise
+and remember a hash for tamper-proof restoration.
+%
+This leaves no trace of the data on the server, and would prevent the attacker
+from learning anything (including statistics about the data).
+%
+However, this design is incompatible with further disguising of
+pseudoprincipal-owned data, as \sys no longer knows which natural principal's
+vault to push into when the data is decorrelated.
+%
 
-\lyt{
-An alternative design might remove encrypted records completely (and \eg store them in external per-user
-vaults or email them to the client).
-This leaves no trace in \sys or the application, and would prevent the attacker from learning
-anything. However, this places a large burden on the client.
-Maybe put this in future work?
-}
-
-\ms{Hiding bag sizes -- very expensive, as would need to pad to max user data size, or add noise
-proportional to that. Likely impractical.}
+%
+\sys's efficiency is also affected by cryptographic design choices.
+%
+If \sys were to only support direct disguises of a natural principal's data, a
+symmetric key that the application emails to the client and forgets would
+suffice.
+%
+But to support pseudoprincipals and composition over decorrelated data
+(\S\ref{s:composition}), \sys must use asymmetric, public-private key
+cryptography.
+%
+Finally, \sys could pad bags and locator sets to a fixed maximum size, or with
+random padding, to hide the size of data under disguise and the number of
+disguises applied to a pseudoprincipal.
+%
+But this would be expensive, as the amount of padding would need to be
+proportional to the maximum amount of data under disguise and the number of
+disguises.
+%
