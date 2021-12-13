@@ -21,21 +21,19 @@ security and performance.
 \label{s:impl-locators}
 %
 An application hands \sys database diffs and speaks-for records when it applies
-a disguise $d$.
+a disguise.
 %
 \sys appends a random nonce to the plaintext to prevent known-plaintext attacks
 and encrypts the records.
 %
-\sys encrypts the record data with AES with 128-bit keys (CBC mode) using a fresh symmetric key, and
-then encrypts this key with the principal's public key.
+\sys encrypts the record data with AES with 128-bit keys (CBC mode) using a
+fresh symmetric key, and then encrypts this key with the principal's public key.
 %
 
 %
-\sys stores encrypted records without leaking that disguise $d$ applied to
-principal $p$.
-%
-For example, if \sys revealed that a principal has invoked GDPR deletion, it
-might violate the GDPR.
+\sys stores encrypted records, but hides that disguise $d$ applied to
+principal $p$---for example, if \sys revealed that a principal has invoked
+GDPR deletion, it might violate the GDPR.
 %
 Consequently, \sys avoids storing any mapping from $p$ or $d$ to a bag of
 encrypted records.
