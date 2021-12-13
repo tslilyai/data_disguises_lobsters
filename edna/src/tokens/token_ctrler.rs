@@ -580,12 +580,14 @@ impl TokenCtrler {
                 bag.owner = uid.clone();
                 // important: insert the mapping from new_uid to pppk
                 bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
+                warn!("Got bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, bag.owntoks.len(), bag.pktoks.len());
             }
             None => {
                 let mut new_bag = Bag::new(uid);
                 new_bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
                 self.tmp_bags
                     .insert((old_uid.clone(), did.clone()), new_bag);
+                warn!("Got new_bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, new_bag.owntoks.len(), new_bag.pktoks.len());
             }
         }
         warn!("Inserted privkey token from uid {} for {}: {}", old_uid, uid, start.elapsed().as_micros());
@@ -603,12 +605,14 @@ impl TokenCtrler {
             Some(bag) => {
                 bag.owner = uid.clone();
                 bag.owntoks.push(pppk.clone());
+                warn!("Got bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, bag.owntoks.len(), bag.pktoks.len());
             }
             None => {
                 let mut new_bag = Bag::new(uid);
                 new_bag.owntoks.push(pppk.clone());
                 self.tmp_bags
                     .insert((old_uid.clone(), pppk.did.clone()), new_bag);
+                warn!("Got new_bag for {} and {} with owntoks {} and privkeys {}", old_uid, pppk.did, new_bag.owntoks.len(), new_bag.pktoks.len());
             }
         }
         warn!("Inserted own token from uid {} for {}: {}", old_uid, uid, start.elapsed().as_micros());
