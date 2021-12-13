@@ -29,22 +29,21 @@ operate over already-disguised data.
 
 %
 The application database changes for a disguise $d_2$ that applies
-to data already disguised by earlier disguise $d_1$ is fairly
+to data already disguised by earlier disguise $d_1$ are fairly
 straightforward: $d_2$ modifies the data again, deletes it, or
 decorrelates it to pseudoprincipals.
 %
 However, if \sys is to permit revealing $d_2$---\ie let a natural
-principal $p$ restore the state after $d_1$ but before $d_2$---it must
-store encrypted records of $d_2$'s changes.
+principal $p$ restore the state after as it was $d_1$ but before
+$d_2$---it must store encrypted records of $d_2$'s changes.
 %
-But now, a challenges arises: data decorrelated to pseudoprincipals
-by $d_1$ is associated with those pseudoprincipals in the application
+But now, a challenge arises: data decorrelated to pseudoprincipals
+by $d_1$ is owned by those pseudoprincipals in the application
 DB, rather than with a natural principal; indeed, the application
-and \sys \emph{must} have forgotten its association with a natural
+and \sys \emph{must} have forgotten the association with a natural
 principal to be secure.
 %
-Consequently, \sys lacks a public key to encrypt $d_2$'s changes
-for $p$.
+Thus, \sys lacks a public key to encrypt $d_2$'s changes for $p$.
 %
 
 %
@@ -59,9 +58,9 @@ If the instructor later decides to scrub identifiers from answer contents
 using another disguise, those disguise's records must be associated with
 pseudoprincipals.
 %
-However, if a client speaking for the pseudoprincipals interactively applies the disguise (\eg a user
-deletes $p$'s account after anonymization), the deletion disguise's records can be associated with
-$p$, rather than the pseudoprincipals that own $p$'s data after anonymization. 
+%However, if a client speaking for the pseudoprincipals interactively applies the disguise (\eg a user
+%deletes $p$'s account after anonymization), the deletion disguise's records can be associated with
+%$p$, rather than the pseudoprincipals that own $p$'s data after anonymization.
 %
 
 %
@@ -112,7 +111,7 @@ $s$'s private key access to $q$ and its data.
 When a disguise $d$ generates records owned by a pseudoprincipal $q$, \sys stores these encrypted
 records at some locator. If the call to store the record indicates an interactive client speaking-for $p$,
 \sys stores the ciphertexts at \lcapa{pd}, and everything is fine (\lcapa{pd} is sent back to the
-client). 
+client).
 %
 If \sys is not applying the disguise on behalf of a particular user, however, \sys stores encrypted records at some locator for $q$, \lcapa{qd}.
 %
@@ -182,7 +181,7 @@ the private key natural principal $p$ and locator \lcapa{pd_1} accesses
 \emph{both} $p$'s records for disguise $d_1$, the private
 keys of all pseudoprincipals ${q_0, \dots, q_k}$ created during disguise
 $d_1$, and all records encrypted for these pseudoprincipals during disguise
-$d_2$. 
+$d_2$.
 
 %
 In the first case, $p$ did not interactively apply $d_2$, and thus \sys does not have $p$'s private
