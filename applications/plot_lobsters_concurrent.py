@@ -5,6 +5,7 @@ import csv
 import statistics
 import sys
 from collections import defaultdict
+import matplotlib.colors as mcolors
 
 plt.style.use('seaborn-deep')
 
@@ -95,7 +96,7 @@ yerr=get_yerr([
     op_results[10][0],
 
 ]),
-color='g', capsize=3, width=barwidth, label="No Disguiser")
+color='g', capsize=3, width=barwidth, label="No Disguiser", edgecolor='black')
 add_labels((X-2*barwidth),
 [
     statistics.median(op_results[1][0]),
@@ -113,12 +114,12 @@ yerr=get_yerr([
     op_results[10][1],
 
 ]),
-color='c', capsize=3, width=barwidth, label="Random Disguiser")
+color='b', capsize=3, width=barwidth, label="Random Disguiser", edgecolor='black')
 add_labels((X-barwidth),
 [
     statistics.median(op_results[1][1]),
     statistics.median(op_results[10][1]),
-], plt, 'c', offset)
+], plt, 'b', offset)
 
 ################ cheap w/txn
 plt.bar((X), [
@@ -130,7 +131,7 @@ yerr=get_yerr([
     op_results_txn[10][1],
 
 ]),
-color='b', capsize=3, width=barwidth, label="Random Disguiser (Txn)")
+color='b', hatch='////', capsize=3, width=barwidth, label="Random Disguiser (Txn)", edgecolor='black', alpha=.99)
 add_labels((X),
 [
     statistics.median(op_results_txn[1][1]),
@@ -147,7 +148,7 @@ yerr=get_yerr([
     op_results[10][2],
 
 ]),
-color='r', capsize=3, width=barwidth, label="Expensive Disguiser")
+color='r', capsize=3, width=barwidth, label="Expensive Disguiser", edgecolor='black')
 add_labels((X+barwidth),
 [
     statistics.median(op_results[1][2]),
@@ -165,12 +166,12 @@ yerr=get_yerr([
     op_results_txn[10][2],
 
 ]),
-color='m', capsize=3, width=barwidth, label="Expensive Disguiser (Txn)")
+color='r', hatch='////', capsize=3, width=barwidth, label="Expensive Disguiser (Txn)",alpha=.99, edgecolor='black')
 add_labels((X+2*barwidth),
 [
     statistics.median(op_results_txn[1][2]),
     statistics.median(op_results_txn[10][2]),
-], plt, 'm', offset)
+], plt, 'r', offset)
 
 
 plt.ylabel('Time (ms)')
