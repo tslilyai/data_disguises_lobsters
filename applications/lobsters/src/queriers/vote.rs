@@ -9,7 +9,7 @@ use log::{error};
 pub fn vote_on_comment(db: &mut mysql::PooledConn, acting_as: Option<u64>, comment: u64, pos: bool) -> Result<(), mysql::Error> {
     let user = acting_as.unwrap();
 
-    match db.query_first::<(u32, u32, u32, u32, u32), String>(format!(
+    match db.query_first::<(u64, u32, u32, u32, u32), String>(format!(
             "SELECT `comments`.`user_id`, `comments`.`story_id`, \
                 `comments`.`upvotes`, `comments`.`downvotes`, \
                 `comments`.`id` \

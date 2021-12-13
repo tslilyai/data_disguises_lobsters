@@ -11,7 +11,7 @@ use log::warn;
 pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) -> Result<Vec<String>, mysql::Error> {
     let mut result = vec![];
     let start = time::Instant::now();
-    let (author, story) : (u32, u32) = db.query_first(format!(
+    let (author, story) : (u64, u32) = db.query_first(format!(
             "SELECT `stories`.`id`, `stories`.`user_id` \
              FROM `stories` \
              WHERE `stories`.`short_id` = '{}'", id))?.unwrap();
@@ -82,7 +82,7 @@ pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) 
          saldo ASC, \
          confidence DESC",
          story),
-        |(user_id, id, _saldo) :(u32, u32, i32)| {
+        |(user_id, id, _saldo) :(u64, u32, i32)| {
             users.insert(user_id);
             comments.insert(id);
         })?;

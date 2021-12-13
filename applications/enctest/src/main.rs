@@ -30,8 +30,9 @@ fn main() {
     let filename = format!("enc_stats.csv");
     let mut file = File::create(filename).unwrap();
  
-    let size = 100;
-    for i in 1..1001 {
+    let size = 1000;
+    let mut i = 0;
+    while i < 10001 {
         let mut bytes: Vec<u8> = repeat(0u8).take(i*size).collect();
         rng.fill_bytes(&mut bytes[..]);
         let start = time::Instant::now();
@@ -42,5 +43,6 @@ fn main() {
         enc.decrypt_encdata(&privkey_vec);
         let dec_elapsed = start.elapsed().as_micros();
         file.write(format!("{},{},{}\n", i*size, enc_elapsed, dec_elapsed).as_bytes()).unwrap();
+        i += 5
     }
 }

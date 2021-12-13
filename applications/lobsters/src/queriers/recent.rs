@@ -28,7 +28,7 @@ pub fn recent(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Result<(), 
              AND CAST(upvotes as signed) - CAST(downvotes as signed) <= 5 \
              ORDER BY `id` DESC LIMIT 51",
             //AND saldo <= 5 \
-        |(uid, id): (u32, u32)| {
+        |(uid, id): (u64, u32)| {
             users.insert(uid);
             stories.insert(id);
         })?;

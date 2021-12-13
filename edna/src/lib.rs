@@ -2,7 +2,7 @@ extern crate base64;
 extern crate mysql;
 extern crate ordered_float;
 
-use log::warn;
+use log::{warn, error};
 use mysql::prelude::*;
 use mysql::Opts;
 use rsa::RsaPrivateKey;
@@ -292,9 +292,10 @@ impl EdnaClient {
 
     pub fn get_sizes(&self) -> usize {
         let locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let (principal_data, encmap, keys, toremove) = locked_token_ctrler.get_sizes();
+        let bytes = locked_token_ctrler.get_sizes();
         drop(locked_token_ctrler);
-        principal_data + encmap + keys + toremove
+        error!("TCTRLER BYTES\t {}", bytes);
+        bytes
     }
 }
 

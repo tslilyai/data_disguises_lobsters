@@ -6,7 +6,7 @@ use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
-use log::warn;
+use log::{warn, error};
 use mysql::prelude::*;
 use rand::{rngs::OsRng, Rng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
@@ -134,6 +134,9 @@ pub struct TokenCtrler {
     batch: bool,
     dbserver: String,
 
+    // XXX remove me
+    pub plaintext_sz: usize,
+
     // (p,d) capability -> set of token ciphertext for principal+disguise
     pub enc_map: HashMap<Loc, EncData>,
     pub pps_to_remove: HashSet<UID>,
@@ -163,6 +166,7 @@ impl TokenCtrler {
             principal_data: HashMap::new(),
             pseudoprincipal_keys_pool: vec![],
             poolsize: poolsize,
+            plaintext_sz: 0,
             batch: batch,
             dbserver: dbserver.to_string(),
             enc_map: HashMap::new(),
@@ -207,11 +211,28 @@ impl TokenCtrler {
         tctrler
     }
 
-    pub fn get_sizes(&self) -> (usize, usize, usize, usize) {
-        (size_of_val(&self.principal_data),
-        size_of_val(&self.enc_map),
-        size_of_val(&self.pseudoprincipal_keys_pool),
-        size_of_val(&self.pps_to_remove))
+    pub fn get_sizes(&self) -> usize {
+        let mut bytes = 0;
+        for (key, pd) in self.principal_data.iter() {
+            bytes += size_of_val(&*key);
+            bytes += size_of_val(&*pd);
+            warn!("{}", bytes);
+        }
+        for (key, em) in self.enc_map.iter() {
+            bytes += size_of_val(&*key);
+            bytes += size_of_val(&*em);
+            warn!("{}", bytes);
+        }
+        for ppks in &self.pseudoprincipal_keys_pool {
+            bytes += size_of_val(&*ppks);
+            warn!("{}", bytes);
+        }
+        for ppuid in self.pps_to_remove.iter() {
+            bytes += size_of_val(&*ppuid);
+            warn!("{}", bytes);
+        }
+        error!("PLAINTEXT {}", self.plaintext_sz);
+        bytes
     }
 
     pub fn repopulate_pseudoprincipal_keys_pool(&mut self) {
@@ -539,6 +560,7 @@ impl TokenCtrler {
             .expect("no user with uid found?")
             .clone();
         let plaintext = serialize_to_bytes(bag);
+        self.plaintext_sz += plaintext.len();
         let enc_bag = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
         // insert the encrypted pppk into locating capability
         self.enc_map.insert(lc.loc, enc_bag);
@@ -867,7 +889,6 @@ impl TokenCtrler {
         assert!(self.batch);
         if let Some(encbag) = self.enc_map.get(&lc.loc) {
             let start = time::Instant::now();
-            let mut uid = String::new();
             no_diffs_at_loc = false;
             no_owns_at_loc = false;
             no_pks_at_loc = false;
@@ -888,9 +909,6 @@ impl TokenCtrler {
             );
             // remove if we found a matching token for the disguise
             if tokens.is_empty() || tokens[0].did == did {
-                if !tokens.is_empty() {
-                    uid = tokens[0].uid.clone();
-                }
                 changed = true;
                 no_diffs_at_loc = true;
                 bag.difftoks = vec![];
@@ -902,9 +920,6 @@ impl TokenCtrler {
                 start.elapsed().as_micros(),
             );
             if tokens.is_empty() || tokens[0].did == did {
-                if !tokens.is_empty() {
-                    uid = tokens[0].old_uid.clone();
-                }
                 changed = true;
                 no_owns_at_loc = true;
                 bag.owntoks = vec![];
@@ -919,7 +934,6 @@ impl TokenCtrler {
             // get ALL new_uids regardless of disguise that token came from
             for (new_uid, pk) in &tokens {
                 new_uids.push((new_uid.clone(), pk.clone()));
-                uid = pk.old_uid.clone();
             }
             // remove matching tokens of pseudoprincipals
             // for each pseudoprincipal for which we hold a private key
@@ -984,7 +998,7 @@ impl TokenCtrler {
             } else if changed {
                 // update the encrypted store of stuff if changed at all
                 bag.pktoks = kept_privkeys;
-                self.update_bag_at_loc(uid.to_string(), lc, &bag);
+                //self.update_bag_at_loc(uid.to_string(), lc, &bag);
             }
         }
         // return whether we removed bags

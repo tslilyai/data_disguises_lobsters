@@ -55,8 +55,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
+        //.filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -487,9 +487,9 @@ fn run_sizes_test(
     let nusers = sampler.nusers();
     let mut lcs_map_all = HashMap::new();
     let mut rng = rand::thread_rng();
-    for trial in 0..100 {
+    for trial in 0..1 {
         let mut users = vec![];
-        for i in 0..(nusers/10) as usize {
+        for i in 0..(nusers/5) as usize {
             let mut user_id = rng.gen_range(0, nusers) as u64 + 1;
             users.push(user_id);
             let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
@@ -501,9 +501,7 @@ fn run_sizes_test(
             lcs_map_all.extend(lcs_map.clone());
         }
 
-        // TODO spit out number
-        file.write(format!("{}, ", edna.get_sizes()).as_bytes()).unwrap();
-
+        file.write(format!("TOTAL DECOR: {}\n", edna.get_sizes()).as_bytes()).unwrap();
         for u in users { 
             let decryption_cap = user2decryptcaps.get(&u).unwrap();
 
@@ -518,12 +516,11 @@ fn run_sizes_test(
             disguises::data_decay::reveal(edna, decryption_cap.clone(), ls).unwrap();
         }
 
-        // TODO spit out number
-        file.write(format!("{}\n", edna.get_sizes()).as_bytes()).unwrap();
+        file.write(format!("TOTAL RESTORE: {}\n", edna.get_sizes()).as_bytes()).unwrap();
+        file.flush().unwrap();
     }
     file.flush().unwrap();
 }
-
 
 fn run_stats_test(
     edna: &mut EdnaClient,
