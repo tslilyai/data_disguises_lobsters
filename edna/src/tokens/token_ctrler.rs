@@ -6,7 +6,7 @@ use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
-use log::{warn, error};
+use log::{warn};
 use mysql::prelude::*;
 use rand::{rngs::OsRng, Rng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
@@ -232,23 +232,34 @@ impl TokenCtrler {
             bytes += size_of_val(&*pd);
         }
         bytes += size_of_val(&self.principal_data);
+        warn!("pdata {}", bytes);
+        
+        let mut edbytes = 0;
         for (l, ed) in self.enc_map.iter() {
-            bytes += size_of_val(&l);
-            bytes += size_of_val(&*ed);
-            bytes += ed.enc_data.len() + ed.enc_key.len() + ed.iv.len();
+            edbytes += size_of_val(&l);
+            edbytes += size_of_val(&*ed);
+            edbytes += ed.enc_data.len() + ed.enc_key.len() + ed.iv.len();
         }
-        bytes += size_of_val(&self.enc_map);
+        edbytes += size_of_val(&self.enc_map);
+        warn!("emap {}", edbytes);
+        
+        let mut poolbytes = 0;
         for (privkey, pubkey) in &self.pseudoprincipal_keys_pool {
-            bytes += size_of_val(&privkey);
-            bytes += size_of_val(&pubkey);
+            poolbytes += size_of_val(&privkey);
+            poolbytes += size_of_val(&pubkey);
         }
-        bytes += size_of_val(&self.pseudoprincipal_keys_pool);
+        poolbytes += size_of_val(&self.pseudoprincipal_keys_pool);
+        warn!("pool {}", poolbytes);
+        
+        let mut ppuidbytes = 0;
         for ppuid in self.pps_to_remove.iter() {
-            bytes += size_of_val(&*ppuid);
+            ppuidbytes += size_of_val(&*ppuid);
         }
-        bytes += size_of_val(&self.pps_to_remove);
-        error!("PLAINTEXT {}, CIPHERTEXT {}: {} {} {}", self.plaintext_sz, self.cipher_sz, self.ndts, self.nots, self.npts);
-        bytes
+        ppuidbytes += size_of_val(&self.pps_to_remove);
+        warn!("ppuid {}", ppuidbytes);
+        
+        warn!("PLAINTEXT {}, CIPHERTEXT {}: {} {} {}", self.plaintext_sz, self.cipher_sz, self.ndts, self.nots, self.npts);
+        bytes + edbytes + poolbytes + ppuidbytes
     }
 
     pub fn repopulate_pseudoprincipal_keys_pool(&mut self) {
@@ -1101,7 +1112,7 @@ mod tests {
             .filter_level(log::LevelFilter::Warn)
             // Ensure events are captured by `cargo test`
             .is_test(true)
-            // Ignore errors initializing the logger if tests race to configure it
+            // Ignore warns initializing the logger if tests race to configure it
             .try_init();
     }
 
