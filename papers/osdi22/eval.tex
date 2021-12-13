@@ -259,9 +259,8 @@ restoration).
 \end{tabular}
   \caption{\sys cryptographic operations are cheap (0.3--4.5ms), except for
     pseudoprincipal key generation, which \sys amortizes by via a pre-generated
-    key pool (\S\ref{s:impl}).
-    Encrypt/decrypt latency has a baseline cost of 0.3/2.8ms, which then linearly increases.} 
-    \label{f:opstats}
+    key pool (\S\ref{s:impl}).}
+  \label{f:opstats}
 \end{figure}
 
 \paragraph{WebSubmit.}
@@ -412,8 +411,8 @@ To avoid this cost, \sys keeps a pre-generated key pool that it draws on
 during disguises (\S\ref{s:impl}).
 %
 %
-The cost of \sys's other cryptographic operations scales linearly with the
-size of the stored data, but they are generally cheap (0.3--4.5ms).
+The baseline cost of encryption is 0.3ms, and grows linearly with data
+size; baseline decryption cost is 2.8ms and also scales linearly.
 %
 A disguise or reveal operation requires a single encryption/decryption in
 the simple case when the application only applied one disguise to the
@@ -447,13 +446,13 @@ data decorrelated by a prior disguise $d_1$.
 One such case occurs when a client interactively invokes $d_2$ on behalf of principal $p$ with private key $p$ and
 locators \lcapa{pd_1} from anonymization disguise $d_1$, the application can ask \sys (via
 \fn{PseudoprincipalsOf}) to decrypt all speaks-for records in $p$'s bag at \lcapa{pd_1} using $p$'s
-private key. 
+private key.
 This adds the cost of decrypting speaks-for records stored at \lcapa{pd_1}.
 %
 With these speaks-for tokens, the application and \sys can not only disguise
 $p$'s data, but also disguise data of $p$'s pseudoprincipals $q_i$ produced by $d_1$.
-\sys must perform one bag encryption \emph{per pseudoprincipal $q_i$}, rather than a single 
-encryption for single pseudoprincipal $p$ had $p$'s data never been decorrelated by $d_1$. 
+\sys must perform one bag encryption \emph{per pseudoprincipal $q_i$}, rather than a single
+encryption for single pseudoprincipal $p$ had $p$'s data never been decorrelated by $d_1$.
 %
 
 %
