@@ -3,6 +3,10 @@ use log::debug;
 use std::collections::HashMap;
 use serde::Serialize;
 
+pub fn size_of_vec<T>(vec: &Vec<T>) -> usize {
+    std::mem::size_of_val(vec) + vec.capacity() * std::mem::size_of::<T>()
+}
+
 pub fn serialize_to_bytes<T: Serialize>(item: &T) -> Vec<u8> {
     bincode::serialize(item).unwrap()
 }

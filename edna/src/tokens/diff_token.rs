@@ -9,13 +9,14 @@ use sql_parser::ast::*;
 use std::collections::HashSet;
 use std::time;
 use serde::{Deserialize, Serialize};
+use  std::mem::size_of_val;
 
-pub const REMOVE_GUISE: u64 = 1;
-pub const DECOR_GUISE: u64 = 2;
-pub const MODIFY_GUISE: u64 = 3;
-pub const REMOVE_TOKEN: u64 = 5;
-pub const MODIFY_TOKEN: u64 = 6;
-pub const REMOVE_PRINCIPAL: u64 = 7;
+pub const REMOVE_GUISE: u8 = 0;
+pub const DECOR_GUISE: u8 = 1;
+pub const MODIFY_GUISE: u8 = 2;
+pub const REMOVE_TOKEN: u8 = 3;
+pub const MODIFY_TOKEN: u8 = 4;
+pub const REMOVE_PRINCIPAL: u8 = 5;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct DiffTokenWrapper {
@@ -31,7 +32,7 @@ pub struct DiffTokenWrapper {
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct EdnaDiffToken {
     // metadata set by Edna
-    pub typ: u64,
+    pub typ: u8,
 
     // guise information
     pub table: String,
@@ -50,7 +51,6 @@ pub struct EdnaDiffToken {
     pub newblob: String,
 
     // REMOVE PRINCIPAL
-    pub uid: UID,
     pub pubkey: Vec<u8>,
 }
 
@@ -96,11 +96,17 @@ pub fn new_remove_principal_token_wrapper(
     token.did = did;
 
     let mut edna_token: EdnaDiffToken = Default::default();
-    edna_token.uid = uid.clone();
     edna_token.pubkey = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
     edna_token.typ = REMOVE_PRINCIPAL;
-
     token.token_data = edna_diff_token_to_bytes(&edna_token);
+    error!("REMOVE PRINC: nonce {}, uid {}, did {}, pubkey {}, tp {}, all: {}", 
+        size_of_val(&*token.nonce),
+        size_of_val(&*token.uid),
+        size_of_val(&*token.did),
+        size_of_val(&*edna_token.pubkey),
+        size_of_val(&*edna_token.typ),
+        size_of_val(&*token),
+    );
     token
 }
 
@@ -122,7 +128,7 @@ pub fn new_token_modify(
     edna_token.newblob = serde_json::to_string(changed_token).unwrap();
 
     token.token_data = edna_diff_token_to_bytes(&edna_token);
-    token
+        token
 }
 
 pub fn new_token_remove(uid: UID, did: DID, changed_token: &DiffTokenWrapper) -> DiffTokenWrapper {
@@ -155,8 +161,17 @@ pub fn new_delete_token_wrapper(
     edna_token.table = table;
     edna_token.tabids = tabids;
     edna_token.old_value = old_value;
-
     token.token_data = edna_diff_token_to_bytes(&edna_token);
+
+    error!("REMOVE DATA: nonce {}, uid {}, did {}, table {}, tableid {}, tp {}, all: {}", 
+        size_of_val(&*token.nonce),
+        size_of_val(&*token.did),
+        size_of_val(&*edna_token.table),
+        size_of_val(&*edna_token.tabid),
+        size_of_val(&*edna_token.typ),
+        size_of_val(&*edna_token.old_value),
+        size_of_val(&*token),
+    );
     token
 }
 
@@ -179,8 +194,19 @@ pub fn new_modify_token_wrapper(
     edna_token.col = col;
     edna_token.old_val = old_value;
     edna_token.new_val = new_value;
-
     token.token_data = edna_diff_token_to_bytes(&edna_token);
+
+    error!("MODIFY DATA: nonce {}, uid {}, did {}, table {}, tableids {}, tp {}, col {}, oldval {}, newval {}, all: {}", 
+        size_of_val(&*token.nonce),
+        size_of_val(&*token.did),
+        size_of_val(&*edna_token.table),
+        size_of_val(&*edna_token.tabids),
+        size_of_val(&*edna_token.typ),
+        size_of_val(&*edna_token.col),
+        size_of_val(&*edna_token.old_value),
+        size_of_val(&*edna_token.new_value),
+        size_of_val(&*token),
+    );
     token
 }
 

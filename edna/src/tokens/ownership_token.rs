@@ -7,6 +7,7 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use crate::*;
+use  std::mem::size_of_val;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct OwnershipTokenWrapper {
@@ -50,6 +51,15 @@ pub fn new_generic_ownership_token_wrapper(
     token.did = did;
     token.nonce = thread_rng().gen();
     token.token_data = data;
+
+    error!("OTW DATA: nonce {}, old_uid {}, new_uid {}, did {}, all: {}", 
+        size_of_val(&*token.nonce),
+        size_of_val(&*token.did),
+        size_of_val(&*token.new_uid),
+        size_of_val(&*token.old_uid),
+        size_of_val(&*token),
+    );
+ 
     token
 }
 
@@ -62,6 +72,14 @@ pub fn new_edna_ownership_token(
     edna_token.child_name = child_name;
     edna_token.child_ids = child_ids;
     edna_token.fk_col = fk_col;
+
+    error!("EDNA OT: cn {}, cids {}, fkcol {}, total {}",
+        size_of_val(&*token.nonce),
+        size_of_val(&*edna_token.child_name),
+        size_of_val(&*edna_token.child_ids),
+        size_of_val(&*edna_token.fk_col),
+        size_of_val(&*edna_token),
+    );
     edna_token
 }
 
