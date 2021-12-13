@@ -90,8 +90,8 @@ impl EdnaOwnershipToken {
         )?;
         if selected.is_empty() {
             warn!(
-                "OwnToken Reveal: Original entity col {} = {} does not exist\n",
-                guise_gen.guise_id_col, otw.old_uid
+                "OwnToken Reveal: Original entity col {} = {}, original otw {:?} does not exist\n",
+                guise_gen.guise_id_col, otw.old_uid, otw,
             );
             return Ok(false);
         }

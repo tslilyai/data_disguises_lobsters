@@ -444,8 +444,8 @@ impl TokenCtrler {
             &private_key,
         );
         let foruid = match original_uid {
+            Some(ouid) => ouid,
             None => uid,
-            Some(ouid) => ouid
         };
         self.insert_ownership_token_wrapper_for(&own_token_wrapped, uid, foruid);
         self.insert_privkey_token_for(uid, did, &privkey_token, foruid);
@@ -559,7 +559,6 @@ impl TokenCtrler {
             .expect("no user with uid found?")
             .clone();
         let plaintext = bincode::serialize(bag).unwrap();
-        error!("plaintext {:?}", plaintext);
         self.plaintext_sz += plaintext.len();
         let enc_bag = EncData::encrypt_with_pubkey(&p.pubkey, &plaintext);
         // insert the encrypted pppk into locating capability
@@ -576,7 +575,7 @@ impl TokenCtrler {
             return;
         }
         assert!(self.batch);
-        match self.tmp_bags.get_mut(&(uid.clone(), did.clone())) {
+        match self.tmp_bags.get_mut(&(old_uid.clone(), did.clone())) {
             Some(bag) => {
                 bag.owner = uid.clone();
                 // important: insert the mapping from new_uid to pppk
@@ -586,10 +585,10 @@ impl TokenCtrler {
                 let mut new_bag = Bag::new(uid);
                 new_bag.pktoks.insert(pppk.new_uid.clone(), pppk.clone());
                 self.tmp_bags
-                    .insert((uid.clone(), did.clone()), new_bag);
+                    .insert((old_uid.clone(), did.clone()), new_bag);
             }
         }
-        warn!("Inserted privkey token from uid {} for {}: {}", pppk.new_uid, uid, start.elapsed().as_micros());
+        warn!("Inserted privkey token from uid {} for {}: {}", old_uid, uid, start.elapsed().as_micros());
     }
 
     fn insert_ownership_token_wrapper_for(&mut self, pppk: &OwnershipTokenWrapper, old_uid: &UID, uid: &UID) {
@@ -612,7 +611,7 @@ impl TokenCtrler {
                     .insert((old_uid.clone(), pppk.did.clone()), new_bag);
             }
         }
-        warn!("Inserted own token: {}", start.elapsed().as_micros());
+        warn!("Inserted own token from uid {} for {}: {}", old_uid, uid, start.elapsed().as_micros());
     }
 
     pub fn insert_user_diff_token_wrapper_for(&mut self, token: &DiffTokenWrapper, uid: &UID) {
