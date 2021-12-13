@@ -137,7 +137,7 @@ fn run_edna(args: &Cli) {
     }
 
     let mut user2rid = HashMap::new();
-    // baseline edit/delete/restore for pc members 
+    // edit/delete/restore for pc members 
     for u in args.nusers_nonpc+2..args.nusers_nonpc + args.nusers_pc {
         let dc = decrypt_caps.get(&u).unwrap().to_vec();
 
@@ -168,7 +168,7 @@ fn run_edna(args: &Cli) {
     anon_durations.push(start.elapsed());
 
     // edit/delete/restore for pc members 
-    for u in args.nusers_nonpc+2..args.nusers_nonpc+2 + 10 {
+    for u in args.nusers_nonpc+2..args.nusers_nonpc+args.nusers_pc {
         let dc = decrypt_caps.get(&u).unwrap().to_vec();
         let mut anonlocs = anon_locs_map
             .get(&(
@@ -255,7 +255,7 @@ fn run_baseline(args: &Cli) {
     }
 
     // baseline edit/delete/restore for pc members 
-    for u in args.nusers_nonpc+2..args.nusers_nonpc+2 + 10 {
+    for u in args.nusers_nonpc+2..args.nusers_nonpc + args.nusers_pc {
         // edit
         let start = time::Instant::now();
         let rids = datagen::reviews::get_reviews(u as u64, &mut db).unwrap();

@@ -11,7 +11,7 @@ for baseline in false true ; do
 		RUST_LOG=error perflock ../../../target/release/websubmit-server \
 			-i myclass --schema src/schema.sql --config sample-config.toml \
 			--benchmark true --prime true --baseline $baseline \
-			--nusers $u --nlec $l --nqs 1 &> \
+			--nusers $u --nlec $l --nqs 4 &> \
 		    output/${l}lec_${u}users_isbaseline_$baseline.out
 		echo "Ran test for $l lecture and $u users"
 	    done

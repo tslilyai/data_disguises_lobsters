@@ -6,7 +6,7 @@ rm *txt
 mkdir output
 set -e
 
-for baseline in '--baseline' ''; do
+for baseline in '' '--baseline'; do
 	RUST_LOG=error ../../target/release/hotcrp --prime \
 		--nusers_nonpc 3000\
 		--nusers_pc 80\
