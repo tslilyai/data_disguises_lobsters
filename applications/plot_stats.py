@@ -13,18 +13,18 @@ plt.figure(figsize = (3.33, 1.5))
 matplotlib.rc('font', family='serif', size=8)
 matplotlib.rc('text.latex', preamble='\\usepackage{times,mathptmx}')
 matplotlib.rc('text', usetex=True)
-matplotlib.rc('legend', fontsize=8)
+matplotlib.rc('legend', fontsize=7)
 matplotlib.rc('figure', figsize=(3.33,1.5))
 matplotlib.rc('axes', linewidth=0.5)
 matplotlib.rc('lines', linewidth=0.5)
 
 def add_labels(x,y,plt,color,offset):
     for i in range(len(x)):
-        plt.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color, fontsize='x-small')
+        plt.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color, size=6)
 
 def add_text_labels(x,y,plt,color,offset):
     for i in range(len(x)):
-        plt.text(x[i], offset, y[i], ha='center', color=color, fontsize='x-small')
+        plt.text(x[i], offset, y[i], ha='center', color=color, size=6)
 
 def get_yerr(durs):
     mins = []
@@ -148,7 +148,7 @@ for i in range(2):
       plt.ylim(ymin=0, ymax=175)
       plt.yticks(range(0, 175, 50))
     plt.xticks(X, labels=labels)
-    plt.legend(loc='upper left', frameon=False);
+    plt.legend(loc='upper left', frameon=False, handlelength=1);
     plt.tight_layout(h_pad=0)
     plt.savefig("{}_op_stats.pdf".format(app))
     plt.clf()
@@ -237,9 +237,10 @@ add_labels((X+barwidth/2), [
 
 plt.ylabel('Time (ms)')
 #plt.ylim(ymin=0, ymax=np.percentile(restore_durs_batch,95)*1.1)
-plt.ylim(ymin=0, ymax=250)
+plt.ylim(ymin=0, ymax=175)
+plt.yticks(range(0, 175, 50))
 plt.xticks(X, labels=labels)
 
-plt.legend(loc='upper left', frameon=False);
+plt.legend(loc='upper left', frameon=False, handlelength=1);
 plt.tight_layout(h_pad=0)
 plt.savefig('lobsters_op_stats.pdf', dpi=300)

@@ -1,5 +1,6 @@
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import csv
 import statistics
 import sys
@@ -7,24 +8,36 @@ import numpy as np
 from textwrap import wrap
 
 plt.style.use('seaborn-deep')
-plt.figure(figsize = (3.33, 1.5))
 
 # plot styling for paper
-matplotlib.rc('font', family='serif', size=9)
+matplotlib.rc('font', family='serif', size=8)
 matplotlib.rc('text.latex', preamble='\\usepackage{times,mathptmx}')
 matplotlib.rc('text', usetex=True)
 matplotlib.rc('legend', fontsize=8)
-matplotlib.rc('figure', figsize=(3.33,1.5))
+matplotlib.rc('figure', figsize=(1.65,1.2))
 matplotlib.rc('axes', linewidth=0.5)
 matplotlib.rc('lines', linewidth=0.5)
 
+colors=['g', 'c', 'm']
+labels = ["Manual\n(No Edna)", "Direct\nDisguise", "Disguise on\nDecorrelated Data"]
+fig = plt.figure(figsize=(2.5, 0.2))
+patches = [
+    mpatches.Patch(color=color, label=label)
+    for label, color in zip(labels, colors)]
+fig.legend(patches, labels, mode='expand', ncol=3, loc='center', frameon=False, fontsize=7,
+        handlelength=1)
+plt.savefig("composition_legend.pdf", dpi=300)
+
+plt.clf()
+plt.figure(figsize = (1.65, 1.2))
+
 def add_labels(x,y,plt,color,offset):
     for i in range(len(x)):
-        plt.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color)
+        plt.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color, size=6)
 
 def add_text_labels(x,y,plt,color,offset):
     for i in range(len(x)):
-        plt.text(x[i], offset, y[i], ha='center', color=color)
+        plt.text(x[i], offset, y[i], ha='center', color=color, size=6)
 
 def get_yerr(durs):
     mins = []
@@ -37,7 +50,7 @@ def get_yerr(durs):
 barwidth = 0.25
 # positions
 X = np.arange(2)
-labels = ['Delete Account', 'Restore Deleted\nAccount']
+labels = ['Delete\nAccount', 'Restore\nDeleted\nAccount']
 
 # WEBSUBMIT/HOTCRP RESULTS
 for i in range(2):
@@ -50,12 +63,12 @@ for i in range(2):
     filename_baseline = "results/hotcrp_results/hotcrp_disguise_stats_3080users_baseline.csv"
     filename_batch = "results/hotcrp_results/hotcrp_disguise_stats_3080users_batch.csv"
     title = "hotcrp"
-    offset = 50
+    offset = 100
     if i == 0:
         filename_baseline = 'results/websubmit_results/disguise_stats_{}lec_{}users_baseline.csv'.format(20, 100)
         filename_batch = 'results/websubmit_results/disguise_stats_{}lec_{}users.csv'.format(20, 100)
         title = "websubmit"
-        offset = 10
+        offset = 12
     with open(filename_batch,'r') as csvfile:
         rows = csvfile.readlines()
         delete_durs_batch = [float(x)/1000 for x in rows[3].strip().split(',')]
@@ -70,7 +83,7 @@ for i in range(2):
     ################ add baseline closer to red line for anonymize
     plt.bar((X-barwidth)[:1], [statistics.median(delete_durs_baseline)],
             yerr=get_yerr([delete_durs_baseline]),
-            color='g', capsize=5, width=barwidth, label="Manual (No Edna"")")
+            color='g', capsize=5, width=barwidth, label="Manual (No Edna)")
     add_labels((X-barwidth)[:1], [statistics.median(delete_durs_baseline)], plt, 'g', offset)
     add_text_labels((X-barwidth)[1:], ["N/A"], plt, 'g', offset)
 
@@ -106,10 +119,15 @@ for i in range(2):
         statistics.median(restore_durs_batch),
     ], plt, 'c', offset)
 
-    plt.ylabel('Time (ms)')
-    plt.ylim(ymin=0, ymax=(np.percentile(restore_durs_batch, 95)*1.15))
+    plt.ylim(ymin=0, ymax=2500)
+    plt.yticks(range(0, 2250, 1000))
+    if i == 0:
+        plt.ylim(ymin=0, ymax=275)
+        plt.yticks(range(0, 275, 100))
+        plt.ylabel('Time (ms)')
     plt.xticks(X, labels=labels)
-    plt.legend(loc='upper left');
-    plt.tight_layout(h_pad=1)
+    plt.subplots_adjust(left=0.25, right=1.0, bottom=0.4)
+    #plt.tight_layout(h_pad=0)
     plt.savefig('composition_stats_{}.pdf'.format(title), dpi=300)
     plt.clf()
+
