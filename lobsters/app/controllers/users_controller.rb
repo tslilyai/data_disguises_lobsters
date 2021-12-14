@@ -1,4 +1,6 @@
 require "base64"
+require 'swagger_client'
+require 'json'
 
 class UsersController < ApplicationController
   before_action :require_logged_in_moderator,
@@ -162,10 +164,11 @@ class UsersController < ApplicationController
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::RevealDisguise.new # RevealDisguise |
     body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
-    body.locators = [params[:locator].to_i]
+    locators_vec = JSON.parse(params[:locators])
+    body.locators = locators_vec
     did = 0 # Integer |
 
-    puts body.decrypt_cap
+    puts body.locators
 
     begin
       api_instance.apiproxy_reveal_disguise(body, did)
@@ -179,10 +182,11 @@ class UsersController < ApplicationController
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::RevealDisguise.new # RevealDisguise |
     body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
-    body.locators = [params[:locator].to_i]
+    locators_vec = JSON.parse(params[:locators])
+    body.locators = locators_vec
     did = 1 # Integer |
 
-    puts body.decrypt_cap
+    puts body.locators
 
     begin
       api_instance.apiproxy_reveal_disguise(body, did)

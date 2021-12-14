@@ -42,8 +42,9 @@ class SettingsController < ApplicationController
     locator = 0
     begin
       result = api_instance.apiproxy_apply_disguise(body, app, did, uid)
-      p result.locators
-      locator = result.locators
+      # get locator of user (XXX note that only one user's locator is returned..)
+      locator = JSON.dump(result.locators.values[0])
+      p locator
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
