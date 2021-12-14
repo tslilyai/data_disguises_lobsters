@@ -19,7 +19,7 @@ const SERVER: &'static str = "http://localhost:8000";
 
 #[derive(Serialize, Deserialize)]
 pub struct ApplyDisguiseResponse {
-    pub locators: HashMap<edna::UID, edna::tokens::LocCap>,
+    pub locators: HashMap<edna::UID, Vec<edna::tokens::LocCap>>,
 }
 
 fn init_logger() {
