@@ -30,8 +30,8 @@ operations (\eg additively homomorphic ones) and in whether data with different 
 can be combined.
 %
 Data disguising only provides assurances about data privacy after the application has
-disguised the data (possibly on user request), but in exchange allows unrestricted
-application functionality without any overhead.
+disguised the data, but in exchange allows unrestricted application functionality
+without any overhead.
 %
 
 %
@@ -102,18 +102,17 @@ However, data disguising has a similar threat model to CryptDB~\cite{cryptdb},
 Mylar~\cite{mylar}, or Keybase~\cite{keybase}, and protects confidentiality of
 data under disguise against similar server compromises.
 %
-Data disguising encrypts users' private data that is currently ``under disguise'',
-and provides limited functionality over it, but is efficient and still protects
-inactive users' privacy.
+Data disguising encrypts only users' data currently under disguise, but is
+efficient and still protects inactive users' privacy.
 %
 
 %
-Finally, privacy-enhancing techniques like $k$-anonymity, $l$-diversity, and
-differential privacy~\cite{dataminingmodels, differential}, provide statistical privacy
-guarantees.
-%
-These complement data disguising: disguises might add differential privacy noise to
-data left in the application DB, for example.
+%Finally, privacy-enhancing techniques like $k$-anonymity, $l$-diversity, and
+%differential privacy~\cite{dataminingmodels, differential} can complement
+%data disguising.
+%%
+%Disguises might add differential privacy noise to
+%data left in the application DB, for example.
 %
 
 
