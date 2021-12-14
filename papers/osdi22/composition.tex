@@ -142,11 +142,29 @@ $d_2$.
     \label{f:recursive}
 \end{figure}
 
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+            \node[shape=circle,draw,inner sep=1pt] (char) {#1};}}
 %
 Figure~\ref{f:recursive} shows how a natural principal reveals a composed
 disguise.
 %
-\note{XXX TODO steps}
+\circled{1} The application calls \fn{DiffsForDisguise} with $d_2$, $p$'s
+private key, and \lcapa{pd_11} as arguments.
+%
+\circled{2}
+\sys looks up \lcapa{pd_1} to find $p$'s bag for $d_1$, and \circled{3}
+decrypts it with $p$'s private key.
+%
+This reveals that $d_1$ created pseudoprincipal $q$ and $q$'s private
+key, so \circled{4} \sys looks up $q$'s metadata and
+\circled{5} decrypts $q$'s locators with $q$'s private key.
+%
+\circled{6} This provides \sys with \lcapa{qd_2}, so it \circled{7} looks
+up $q$'s bag for $d_2$, \circled{8} decrypts it with $q$'s private key,
+and finds the database diff applied for $q$ during $d_2$.
+%
+\circled{9} Finally, \sys returns the database diff to the application,
+which reveals the disguise.
 %
 
 \head{Data Cleanup.}
