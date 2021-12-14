@@ -335,8 +335,8 @@ As before, \sys adds minimal latency to normal application operations.
 Finally, we consider Lobsters, which has users with far more variable amounts of
 data.
 %
-We run Lobsters benchmarks on a database seeded with 17.4k users, 1.2x the
-late-2021 size of the real Lobsters site~\cite{lobsters}.
+We run Lobsters benchmarks on a database seeded with 17.4k users, 20\% larger
+than the late-2021 size of production Lobsters~\cite{lobsters}.
 %
 These users have 120k stories, and 300k comments comments with votes;
 stories, comments, and votes are distributed among users according to
@@ -576,7 +576,7 @@ disguise decorrelated data, but avoidable if disguises cannot compose.
 %
 In addition, each pseudoprincipal inserts a public key into \sys's
 metadata, adding $\approx$0.3 KB per pseudoprincipal and 24 MB combined,
-and \sys removes the public keys for the 1700 deleted natural principals.
+and \sys removes the public keys for the 1,700 deleted natural principals.
 %
 
 %
@@ -675,7 +675,10 @@ random users delete and restore their accounts.
 %
 Transactional account deletion and restoration of the most expensive user
 results in a 20--28\% increase in median latency, but latencies remain low (<3ms).
-These results show that \sys's data disguises, as well as operations over data under disguise (here, account restoration) have little impact on other user's application experience.
+%
+These results show that \sys's data disguises, as well as operations over data
+under disguise (here, account restoration) have little impact on other user's
+application experience.
 %
 
 %
