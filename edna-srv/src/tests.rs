@@ -34,8 +34,7 @@ pub async fn test_lobsters_disguise() {
     assert_eq!(db.ping(), true);
 
     let mut user2decryptcap = HashMap::new();
-    let mut user2owncap = HashMap::new();
-    let mut user2diffcap = HashMap::new();
+    let mut user2caps = HashMap::new();
     let nusers: u64 = 5;
     let nstories: u64 = 5;
     let ncomments: u64 = 5;
@@ -89,10 +88,7 @@ pub async fn test_lobsters_disguise() {
         warn!("Delete strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
         if let Some(dl) = body.locators.get(&u.to_string()) {
-            user2diffcap.insert(u, *dl);
-        }
-        if let Some(ol) = body.locators.get(&u.to_string()) {
-            user2owncap.insert(u, *ol);
+            user2caps.insert(u, dl.clone());
         }
         warn!("Deleted account of {}", u);
     }
@@ -135,9 +131,8 @@ pub async fn test_lobsters_disguise() {
      * gdpr restore (no composition)
      ***********************************/
     for u in 1..nusers {
-        let owncap = user2owncap.get(&u).unwrap();
         let decryptcap = user2decryptcap.get(&u).unwrap();
-        let diffcap = user2diffcap.get(&u).unwrap();
+        let diffcap = user2caps.get(&u).unwrap();
         let postdata = json!({
             "decrypt_cap": base64::decode(&decryptcap).unwrap(),
             "locators": [diffcap],
@@ -207,10 +202,7 @@ pub async fn test_lobsters_disguise() {
         warn!("Decay strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
         if let Some(dl) = body.locators.get(&u.to_string()) {
-            user2diffcap.insert(u, *dl);
-        }
-        if let Some(ol) = body.locators.get(&u.to_string()) {
-            user2owncap.insert(u, *ol);
+            user2caps.insert(u, dl.clone());
         }
         warn!("Decayed account of {}", u);
     }
@@ -282,8 +274,7 @@ pub async fn test_hotcrp_disguise() {
     assert_eq!(db.ping(), true);
 
     let mut user2decryptcap = HashMap::new();
-    let mut user2owncap = HashMap::new();
-    let mut user2diffcap = HashMap::new();
+    let mut user2caps = HashMap::new();
     let nusers: u64 = 5;
 
     // create all users
@@ -322,10 +313,7 @@ pub async fn test_hotcrp_disguise() {
         warn!("Delete strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
         if let Some(dl) = body.locators.get(&u.to_string()) {
-            user2diffcap.insert(u, *dl);
-        }
-        if let Some(ol) = body.locators.get(&u.to_string()) {
-            user2owncap.insert(u, *ol);
+            user2caps.insert(u, dl.clone());
         }
         warn!("Deleted account of {}", u);
     }
@@ -349,7 +337,7 @@ pub async fn test_hotcrp_disguise() {
     for u in 1..nusers {
         //let owncap = user2owncap.get(&u).unwrap();
         let decryptcap = user2decryptcap.get(&u).unwrap();
-        let diffcap = user2diffcap.get(&u).unwrap();
+        let diffcap = user2caps.get(&u).unwrap();
         let postdata = json!({
             "decrypt_cap": base64::decode(&decryptcap).unwrap(),
             "locators": [diffcap],
@@ -399,10 +387,7 @@ pub async fn test_hotcrp_disguise() {
         warn!("Anon strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
         if let Some(dl) = body.locators.get(&u.to_string()) {
-            user2diffcap.insert(u, *dl);
-        }
-        if let Some(ol) = body.locators.get(&u.to_string()) {
-            user2owncap.insert(u, *ol);
+            user2caps.insert(u, dl.clone());
         }
         warn!("Anon account of {}", u);
     }

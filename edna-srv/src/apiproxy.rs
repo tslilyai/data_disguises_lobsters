@@ -19,7 +19,7 @@ pub struct ApplyDisguise {
 }
 #[derive(Serialize, Deserialize)]
 pub struct ApplyDisguiseResponse {
-    pub locators: HashMap<edna::UID, edna::tokens::LocCap>,
+    pub locators: HashMap<edna::UID, Vec<edna::tokens::LocCap>>,
 }
 
 #[post("/<app>/<did>/<uid>", format = "json", data = "<data>")]
@@ -46,7 +46,7 @@ pub(crate) fn apply_disguise(
         .unwrap();
     let mut to_return_locators = HashMap::new();
     for ((uid, _), dl) in locators.iter() {
-        to_return_locators.insert(uid.clone(), *dl);
+        to_return_locators.insert(uid.clone(), dl.clone());
     }
     warn!("Applying disguise return response {:?}", locators);
     let json = Json(ApplyDisguiseResponse {
@@ -68,9 +68,16 @@ pub(crate) fn reveal_disguise(
     edna: &State<Arc<Mutex<EdnaClient>>>,
 ) {
     let mut e = edna.lock().unwrap();
+    //let disguise = match app {
+    //LOBSTERS_APP => 
+    let tinfo = lobsters_disguises::get_table_info();
+    let ti = tinfo.read().unwrap();
+    //HOTCRP_APP => hotcrp_disguises::get_disguise_with_ids(did, uid),
+
     // XXX clones
     e.reverse_disguise(
         did,
+        &ti,
         data.decrypt_cap.clone(),
         data.locators.clone(),
     ).unwrap();
@@ -107,7 +114,7 @@ pub(crate) fn start_disguise(did: edna::DID, edna: &State<Arc<Mutex<EdnaClient>>
 
 #[derive(Serialize)]
 pub struct EndDisguiseResponse {
-    locators: HashMap<edna::UID, edna::tokens::LocCap>,
+    locators: HashMap<edna::UID, Vec<edna::tokens::LocCap>>,
 }
 
 #[get("/<did>")]
@@ -120,7 +127,7 @@ pub(crate) fn end_disguise(
     let locators = e.end_disguise();
     let mut to_return_locators = HashMap::new();
     for ((uid, _), dl) in locators.iter() {
-        to_return_locators.insert(uid.clone(), *dl);
+        to_return_locators.insert(uid.clone(), dl.clone());
     }
     return Json(EndDisguiseResponse {
         locators: to_return_locators,
@@ -183,7 +190,7 @@ pub struct CleanupTokensOfDisguise {
 }
 #[post("/", format = "json", data = "<data>")]
 pub(crate) fn cleanup_tokens_of_disguise(
-    data: Json<GetTokensOfDisguise>,
+    data: Json<CleanupTokensOfDisguise>,
     edna: &State<Arc<Mutex<EdnaClient>>>,
 ) {
     let e = edna.lock().unwrap();
@@ -218,6 +225,7 @@ pub struct SavePseudoprincipalToken {
     old_uid: edna::UID,
     new_uid: edna::UID,
     token_bytes: Vec<u8>,
+    acting_uid: Option<edna::UID>,
 }
 
 #[post("/", format = "json", data = "<data>")]
@@ -231,6 +239,7 @@ pub(crate) fn save_pseudoprincipal_token(
         data.old_uid.clone(),
         data.new_uid.clone(),
         data.token_bytes.clone(),
+        data.acting_uid.clone(),
     );
 }
 
@@ -239,7 +248,7 @@ pub struct SaveDiffToken {
     uid: edna::UID,
     did: edna::DID,
     data: Vec<u8>,
-    is_global: bool,
+    acting_uid: Option<edna::UID>,
 }
 
 #[post("/", format = "json", data = "<data>")]
@@ -249,6 +258,6 @@ pub(crate) fn save_diff_token(data: Json<SaveDiffToken>, edna: &State<Arc<Mutex<
         data.uid.clone(),
         data.did.clone(),
         data.data.clone(),
-        data.is_global,
+        data.acting_uid.clone(),
     );
 }
