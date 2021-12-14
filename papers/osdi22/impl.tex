@@ -90,48 +90,48 @@ extant principals' keys.
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{High-Level Disguise Specifications}
+%\subsection{High-Level Disguise Specifications}
+%%
+%\sys's high-level disguising API works for a restricted set of common-case
+%disguises in applications that use SQL databases, represent objects as
+%database rows and express principal data ownership via foreign-key
+%relationships.
+%%
 %
-\sys's high-level disguising API works for a restricted set of common-case
-disguises in applications that use SQL databases, represent objects as
-database rows and express principal data ownership via foreign-key
-relationships.
+%%
+%Disguise specifications consist of predicated disguise operations
+%and a pseudoprincipal-generation template.
+%%
+%For each disguise operation, \sys selects the database rows that satisfy
+%the predicate; runs SQL queries to modify the objects; and generates and
+%stores database diffs for the operation performed via \fn{StoreDiff} in
+%\sys's lower-level API.
+%%
+%Our prototype supports modification and removal of rows, and decorrelation
+%by foreign key.
+%%
+%Decorrelation generates a pseudoprincipal $q$, and rewrites the foreign
+%key from original principal $p$ to instead point to $q$.
+%%
+%Decorrelation creates a speaks-for record that contains the new
+%pseudoprincipal's ID; removal and modification produce diffs that contain
+%the removed object's value and, for modification, the new value.
+%%
+%The pseudoprincipal generation template specifies how to generate a row
+%that describes a pseudoprincipal in the application database.
+%%
 %
-
-%
-Disguise specifications consist of predicated disguise operations
-and a pseudoprincipal-generation template.
-%
-For each disguise operation, \sys selects the database rows that satisfy
-the predicate; runs SQL queries to modify the objects; and generates and
-stores database diffs for the operation performed via \fn{StoreDiff} in
-\sys's lower-level API.
-%
-Our prototype supports modification and removal of rows, and decorrelation
-by foreign key.
-%
-Decorrelation generates a pseudoprincipal $q$, and rewrites the foreign
-key from original principal $p$ to instead point to $q$.
-%
-Decorrelation creates a speaks-for record that contains the new
-pseudoprincipal's ID; removal and modification produce diffs that contain
-the removed object's value and, for modification, the new value.
-%
-The pseudoprincipal generation template specifies how to generate a row
-that describes a pseudoprincipal in the application database.
-%
-
-When revealing disguise $d$, \sys retrieves all records accessible with
-the provided private key and locator, and restores the undisguised state
-by updating the relevant object rows in the database.
-%
-To prevent accidental revealing of data that the application updated
-since $d$ applied, \sys first checks that the disguised data in the
-application DB is unmodified.
-%
-If it does not match the recorded disguised state (stored in the diffs),
-\sys skips the diff and leaves the modified data in place.
-%
+%When revealing disguise $d$, \sys retrieves all records accessible with
+%the provided private key and locator, and restores the undisguised state
+%by updating the relevant object rows in the database.
+%%
+%To prevent accidental revealing of data that the application updated
+%since $d$ applied, \sys first checks that the disguised data in the
+%application DB is unmodified.
+%%
+%If it does not match the recorded disguised state (stored in the diffs),
+%\sys skips the diff and leaves the modified data in place.
+%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

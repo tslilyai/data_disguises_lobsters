@@ -137,8 +137,10 @@ $d_2$.
 \begin{figure}[t]
     \centering
     \includegraphics{figs/edna_reveal}
-    \caption{\sys composes disguises by recursively disguising
-             pseudoprincipal-owned records.}
+    \caption{To retrieve diffs from composed disguise $d_2$, \sys
+             first decrypts $q$'s private key in $p$'s bag for $d_1$,
+             and uses that private key to decrypt \lcapa{qd_2} and the bag
+             it points to.}
     \label{f:recursive}
 \end{figure}
 
