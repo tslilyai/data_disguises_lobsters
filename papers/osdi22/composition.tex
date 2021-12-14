@@ -173,29 +173,25 @@ which reveals the disguise.
 $q$.
 %
 However, \sys must sometimes retain part of $q$'s metadata, as it may include
-encrypted locators that \sys must keep to later efficiently find $q$'s
-encrypted record bags.
+encrypted locators that \sys must keep to later find $q$'s bags.
 %
 Given that \sys cannot decrypt $q$'s locators, nor send them to a
 client, \sys retains pseudoprincipal metadata if it contains encrypted locators
 when the application calls \fn{ForgetPrincipal}.
 %
-However, \sys records that the pseudoprincipal is forgotten, so that \sys
-knows to delete $q$'s metadata when future \fn{ForgetData} calls remove
-the locators.
+However, \sys marks $q$ as forgotten, so that \sys knows to delete $q$'s
+metadata when future \fn{ForgetData} calls remove the locators.
 %
 
 %
-\sys removes a pseudoprincipal locator \lcapa{qd_2} when the application
-decides that data from disguise $d_2$ is no longer needed (\eg because
-the disguise has been revealed).
+When the application decides that data from disguise $d_2$ is no longer
+needed (\eg because the disguise has been revealed), it calls
+\fn{ForgetData(}$d_2$, \lcapa{pd_1}\fn{)} with a user-provided locator
+that must necessarily be from $d_1$ that decorrelated $q$ from natural principal
+$p$.
 %
-The application calls \fn{ForgetData($d_2$, \lcapa{pd_1})} with a
-user-provided locator that must necessarily be from $d_1$ that
-decorrelated $q$ from natural principal $p$.
-%
-Following the process in Figure~\ref{f:recursive}, \sys finds the
-data for $d_2$ at \lcapa{qd_2} and removes it.
+Following Figure~\ref{f:recursive}, \sys finds the data for $d_2$ at
+\lcapa{qd_2} and removes it.
 %
 Finally, \sys removes \lcapa{qd_2}.
 %
