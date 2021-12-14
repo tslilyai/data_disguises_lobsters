@@ -115,35 +115,85 @@ $r$'s private key access to $q$ and its data.
 
 \head{Pseudoprincipal Metadata.}
 %
-\fn{ForgetPrincipal} tells \sys to remove any metadata about a principal
-$p$.
+When $d_2$ creates a bag encrypted for pseudoprincipal $q$, it produces
+locator \lcapa{qd_2} for the bag.
+%
+\sys stores this locator with pseudoprincipal $q$'s metadata, but encrypts
+it with $q$'s public key.
+%
+The locator will only be needed to reveal $d_2$---and at that point,
+$q$'s private key will be available, as the principal who speaks-for $q$
+unwraps it.
+%
+As an optimization, the application can set \fn{forget\_composed\_locs}
+in the API to tell \sys to forget \lcapa{qd_2} if $d_2$ is interactive
+and $p$'s private key and bag locator \lcapa{pd} are available.
+%
+This causes \sys to return pseudoprincipal bag locators without
+storing them; $p$ then reintroduces these locators when they releval
+$d_2$.
+%
+
+\begin{figure}[t]
+    \centering
+    \includegraphics{figs/edna_reveal}
+    \caption{\sys composes disguises by recursively disguising
+             pseudoprincipal-owned records.}
+    \label{f:recursive}
+\end{figure}
+
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+            \node[shape=circle,draw,inner sep=1pt] (char) {#1};}}
+%
+Figure~\ref{f:recursive} shows how a natural principal reveals a composed
+disguise.
+%
+\circled{1} The application calls \fn{DiffsForDisguise} with $d_2$, $p$'s
+private key, and \lcapa{pd_11} as arguments.
+%
+\circled{2}
+\sys looks up \lcapa{pd_1} to find $p$'s bag for $d_1$, and \circled{3}
+decrypts it with $p$'s private key.
+%
+This reveals that $d_1$ created pseudoprincipal $q$ and $q$'s private
+key, so \circled{4} \sys looks up $q$'s metadata and
+\circled{5} decrypts $q$'s locators with $q$'s private key.
+%
+\circled{6} This provides \sys with \lcapa{qd_2}, so it \circled{7} looks
+up $q$'s bag for $d_2$, \circled{8} decrypts it with $q$'s private key,
+and finds the database diff applied for $q$ during $d_2$.
+%
+\circled{9} Finally, \sys returns the database diff to the application,
+which reveals the disguise.
+%
+
+\head{Data Cleanup.}
+%
+\fn{ForgetPrincipal} tells \sys to remove the metadata for principal
+$q$.
 %
 However, \sys must sometimes retain part of $q$'s metadata, as it may include
-encrypted locators that \sys must keep to later efficiently find $q$'s
-encrypted record bags.
+encrypted locators that \sys must keep to later find $q$'s bags.
 %
 Given that \sys cannot decrypt $q$'s locators, nor send them to a
 client, \sys retains pseudoprincipal metadata if it contains encrypted locators
 when the application calls \fn{ForgetPrincipal}.
 %
-However, \sys records that the pseudoprincipal is forgotten, so that \sys
-knows to delete $q$'s metadata when future \fn{ForgetData} calls remove
-the locators.
+However, \sys marks $q$ as forgotten, so that \sys knows to delete $q$'s
+metadata when future \fn{ForgetData} calls remove the locators.
 %
 
 %
-\sys removes a pseudoprincipal locator \lcapa{qd_2} when the application
-decides that data from disguise $d_2$ is no longer needed (\eg because
-the disguise has been revealed).
+When the application decides that data from disguise $d_2$ is no longer
+needed (\eg because the disguise has been revealed), it calls
+\fn{ForgetData(}$d_2$, \lcapa{pd_1}\fn{)} with a user-provided locator
+that must necessarily be from $d_1$ that decorrelated $q$ from natural principal
+$p$.
 %
-The application calls \fn{ForgetData($d_2$, \lcapa{pd_1})} with a
-user-provided locator that must necessarily be from an earlier disguise
-$d_1$ that decorrelated $q$ from natural principal $p$.
+Following Figure~\ref{f:recursive}, \sys finds the data for $d_2$ at
+\lcapa{qd_2} and removes it.
 %
-\lcapa{pd_1} allows \sys to access $q$'s private key, decrypt $q$'s locator
-\lcapa{qd_2}, and drop the bag at \lcapa{qd_2}.
-%
-Once this is done, \sys removes \lcapa{qd_2}.
+Finally, \sys removes \lcapa{qd_2}.
 %
 
 %
@@ -159,44 +209,6 @@ deleted previously-stored data.
 %Once \sys has removed $q$'s metadata, then \sys removes all trace of
 %\lcapa{pd} since the referenced bag is empty.
 %
-
-\begin{figure}[t]
-    \centering
-    \includegraphics{figs/edna_reveal}
-    \caption{\sys composes disguises by recursively disguising
-             pseudoprincipal-owned records.}
-    \label{f:recursive}
-\end{figure}
-
-
-\head{Putting It Together.}
-%
-Figure~\ref{f:recursive} shows an example of how a client that provides
-the private key natural principal $p$ and locator \lcapa{pd_1} accesses
-\emph{both} $p$'s records for disguise $d_1$, the private
-keys of all pseudoprincipals ${q_0, \dots, q_k}$ created during disguise
-$d_1$, and all records encrypted for these pseudoprincipals during disguise
-$d_2$.
-
-%
-In the first case, $p$ did not interactively apply $d_2$, and thus \sys does not have $p$'s private
-key or locators.
-\sys accesses $q_i$'s private key by decrypting (with $p$'s private key) the
-bag at \lcapa{pd_1} that contains the wrapped private key.
-Since $p$ did not invoke $d_2$, \sys stored a locator for $q_i$'s encrypted records
-\lcapa{q_id_2} in $q\_i$'s metadata.
-With $q_i$'s private key, \sys decrypts \lcapa{q_id_2} from $q_i$'s metadata,
-and uses it to locate $q_i$'s encrypted records from $d_2$, decrypting the records
-with $q_i$'s private key.
-%
-
-%
-In the second case, $p$ interactively invoked $d_2$. \sys thus created a locator \lcapa{pd_2} for
-$q_i$'s records and sent this to $p$; $q_i$ has no affiliated encrypted locators. To access $q_i$'s
-records for disguise $d_2$, a client can simply provide \lcapa{pd_2} in addition to \lcapa{pd_1} and
-$p$'s private key. \sys still first retrieves $q_i$'s private key with $p$'s private key and
-\lcapa{pd_1}, and then uses \lcapa{pd_2} and $q_i$'s private key to directly locate $q_i$'s
-encrypted records and decrypt them.
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
