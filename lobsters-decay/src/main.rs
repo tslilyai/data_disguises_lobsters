@@ -102,9 +102,10 @@ pub fn main() {
         warn!("Decay strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
         let l = if let Some(l) = body.locators.get(&u.to_string()) {
-            l.to_string()
+            serde_json::to_string(l).unwrap()
         } else {
-            0.to_string()
+            let v : Vec<u64>= vec![];
+            serde_json::to_string(&v).unwrap()
         };
         // TODO send email with locators
         warn!("Sending email to {}: Undecay your account with l {} at /users/undecay_account", email, l);
