@@ -113,6 +113,7 @@ class User < ApplicationRecord
   end
 
   scope :active, -> { where(:banned_at => nil, :deleted_at => nil) }
+  scope :inactive, -> { where(:banned_at => nil, :deleted_at => nil, :last_login < Time.current - 365.day) }
   scope :moderators, -> {
     where('
       is_moderator = True OR
