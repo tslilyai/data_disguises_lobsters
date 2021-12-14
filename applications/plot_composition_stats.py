@@ -33,7 +33,14 @@ plt.figure(figsize = (1.65, 1.2))
 
 def add_labels(x,y,plt,color,offset):
     for i in range(len(x)):
-        plt.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color, size=6)
+        if y[i] < 0.1:
+            label = "{0:.1g}".format(y[i])
+        elif y[i] > 100:
+            label = "{0:.0f}".format(y[i])
+        else:
+            label = "{0:.1f}".format(y[i])
+        plt.text(x[i], y[i]+offset, label, ha='center', color=color, size=6)
+
 
 def add_text_labels(x,y,plt,color,offset):
     for i in range(len(x)):

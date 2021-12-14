@@ -18,9 +18,16 @@ matplotlib.rc('figure', figsize=(3.33,1.8))
 matplotlib.rc('axes', linewidth=0.5)
 matplotlib.rc('lines', linewidth=0.5)
 
-def add_labels(x,y,ax,color,offset):
+def add_labels(x,y,plt,color,offset):
     for i in range(len(x)):
-        ax.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color, size=6)
+        if y[i] < 0.1:
+            label = "{0:.1g}".format(y[i])
+        elif y[i] > 100:
+            label = "{0:.0f}".format(y[i])
+        else:
+            label = "{0:.1f}".format(y[i])
+        plt.text(x[i], y[i]+offset, label, ha='center', color=color, size=6)
+
 
 barwidth = 0.15
 # positions
@@ -96,7 +103,7 @@ yerr=get_yerr([
     op_results[10][0],
 
 ]),
-color='g', capsize=3, width=barwidth, label="No Disguiser", edgecolor='black')
+color='g', capsize=3, width=barwidth, label="No Disguiser", edgecolor='black', linewidth=0.25)
 add_labels((X-2*barwidth),
 [
     statistics.median(op_results[1][0]),
@@ -114,7 +121,7 @@ yerr=get_yerr([
     op_results[10][1],
 
 ]),
-color='y', capsize=3, width=barwidth, label="Random Disguiser", edgecolor='black')
+color='y', capsize=3, width=barwidth, label="Random Disguiser", edgecolor='black', linewidth=0.25)
 add_labels((X-barwidth),
 [
     statistics.median(op_results[1][1]),
@@ -131,7 +138,7 @@ yerr=get_yerr([
     op_results_txn[10][1],
 
 ]),
-color='y', hatch='////', capsize=3, width=barwidth, label="Random Disguiser (TX)", edgecolor='black', alpha=.99)
+color='y', hatch='////', capsize=3, width=barwidth, label="Random Disguiser (TX)",edgecolor='black', alpha=.99, linewidth=0.25)
 add_labels((X),
 [
     statistics.median(op_results_txn[1][1]),
@@ -148,7 +155,7 @@ yerr=get_yerr([
     op_results[10][2],
 
 ]),
-color='r', capsize=3, width=barwidth, label="Expensive Disguiser", edgecolor='black')
+color='r', capsize=3, width=barwidth, label="Expensive Disguiser", edgecolor='black', linewidth=0.25)
 add_labels((X+barwidth),
 [
     statistics.median(op_results[1][2]),
@@ -166,7 +173,7 @@ yerr=get_yerr([
     op_results_txn[10][2],
 
 ]),
-color='r', hatch='////', capsize=3, width=barwidth, label="Expensive Disguiser (TX)",alpha=.99, edgecolor='black')
+color='r', hatch='////', capsize=3, width=barwidth, label="Expensive Disguiser (TX)",alpha=.99, edgecolor='black', linewidth=0.25)
 add_labels((X+2*barwidth),
 [
     statistics.median(op_results_txn[1][2]),
