@@ -199,7 +199,7 @@ Finally, \sys removes \lcapa{qd_2}.
 %
 Because \sys may need to use \lcapa{pd_1} to access $q$'s encrypted private key,
 \sys retains $q$'s encrypted private key at \lcapa{pd} even if a prior call to
-\fn{ForgetData($d_1$, \lcapa{pd_1})} removed the rest of $d_1$'s data under
+\fn{ForgetData(}$d_1$, \lcapa{pd_1}\fn{)} removed the rest of $d_1$'s data under
 disguise at \lcapa{pd_1} (\ie encrypted diff or speaks-for records).
 %
 To obscure that the bag is empty except for $q$'s private key,
