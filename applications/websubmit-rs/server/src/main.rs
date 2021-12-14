@@ -13,8 +13,6 @@ extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
 extern crate base64;
-#[cfg(feature = "flame_it")]
-extern crate flame;
 
 mod admin;
 mod apikey;
@@ -29,6 +27,7 @@ mod questions;
 #[cfg(test)]
 mod tests;
 
+use edna::tokens::LocCap;
 use backend::MySqlBackend;
 use rocket::http::ContentType;
 use rocket::http::CookieJar;
@@ -44,11 +43,13 @@ use std::sync::{Mutex};
 use std::thread;
 use std::time;
 use std::time::Duration;
+use mysql::from_value;
+use mysql::prelude::*;
+use mysql::{Opts, Value};
 
 pub const APIKEY_FILE: &'static str = "apikey.txt";
 pub const DECRYPT_FILE: &'static str = "decrypt.txt";
-pub const DIFFCAP_FILE: &'static str = "diffcap.txt";
-pub const OWNCAP_FILE: &'static str = "owncap.txt";
+pub const CAPS_FILE: &'static str = "caps.txt";
 
 pub fn new_logger() -> slog::Logger {
     use slog::Drain;
@@ -157,8 +158,6 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     let mut user2apikey = HashMap::new();
 
     // create all users
-    #[cfg(feature = "flame_it")]
-    flame::start("create_users");
     let nusers = args.nusers + 5;
     for u in 0..nusers {
         let email = format!("{}@mail.edu", u);
@@ -173,20 +172,13 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         assert_eq!(response.status(), Status::Ok);
 
         // get api key
-        #[cfg(feature = "flame_it")]
-        flame::start("read_user_files");
         let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
         buf_reader.read_to_string(&mut apikey).unwrap();
         debug!(log, "Got email {} with apikey {}", &email, apikey);
         user2apikey.insert(email.clone(), apikey);
-
-        #[cfg(feature = "flame_it")]
-        flame::end("read_user_files");
     }
-    #[cfg(feature = "flame_it")]
-    flame::end("create_users");
 
     /**********************************
      * baseline edits + delete
@@ -206,12 +198,8 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
 
         // editing
         let start = time::Instant::now();
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_lec");
         let response = client.get(format!("/questions/{}", 0)).dispatch();
         assert_eq!(response.status(), Status::Ok);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_lec");
 
         let mut answers = vec![];
         for q in 0..args.nqs {
@@ -222,23 +210,18 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         }
         let postdata = serde_urlencoded::to_string(&answers).unwrap();
         debug!(log, "Posting to questions for lec 0 answers {}", postdata);
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_post_new_answers");
         let response = client
             .post(format!("/questions/{}", 0)) // testing lecture 0 for now
             .body(postdata)
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_post_new_answers");
         edit_durations.push(start.elapsed());
 
         // delete account
-
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", "0"),
-            ("ownership_loc_caps", "0"),
+            ("loc_caps", &serde_json::to_string(&Vec::<LocCap>::new()).unwrap()),
         ])
         .unwrap();
 
@@ -265,13 +248,9 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     assert_eq!(response.status(), Status::SeeOther);
 
     // anonymize
-    #[cfg(feature = "flame_it")]
-    flame::start("anonymize");
     let start = time::Instant::now();
     let response = client.post("/admin/anonymize").dispatch();
     anon_durations.push(start.elapsed());
-    #[cfg(feature = "flame_it")]
-    flame::end("anonymize");
     assert_eq!(response.status(), Status::SeeOther);
 
     print_stats(
@@ -286,16 +265,6 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         vec![],
         true,
     );
-
-    #[cfg(feature = "flame_it")]
-    flame::dump_html(
-        &mut File::create(&format!(
-            "flamegraph_{}lec_{}users_baseline.html",
-            args.nlec, args.nusers
-        ))
-        .unwrap(),
-    )
-    .unwrap();
 }
 
 fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
@@ -309,16 +278,17 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     let mut restore_durations_nonanon = vec![];
  
     let client = Client::tracked(rocket).expect("valid rocket instance");
-
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", args.class)).unwrap(),
+    ).unwrap();
+ 
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
-    let mut user2owncap = HashMap::new();
-    let mut user2diffcap = HashMap::new();
+    let mut user2anoncaps = HashMap::new();
+    let mut user2gdprcaps = HashMap::new();
     let log = new_logger();
 
     // create all users
-    #[cfg(feature = "flame_it")]
-    flame::start("create_users");
     let nusers = args.nusers;
     for u in 0..nusers {
         let email = format!("{}@mail.edu", u);
@@ -333,8 +303,6 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         assert_eq!(response.status(), Status::Ok);
 
         // get api key
-        #[cfg(feature = "flame_it")]
-        flame::start("read_user_files");
         let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
@@ -349,17 +317,11 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         buf_reader.read_to_string(&mut decryptcap).unwrap();
         debug!(log, "Got email {} with decryptcap {}", &email, decryptcap);
         user2decryptcap.insert(email, decryptcap);
-        #[cfg(feature = "flame_it")]
-        flame::end("read_user_files");
     }
-    #[cfg(feature = "flame_it")]
-    flame::end("create_users");
 
     /***********************************
      * editing nonanon data
      ***********************************/
-    #[cfg(feature = "flame_it")]
-    flame::start("edit");
     for u in 0..args.nusers {
         // login
         let email = format!("{}@mail.edu", u);
@@ -374,12 +336,8 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
 
         // editing
         let start = time::Instant::now();
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_lec");
         let response = client.get(format!("/questions/{}", 0)).dispatch();
         assert_eq!(response.status(), Status::Ok);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_lec");
 
         let mut answers = vec![];
         for q in 0..args.nqs {
@@ -390,20 +348,14 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         }
         let postdata = serde_urlencoded::to_string(&answers).unwrap();
         debug!(log, "Posting to questions for lec 0 answers {}", postdata);
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_post_new_answers");
         let response = client
             .post(format!("/questions/{}", 0)) // testing lecture 0 for now
             .body(postdata)
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_post_new_answers");
         edit_durations_nonanon.push(start.elapsed());
     }
-    #[cfg(feature = "flame_it")]
-    flame::end("edit");
 
     /***********************************
      * gdpr deletion (no composition)
@@ -424,7 +376,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
 
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("")),
+            ("loc_caps", &serde_json::to_string(&Vec::<LocCap>::new()).unwrap()),
         ])
         .unwrap();
 
@@ -437,13 +389,13 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         assert_eq!(response.status(), Status::SeeOther);
         delete_durations_nonanon.push(start.elapsed());
 
-        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+        // get capabilities: GDPR deletion in this app doesn't produce anon tokens
+        let file = File::open(format!("{}.{}", email, CAPS_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
-        let mut diffcap = String::new();
-        buf_reader.read_to_string(&mut diffcap).unwrap();
-        debug!(log, "Got email {} with diffcap {}", &email, diffcap);
-        user2diffcap.insert(email.clone(), diffcap);
+        let mut capstr = String::new();
+        buf_reader.read_to_string(&mut capstr).unwrap();
+        debug!(log, "Got email {} with cap {}", &email, capstr);
+        user2gdprcaps.insert(email.clone(), capstr);
     }
 
     /***********************************
@@ -453,11 +405,10 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         let email = format!("{}@mail.edu", u);
         let start = time::Instant::now();
         let decryptcap = user2decryptcap.get(&email).unwrap();
-        let diffcap = user2diffcap.get(&email).unwrap();
+        let caps = user2gdprcaps.get(&email).unwrap();
         let postdata = serde_urlencoded::to_string(&vec![
-            ("diff_loc_cap", diffcap),
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("")),
+            ("loc_caps", caps),
         ])
         .unwrap();
         let response = client
@@ -482,13 +433,9 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     assert_eq!(response.status(), Status::SeeOther);
 
     // anonymize
-    #[cfg(feature = "flame_it")]
-    flame::start("anonymize");
     let start = time::Instant::now();
     let response = client.post("/admin/anonymize").dispatch();
     anon_durations.push(start.elapsed());
-    #[cfg(feature = "flame_it")]
-    flame::end("anonymize");
     assert_eq!(response.status(), Status::SeeOther);
 
     // get tokens
@@ -496,54 +443,62 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         let email = format!("{}@mail.edu", u);
 
         // get ownership location capability
-        let file = File::open(format!("{}.{}", email, OWNCAP_FILE)).unwrap();
+        let file = File::open(format!("{}.{}", email, CAPS_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
-        let mut owncap = String::new();
-        buf_reader.read_to_string(&mut owncap).unwrap();
-        debug!(log, "Got email {} with owncap {}", &email, owncap);
-        user2owncap.insert(email.clone(), owncap);
+        let mut caps = String::new();
+        buf_reader.read_to_string(&mut caps).unwrap();
+        debug!(log, "Got email {} with caps {}", &email, caps);
+        user2anoncaps.insert(email.clone(), caps);
+
+        // check results of anonymization: user has no answers
+        for l in 0..args.nlec {
+            let keys: Vec<Value> = vec![l.into(), email.clone().into()];
+            let res = db
+                .exec_iter(
+                    "SELECT answers.* FROM answers WHERE answers.lec = ? AND answers.`user` = ?;",
+                    keys,
+                )
+                .unwrap();
+            let mut rows = vec![];
+            for row in res {
+                let rowvals = row.unwrap().unwrap();
+                let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+                rows.push(vals);
+            }
+            assert_eq!(rows.len(), 0);
+        }
     }
+
 
     /***********************************
      * editing anonymized data
      ***********************************/
-    #[cfg(feature = "flame_it")]
-    flame::start("edit");
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
-        let owncap = user2owncap.get(&email).unwrap();
+        let caps = user2anoncaps.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
 
         let start = time::Instant::now();
 
         // set ownership capability as cookie
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_owncap");
-        let response = client.get(format!("/edit/{}", owncap)).dispatch();
+        let response = client.get(format!("/edit")).dispatch();
         assert_eq!(response.status(), Status::Ok);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_owncap");
 
         // set decryption capability as cookie
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_decryptcap");
-        let postdata = serde_urlencoded::to_string(&vec![("decryption_cap", decryptcap)]).unwrap();
+        let postdata = serde_urlencoded::to_string(&vec![
+            ("decryption_cap", decryptcap),
+            ("loc_caps", caps)
+        ]).unwrap();
         let response = client
             .post("/edit")
             .body(postdata)
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_decryptcap");
 
         // get lecture to edit as pseudoprincipal (lecture 0 for now)
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_lec");
         let response = client.get(format!("/edit/lec/{}", 0)).dispatch();
         assert_eq!(response.status(), Status::Ok);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_lec");
 
         // update answers to lecture 0
         let mut answers = vec![];
@@ -555,34 +510,36 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         }
         let postdata = serde_urlencoded::to_string(&answers).unwrap();
         debug!(log, "Posting to questions for lec 0 answers {}", postdata);
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_post_new_answers");
         let response = client
             .post(format!("/questions/{}", 0)) // testing lecture 0 for now
             .body(postdata)
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_post_new_answers");
         edit_durations.push(start.elapsed());
 
         // logged out
         let response = client.get(format!("/leclist")).dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
+
+        // check answers for users for lecture 0
+        let res = db
+            .query_iter("SELECT answer FROM answers WHERE lec = 0;")
+            .unwrap();
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let answer: String = from_value(rowvals[0].clone());
+            assert!(answer.contains("new_answer"));
+        }
     }
-    #[cfg(feature = "flame_it")]
-    flame::end("edit");
 
     /***********************************
      * gdpr deletion (with composition)
      ***********************************/
-    #[cfg(feature = "flame_it")]
-    flame::start("delete");
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap();
-        let owncap = user2owncap.get(&email).unwrap();
+        let anoncaps = user2anoncaps.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
 
         // login as the user
@@ -596,7 +553,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
 
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("{}", owncap)),
+            ("loc_caps", anoncaps),
         ])
         .unwrap();
 
@@ -609,32 +566,50 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         assert_eq!(response.status(), Status::SeeOther);
         delete_durations.push(start.elapsed());
 
-        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+        // diff location capability: GDPR deletion in this app doesn't produce anon tokens
+        let file = File::open(format!("{}.{}", email, CAPS_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
-        let mut diffcap = String::new();
-        buf_reader.read_to_string(&mut diffcap).unwrap();
-        debug!(log, "Got email {} with diffcap {}", &email, diffcap);
-        user2diffcap.insert(email.clone(), diffcap);
+        let mut caps = String::new();
+        buf_reader.read_to_string(&mut caps).unwrap();
+        debug!(log, "Got email {} with caps {}", &email, caps);
+        user2gdprcaps.insert(email.clone(), caps);
     }
-    #[cfg(feature = "flame_it")]
-    flame::end("delete");
+    // check results of delete: no answers or users exist
+    let res = db.query_iter("SELECT * FROM answers;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), 0);
+    let res = db.query_iter("SELECT * FROM users;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), 1); // the admin
+
 
     /***********************************
      * gdpr restore (with composition)
      ***********************************/
-    #[cfg(feature = "flame_it")]
-    flame::start("restore");
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let start = time::Instant::now();
-        let owncap = user2owncap.get(&email).unwrap();
+        let anoncaps = user2anoncaps.get(&email).unwrap();
+        let caps = user2gdprcaps.get(&email).unwrap();
+        let mut anoncaps_vec : Vec<LocCap>= serde_json::from_str(&anoncaps).unwrap();
+        let mut caps_vec : Vec<LocCap> = serde_json::from_str(&caps).unwrap();
+        anoncaps_vec.append(&mut caps_vec);
+
+        let caps = serde_json::to_string(&anoncaps_vec).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
-        let diffcap = user2diffcap.get(&email).unwrap();
         let postdata = serde_urlencoded::to_string(&vec![
-            ("diff_loc_cap", diffcap),
             ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("{}", owncap)),
+            ("loc_caps", &format!("{}", caps)),
         ])
         .unwrap();
         let response = client
@@ -645,8 +620,32 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         assert_eq!(response.status(), Status::SeeOther);
         restore_durations.push(start.elapsed());
     }
-    #[cfg(feature = "flame_it")]
-    flame::end("restore");
+
+    // database is back in anonymized form
+    // check answers for lecture 0
+    let res = db
+        .query_iter("SELECT answer FROM answers WHERE lec = 0;")
+        .unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        assert!(answer.contains("new_answer"));
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), args.nqs as usize * args.nusers as usize);
+
+    let res = db.query_iter("SELECT * FROM users;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(
+        rows.len(),
+        1 + args.nusers as usize * (args.nlec as usize + 1)
+    );
 
     print_stats(
         args,
@@ -660,16 +659,6 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         restore_durations_nonanon,
         false,
     );
-
-    #[cfg(feature = "flame_it")]
-    flame::dump_html(
-        &mut File::create(&format!(
-            "flamegraph_{}lec_{}users.html",
-            args.nlec, args.nusers
-        ))
-        .unwrap(),
-    )
-    .unwrap();
 }
 
 fn print_stats(
@@ -686,11 +675,11 @@ fn print_stats(
 ) {
     let filename = if is_baseline {
         format!(
-            "disguise_stats_{}lec_{}users_batch_baseline.csv",
+            "disguise_stats_{}lec_{}users_baseline.csv",
             args.nlec, args.nusers
         )
     } else {
-        format!("disguise_stats_{}lec_{}users_batch.csv", args.nlec, args.nusers)
+        format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
     };
 
     // print out stats

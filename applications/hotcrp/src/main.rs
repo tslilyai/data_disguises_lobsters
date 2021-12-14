@@ -4,7 +4,7 @@ extern crate log;
 extern crate mysql;
 extern crate rand;
 
-use edna::EdnaClient;
+use edna::{helpers, EdnaClient};
 use log::warn;
 use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashMap;
@@ -55,7 +55,7 @@ fn init_logger() {
 fn main() {
     init_logger();
     let args = Cli::from_args();
-    
+   
     if args.baseline {
         run_baseline(&args);
     } else {
@@ -63,6 +63,37 @@ fn main() {
     }
 }
 
+fn get_stats(db: &mut mysql::PooledConn) {
+    let mut users = vec![];
+    let res = db.query_iter(format!(r"SELECT contactId FROM ContactInfo")).unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        users.push(helpers::mysql_val_to_u64(&vals[0]).unwrap());
+    }
+    for u in users {
+        let mut nobjs = 1;
+        let tables = disguises::get_table_info();
+        for (table, info) in tables.read().unwrap().iter() {
+            for owner_col in &info.owner_cols {
+                let res = db
+                    .query_iter(format!(
+                        r"SELECT COUNT(*) FROM {} WHERE {} = {};",
+                        table,
+                        owner_col,
+                        u
+                    ))
+                    .unwrap();
+                for row in res {
+                    let vals = row.unwrap().unwrap();
+                    assert_eq!(vals.len(), 1);
+                    nobjs += helpers::mysql_val_to_u64(&vals[0]).unwrap();
+                }
+            }
+        }
+        println!("{}\t{}", u, nobjs);
+    }
+}
 
 fn run_edna(args: &Cli) {
     let mut account_durations = vec![];
@@ -82,7 +113,7 @@ fn run_edna(args: &Cli) {
         "127.0.0.1",
         DBNAME,
         SCHEMA,
-        true,
+        false,
         nusers * 100, 
         disguises::get_guise_gen(), 
     );
@@ -93,6 +124,8 @@ fn run_edna(args: &Cli) {
     warn!("database populated!");
 
     let mut db = edna.get_conn().unwrap();
+    get_stats(&mut db);
+
     let mut decrypt_caps = HashMap::new();
     for uid in 1..nusers + 1 {
         let start = time::Instant::now();
@@ -104,7 +137,7 @@ fn run_edna(args: &Cli) {
     }
 
     let mut user2rid = HashMap::new();
-    // baseline edit/delete/restore for pc members 
+    // edit/delete/restore for pc members 
     for u in args.nusers_nonpc+2..args.nusers_nonpc + args.nusers_pc {
         let dc = decrypt_caps.get(&u).unwrap().to_vec();
 
@@ -117,39 +150,38 @@ fn run_edna(args: &Cli) {
 
         // delete
         let start = time::Instant::now();
-        let (gdpr_diff_locs, gdpr_own_locs) =
+        let gdpr_locs =
             disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), vec![]).unwrap();
         delete_durations_preanon.push(start.elapsed());
 
         // restore
         let start = time::Instant::now();
-        let dl = vec![*gdpr_diff_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
-        let ol = vec![*gdpr_own_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
-        disguises::gdpr_disguise::reveal(&mut edna, dc, dl, ol).unwrap();
+        let locs = gdpr_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap();
+        disguises::gdpr_disguise::reveal(&mut edna, dc, locs.clone()).unwrap();
         restore_durations_preanon.push(start.elapsed());
     }
 
     // anonymize
     let start = time::Instant::now();
     // anonymization doesn't produce diff tokens that we'll reuse later
-    let (_diff_locs, own_locs) = disguises::conf_anon_disguise::apply(&mut edna).unwrap();
+    let anon_locs_map = disguises::conf_anon_disguise::apply(&mut edna).unwrap();
     anon_durations.push(start.elapsed());
 
     // edit/delete/restore for pc members 
-    for u in args.nusers_nonpc+2..args.nusers_nonpc+2 + 10 {
+    for u in args.nusers_nonpc+2..args.nusers_nonpc+args.nusers_pc {
         let dc = decrypt_caps.get(&u).unwrap().to_vec();
-        let ol = vec![*own_locs
+        let mut anonlocs = anon_locs_map
             .get(&(
                 u.to_string(),
                 disguises::conf_anon_disguise::get_disguise_id(),
             ))
-            .unwrap()];
+            .unwrap().clone();
 
         // edit after anonymization, for fairness only edit the one review 
         let rid = user2rid.get(&u).unwrap();
         let start = time::Instant::now();
         let mut db = edna.get_conn().unwrap();
-        let pps = edna.get_pseudoprincipals(dc.clone(), ol.clone());
+        let pps = edna.get_pseudoprincipals(dc.clone(), anonlocs.clone());
         for pp in pps {
             let rids = datagen::reviews::get_reviews(u64::from_str(&pp).unwrap(), &mut db).unwrap();
             if rids.len() > 0 && rids[0] == *rid {
@@ -160,15 +192,21 @@ fn run_edna(args: &Cli) {
 
         // delete
         let start = time::Instant::now();
-        let (gdpr_diff_locs, _gdpr_own_locs) =
-            disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), ol.clone()).unwrap();
+        let gdpr_locs_map = disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), anonlocs.clone()).unwrap();
+        let mut gdpr_locs = gdpr_locs_map
+            .get(&(
+                u.to_string(),
+                disguises::gdpr_disguise::get_disguise_id(),
+            ))
+            .unwrap().clone();
         delete_durations.push(start.elapsed());
+
+        // send ALL locators
+        anonlocs.append(&mut gdpr_locs);
 
         // restore
         let start = time::Instant::now();
-        let dl = vec![*gdpr_diff_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
-        //let ol = gdpr_own_locs.into_iter().map(|p| p.1).collect();
-        disguises::gdpr_disguise::reveal(&mut edna, dc, dl, ol).unwrap();
+        disguises::gdpr_disguise::reveal(&mut edna, dc, anonlocs.clone()).unwrap();
         restore_durations.push(start.elapsed());
     }
     print_stats(
@@ -198,7 +236,7 @@ fn run_baseline(args: &Cli) {
         "127.0.0.1",
         DBNAME,
         SCHEMA,
-        true,
+        false,
         nusers * 100,
         disguises::get_guise_gen(), 
     );
@@ -217,7 +255,7 @@ fn run_baseline(args: &Cli) {
     }
 
     // baseline edit/delete/restore for pc members 
-    for u in args.nusers_nonpc+2..args.nusers_nonpc+2 + 10 {
+    for u in args.nusers_nonpc+2..args.nusers_nonpc + args.nusers_pc {
         // edit
         let start = time::Instant::now();
         let rids = datagen::reviews::get_reviews(u as u64, &mut db).unwrap();

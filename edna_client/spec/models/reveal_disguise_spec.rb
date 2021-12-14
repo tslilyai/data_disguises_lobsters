@@ -37,13 +37,7 @@ describe 'RevealDisguise' do
     end
   end
 
-  describe 'test attribute "diff_locators"' do
-    it 'should work' do
-      # assertion here. ref: https://www.relishapp.com/rspec/rspec-expectations/docs/built-in-matchers
-    end
-  end
-
-  describe 'test attribute "ownership_locators"' do
+  describe 'test attribute "locators"' do
     it 'should work' do
       # assertion here. ref: https://www.relishapp.com/rspec/rspec-expectations/docs/built-in-matchers
     end

@@ -5,6 +5,7 @@ All URIs are relative to */*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**apiproxy_apply_disguise**](DefaultApi.md#apiproxy_apply_disguise) | **POST** /apply_disguise/{app}/{did}/{uid} | 
+[**apiproxy_cleanup_tokens_of_disguise**](DefaultApi.md#apiproxy_cleanup_tokens_of_disguise) | **POST** /cleanup_tokens_of_disguise | 
 [**apiproxy_create_pseudoprincipal**](DefaultApi.md#apiproxy_create_pseudoprincipal) | **GET** /create_pseudoprincipal | 
 [**apiproxy_end_disguise**](DefaultApi.md#apiproxy_end_disguise) | **GET** /end_disguise/{did} | 
 [**apiproxy_get_pseudoprincipals_of**](DefaultApi.md#apiproxy_get_pseudoprincipals_of) | **POST** /get_pseudoprincipals_of | 
@@ -62,6 +63,48 @@ No authorization required
 
  - **Content-Type**: application/json
  - **Accept**: application/json
+
+
+
+# **apiproxy_cleanup_tokens_of_disguise**
+> apiproxy_cleanup_tokens_of_disguise(body)
+
+
+
+### Example
+```ruby
+# load the gem
+require 'swagger_client'
+
+api_instance = SwaggerClient::DefaultApi.new
+body = SwaggerClient::CleanupTokensOfDisguise.new # CleanupTokensOfDisguise | 
+
+
+begin
+  api_instance.apiproxy_cleanup_tokens_of_disguise(body)
+rescue SwaggerClient::ApiError => e
+  puts "Exception when calling DefaultApi->apiproxy_cleanup_tokens_of_disguise: #{e}"
+end
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **body** | [**CleanupTokensOfDisguise**](CleanupTokensOfDisguise.md)|  | 
+
+### Return type
+
+nil (empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
+ - **Accept**: Not defined
 
 
 
@@ -270,7 +313,7 @@ No authorization required
 
 ### HTTP request headers
 
- - **Content-Type**: application/json
+ - **Content-Type**: application/octet-stream
  - **Accept**: application/json
 
 

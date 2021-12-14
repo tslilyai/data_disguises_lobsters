@@ -39,7 +39,6 @@ pub fn apply_decay(
         db2.query_drop(&format!("UPDATE comments SET user_id={} WHERE id={}", new_user, id))?;
     }
 
-
     let res = db.query_iter(&format!("SELECT id FROM stories WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());

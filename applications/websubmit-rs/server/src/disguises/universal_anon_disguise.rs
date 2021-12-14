@@ -21,12 +21,9 @@ pub fn get_did() -> DID {
 pub fn apply(
     bg: &MySqlBackend,
     is_baseline: bool,
-) -> Result<(
-    HashMap<(UID, DID), tokens::LocCap>,
-    HashMap<(UID, DID), tokens::LocCap>,
-)> {
+) -> Result<HashMap<(UID, DID), Vec<tokens::LocCap>>> {
     // DECOR ANSWERS
-    let mut locators = (HashMap::new(), HashMap::new());
+    let mut locators = HashMap::new();
     
     // TODO prevent new users from joining
     
@@ -40,6 +37,8 @@ pub fn apply(
     }
    
     for u in users {
+        // XXX transaction
+        //let mut txn = db.start_transaction(TxOpts::default()).unwrap();
         let beginning_start = time::Instant::now();
         // TODO lock user account
        
@@ -53,6 +52,7 @@ pub fn apply(
         // get all answers sorted by user and lecture
         let mut user_lec_answers: HashMap<u64, Vec<u64>> = HashMap::new();
         let res = db.query_iter(&format!("SELECT lec, q FROM answers WHERE `user` = '{}';", u))?;
+        //let res = txn.query_iter(&format!("SELECT lec, q FROM answers WHERE `user` = '{}';", u))?;
         for r in res {
             let r = r.unwrap().unwrap();
             let key: u64 = from_value(r[0].clone());
@@ -64,7 +64,7 @@ pub fn apply(
                 }
             };
         }
-        info!(bg.log, "WSAnon: get answers: {}", start.elapsed().as_micros());
+        debug!(bg.log, "WSAnon: get answers: {}", start.elapsed().as_micros());
 
         let mut updates = vec![];
         let mut pps = vec![];
@@ -78,7 +78,7 @@ pub fn apply(
                 drop(edna);
                 new_uid = p.0;
                 let rowvals = p.1;
-                info!(
+                debug!(
                     bg.log,
                     "WSAnon: create pseudoprincipal: {}",
                     start.elapsed().as_micros()
@@ -87,7 +87,7 @@ pub fn apply(
                 // XXX issue where using bg adds quotes everywhere...
                 pps.push(format!(
                     "({}, {}, {}, {})",
-                    rowvals[0].value, rowvals[1].value, rowvals[2].value, rowvals[3].value,
+                    rowvals[0].value(), rowvals[1].value(), rowvals[2].value(), rowvals[3].value(),
                 ));
 
                 // register new ownershiptoken for pseudoprincipal
@@ -98,9 +98,10 @@ pub fn apply(
                     u.clone(),
                     new_uid.clone(),
                     vec![],
+                    None,
                 );
                 drop(edna);
-                info!(
+                debug!(
                     bg.log,
                     "WSAnon: save pseudoprincipals: {}",
                     start.elapsed().as_micros()
@@ -127,14 +128,16 @@ pub fn apply(
 
         if !pps.is_empty() {
             let start = time::Instant::now();
+            //txn.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
             db.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
-            info!(
+            debug!(
                 bg.log,
                 "WSAnon: INSERT INTO `users` VALUES {};: {}",
                 pps.join(","),
                 start.elapsed().as_micros()
             );
             let start = time::Instant::now();
+            //txn.exec_batch(
             db.exec_batch(
                 r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
                 updates.iter().map(|u| {
@@ -146,7 +149,7 @@ pub fn apply(
                     }
                 }),
             )?;
-            info!(
+            debug!(
                 bg.log,
                 "WSAnon: update {} fks: {}",
                 updates.len(),
@@ -159,14 +162,14 @@ pub fn apply(
             let edna = bg.edna.lock().unwrap();
             let res = edna.end_disguise(); 
             drop(edna);
-            locators.0.extend(&mut res.0.into_iter());
-            locators.1.extend(&mut res.1.into_iter());
+            locators.extend(&mut res.into_iter());
         }
-        info!(
+        debug!(
             bg.log,
             "WSAnon: total: {}",
             beginning_start.elapsed().as_micros()
         );
+        //txn.commit().unwrap();
     }
     Ok(locators)
 }

@@ -1,5 +1,6 @@
 use crate::helpers::*;
 use log::warn;
+use std::time;
 use mysql::prelude::*;
 use mysql::Opts;
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey, ToRsaPrivateKey};
@@ -29,9 +30,11 @@ pub fn generate_keys(dbserver: &str) -> Result<Vec<(RsaPrivateKey, RsaPublicKey)
     let mut keys = vec![];
     let mut values = vec![];
     for i in 0..nkeys {
+        let start = time::Instant::now();
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
-        let privkey_vec = base64::encode(private_key.to_pkcs1_der().unwrap().as_der().to_vec());
         let pub_key = RsaPublicKey::from(&private_key);
+        println!("keypairgen\n{}", start.elapsed().as_micros());
+        let privkey_vec = base64::encode(private_key.to_pkcs1_der().unwrap().as_der().to_vec());
         let pubkey_vec = base64::encode(pub_key.to_pkcs1_der().unwrap().as_der().to_vec());
         keys.push((private_key, pub_key));
         values.push(format!(
@@ -55,6 +58,7 @@ pub fn generate_keys(dbserver: &str) -> Result<Vec<(RsaPrivateKey, RsaPublicKey)
 
 pub fn get_keys(dbserver: &str) -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Error> {
     let mut keys = vec![];
+    warn!("dbserver is {}", dbserver);
     let mut db = mysql::Conn::new(Opts::from_url(dbserver).unwrap()).unwrap();
     if !db.select_db(&format!("{}", KEY_PAIRS_DB)) {
         return generate_keys(dbserver);

@@ -212,6 +212,8 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
         if !new.contains("MEMORY") {
             new.push_str(" ENGINE = MEMORY");
         }
+    } else if !new.contains("ENGINE") {
+            new.push_str(" ENGINE = InnoDB");
     }
     new.push_str(";");
     warn!("helpers new:{}", new);

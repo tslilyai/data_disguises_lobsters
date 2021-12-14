@@ -6,7 +6,6 @@ use std::fs::OpenOptions;
 use std::io::Write;
 
 pub(crate) fn send(
-    log: slog::Logger,
     sender: String,
     recipients: Vec<String>,
     subject: String,
@@ -22,8 +21,6 @@ pub(crate) fn send(
         builder = builder.to(recipient.to_string());
     }
 
-    debug!(log, "Email: Subject {}\nText: {}!", subject, text);
-
     /*let email = builder.build();
     match email {
         Ok(result) => mailer.send(result.into())?,
@@ -35,7 +32,7 @@ pub(crate) fn send(
     // XXX for testing
     let parts = text.split("\n");
     for part in parts {
-        let subparts: Vec<&str> = part.split(":").collect();
+        let subparts: Vec<&str> = part.split("#").collect();
         let filename : String;
         match subparts[0].trim() {
             "APIKEY" => {
@@ -44,14 +41,10 @@ pub(crate) fn send(
             "DECRYPTCAP" => {
                 filename = format!("{}.{}", recipients[0], DECRYPT_FILE);
             }
-            "DIFFCAP" => {
-                filename = format!("{}.{}", recipients[0], DIFFCAP_FILE);
-            }
-            "OWNCAP" => {
-                filename = format!("{}.{}", recipients[0], OWNCAP_FILE);
+            "CAPS" => {
+                filename = format!("{}.{}", recipients[0], CAPS_FILE);
             }
             _ => {
-                debug!(log, "Badly formatted email text {}", part);
                 return Ok(())
             }
         };
@@ -67,3 +60,4 @@ pub(crate) fn send(
     }
     Ok(())
 }
+

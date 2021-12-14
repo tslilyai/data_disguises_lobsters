@@ -29,7 +29,7 @@ fn test_app_anon_disguise() {
     init_logger();
     let dbname = "testAppAnonDisguise".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, true, &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
+    let mut edna = edna::EdnaClient::new(true, true, "127.0.0.1", &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
 
     let mut db = mysql::Conn::new(
         Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
@@ -177,7 +177,7 @@ fn test_app_gdpr_disguise() {
     init_logger();
     let dbname = "testAppGDPR".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, true, &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
+    let mut edna = edna::EdnaClient::new(true, true, "127.0.0.1", &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
     let mut db = mysql::Conn::new(
         Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
     )
@@ -303,7 +303,7 @@ fn test_compose_anon_gdpr_disguises() {
     init_logger();
     let dbname = "testAppComposeDisguise".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, true, &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
+    let mut edna = edna::EdnaClient::new(true, true, "127.0.0.1", &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
 
     let mut db = mysql::Conn::new(
         Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
@@ -342,19 +342,19 @@ fn test_compose_anon_gdpr_disguises() {
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    let (_dlcs, olcs) = edna
+    let lcs = edna
         .apply_disguise(anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
     // APPLY GDPR DISGUISES
     for u in 1..USER_ITERS {
         // get private key diffs
-        let olc = olcs.get(&(u.to_string(), 1)).unwrap();
+        let lc = lcs.get(&(u.to_string(), 1)).unwrap();
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         edna.apply_disguise(
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
-            vec![*olc],
+            lc.clone(),
         )
         .unwrap();
     }

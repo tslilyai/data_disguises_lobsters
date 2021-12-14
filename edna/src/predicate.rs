@@ -1,7 +1,7 @@
 use crate::helpers::*;
-use crate::RowVal;
+use crate::{RowVal, UID};
 use crate::tokens::*;
-use log::debug;
+use log::{debug, warn};
 use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -34,10 +34,13 @@ impl ToString for PredClause {
     fn to_string(&self) -> String {
         use PredClause::*;
         match self {
-            ColInList { col, vals, neg } => match neg {
-                true => format!("{} IN ({})", col, vals.join(",")),
-                false => format!("{} NOT IN ({})", col, vals.join(",")),
-            },
+            ColInList { col, vals, neg } => {
+                let strvals : Vec<String> = vals.iter().map(|v| format!("\'{}\'", v)).collect();
+                match neg {
+                    true => format!("{} NOT IN ({})", col, strvals.join(",")),
+                    false => format!("{} IN ({})", col, strvals.join(",")),
+                }
+            }
 
             ColColCmp { col1, col2, op } => {
                 use BinaryOperator::*;
@@ -94,49 +97,71 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
     ors.join(" OR ")
 }
 
-pub fn modify_predicate_with_owner(
+pub fn modify_predicate_with_owners(
     pred: &Vec<Vec<PredClause>>,
     fk_col: &str,
-    ownership_token: &OwnershipTokenWrapper,
-) -> (Vec<Vec<PredClause>>, bool) {
+    ots: &Vec<OwnershipTokenWrapper>,
+) -> (Vec<Vec<PredClause>>, Option<UID>) {
     use PredClause::*;
     let mut new_pred = vec![];
     let mut changed = false;
+    if ots.is_empty() {
+        return (new_pred, None);
+    }
+    let old_uid = &ots[0].old_uid;
+    let new_owners : Vec<String> = ots.iter().map(|ot| ot.new_uid.to_string()).collect();
     for and_clauses in pred {
         let mut new_and_clauses = vec![];
         // change clause to reference new user instead of old
         for clause in and_clauses {
             match clause {
                 ColInList { col, vals, neg } => {
+                    let mut found = false;
                     for val in vals {
-                        if val == &ownership_token.old_uid.to_string() && col == &fk_col
-                        {
-                            let op = match neg {
-                                true => BinaryOperator::NotEq,
-                                false => BinaryOperator::Eq,
-                            };
-                            new_and_clauses.push(ColValCmp {
-                                col: col.clone(),
-                                val: ownership_token.new_uid.to_string(),
-                                op: op,
-                            });
-                            changed = true;
-                            debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
-                        } else {
-                            new_and_clauses.push(clause.clone())
+                        if val == old_uid && col == &fk_col {
+                            found = true;
+                            break;
                         }
+                    }
+                    if found {
+                        new_and_clauses.push(ColInList {
+                            col: col.clone(),
+                            vals: new_owners.clone(),
+                            neg: *neg,
+                        });
+                        changed = true;
+                        debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
+                    } else {
+                        new_and_clauses.push(clause.clone())
                     }
                 }
                 ColColCmp { .. } => unimplemented!("No ownership comparison of cols"),
                 ColValCmp { col, val, op } => {
-                    if val == &ownership_token.old_uid.to_string() && col == &fk_col {
-                        new_and_clauses.push(ColValCmp {
-                            col: col.clone(),
-                            val: ownership_token.new_uid.to_string(),
-                            op: op.clone(),
-                        });
+                    if val == old_uid && col == &fk_col {
+                        match op {
+                        BinaryOperator::Eq => {
+                            new_and_clauses.push(ColInList {
+                                col: col.clone(),
+                                vals: new_owners.clone(),
+                                neg: false,
+                            });
+                        }, 
+                        BinaryOperator::NotEq => {
+                            new_and_clauses.push(ColInList {
+                                col: col.clone(),
+                                vals: new_owners.clone(),
+                                neg: true,
+                            });
+                        },
+                        _ => unimplemented!("No support for ops that aren't eq or neq for composition"),
+                            /*new_and_clauses.push(ColValCmp {
+                                col: col.clone(),
+                                val: ownership_token.new_uid.to_string(),
+                                op: op.clone(),
+                            });*/
+                        }
                         changed = true;
-                        debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
+                        warn!("Modified pred val cmp to {:?}\n", new_and_clauses);
                     } else {
                         new_and_clauses.push(clause.clone())
                     }
@@ -146,15 +171,19 @@ pub fn modify_predicate_with_owner(
         }
         new_pred.push(new_and_clauses);
     }
-    debug!("Modified pred {:?} to {:?} with ot {:?}\n", pred, new_pred, ownership_token);
-    (new_pred, changed)
+    debug!("Modified pred {:?} to {:?} with {} ots\n", pred, new_pred, ots.len());
+    if changed {
+        (new_pred, Some(old_uid.to_string()))
+    } else {
+        (new_pred, None)
+    }
 }
 
 pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &EdnaDiffToken) -> bool {
-    if t.guise_name != name {
+    if t.table != name {
         return false;
     }
-    if predicate_applies_to_row(pred, &t.old_value) || predicate_applies_to_row(pred, &t.new_value)
+    if predicate_applies_to_val(pred, &t.col, &t.old_val) || predicate_applies_to_val(pred, &t.col, &t.new_val)
     {
         //debug!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
         return true;
@@ -166,18 +195,18 @@ pub fn get_all_preds_with_owners(
     pred: &Vec<Vec<PredClause>>,
     fk_cols: &Vec<String>,
     own_tokens: &Vec<OwnershipTokenWrapper>,
-) -> Vec<Vec<Vec<PredClause>>> {
+) -> (Option<UID>, Vec<Vec<Vec<PredClause>>>) {
     let mut preds = vec![pred.clone()];
-    for ot in own_tokens {
-        for col in fk_cols {
-            let (modified_pred, changed) = modify_predicate_with_owner(pred, col, ot);
-            if !changed {
-                continue;
-            }
-            preds.push(modified_pred);
+    let mut old_uid = None;
+    for col in fk_cols {
+        let (modified_pred, changed_from) = modify_predicate_with_owners(pred, col, own_tokens);
+        if changed_from.is_none() {
+            continue;
         }
+        old_uid = changed_from;
+        preds.push(modified_pred);
     }
-    preds
+    (old_uid, preds)
 }
 
 pub fn get_ownership_tokens_matching_pred(
@@ -260,12 +289,57 @@ pub fn predicate_applies_to_row(p: &Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> 
     found_true
 }
 
+pub fn predicate_applies_to_val(p: &Vec<Vec<PredClause>>, col: &str, val: &str) -> bool {
+    let mut found_true = false;
+    for and_clauses in p {
+        let mut all_true = true;
+        for clause in and_clauses {
+            if !clause_applies_to_val(clause, col, val) {
+                all_true = false;
+                break;
+            }
+        }
+        if all_true {
+            found_true = true;
+            break;
+        }
+    }
+    debug!("Predicate {:?} applies to val {:?}? {}\n", p, val, found_true);
+    found_true
+}
+
+pub fn clause_applies_to_val(p: &PredClause, column: &str, value: &str) -> bool {
+    use PredClause::*;
+    let matches = match p {
+        ColInList { col, vals, neg } => {
+            if col == column {
+                vals.iter().find(|v| &v.to_string() == value).is_some() != *neg
+            } else {
+                false
+            }
+        }
+        ColColCmp { .. } => {
+            unimplemented!("oops");
+        }
+        ColValCmp { col, val, op } => {
+            if col == column {
+                vals_satisfy_cmp(value, &val, &op)
+            } else {
+                false
+            }
+        }
+        Bool(b) => *b,
+    };
+    debug!("PredClause {:?} matches {:?}: {} {}\n", p, column, value, matches);
+    matches
+}
+
 pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
     use PredClause::*;
     let matches = match p {
         ColInList { col, vals, neg } => {
-            let found = match row.iter().find(|rv| &rv.column == col) {
-                Some(rv) => vals.iter().find(|v| v.to_string() == rv.value).is_some(),
+            let found = match row.iter().find(|rv| &rv.column() == col) {
+                Some(rv) => vals.iter().find(|v| v.to_string() == rv.value()).is_some(),
                 None => false,
             };
             found != *neg
@@ -273,20 +347,20 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
         ColColCmp { col1, col2, op } => {
             let rv1: String;
             let rv2: String;
-            match row.iter().find(|rv| &rv.column == col1) {
-                Some(rv) => rv1 = rv.value.clone(),
+            match row.iter().find(|rv| &rv.column() == col1) {
+                Some(rv) => rv1 = rv.value().clone(),
                 None => unimplemented!("bad predicate, no col1 {:?}", p),
             }
-            match row.iter().find(|rv| &rv.column == col2) {
-                Some(rv) => rv2 = rv.value.clone(),
+            match row.iter().find(|rv| &rv.column() == col2) {
+                Some(rv) => rv2 = rv.value().clone(),
                 None => unimplemented!("bad predicate, no col2 {:?}", p),
             }
             vals_satisfy_cmp(&rv1, &rv2, &op)
         }
         ColValCmp { col, val, op } => {
             let rv1: String;
-            match row.iter().find(|rv| &rv.column == col) {
-                Some(rv) => rv1 = rv.value.clone(),
+            match row.iter().find(|rv| &rv.column() == col) {
+                Some(rv) => rv1 = rv.value().clone(),
                 None => {
                     debug!("Didn't find column {} in row {:?}", col, row);
                     return false; // this can happen if the row just isn't of the right guise type?

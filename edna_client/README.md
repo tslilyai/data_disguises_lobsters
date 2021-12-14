@@ -69,6 +69,16 @@ rescue SwaggerClient::ApiError => e
 end
 
 api_instance = SwaggerClient::DefaultApi.new
+body = SwaggerClient::CleanupTokensOfDisguise.new # CleanupTokensOfDisguise | 
+
+
+begin
+  api_instance.apiproxy_cleanup_tokens_of_disguise(body)
+rescue SwaggerClient::ApiError => e
+  puts "Exception when calling DefaultApi->apiproxy_cleanup_tokens_of_disguise: #{e}"
+end
+
+api_instance = SwaggerClient::DefaultApi.new
 
 begin
   result = api_instance.apiproxy_create_pseudoprincipal
@@ -179,6 +189,7 @@ All URIs are relative to */*
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *SwaggerClient::DefaultApi* | [**apiproxy_apply_disguise**](docs/DefaultApi.md#apiproxy_apply_disguise) | **POST** /apply_disguise/{app}/{did}/{uid} | 
+*SwaggerClient::DefaultApi* | [**apiproxy_cleanup_tokens_of_disguise**](docs/DefaultApi.md#apiproxy_cleanup_tokens_of_disguise) | **POST** /cleanup_tokens_of_disguise | 
 *SwaggerClient::DefaultApi* | [**apiproxy_create_pseudoprincipal**](docs/DefaultApi.md#apiproxy_create_pseudoprincipal) | **GET** /create_pseudoprincipal | 
 *SwaggerClient::DefaultApi* | [**apiproxy_end_disguise**](docs/DefaultApi.md#apiproxy_end_disguise) | **GET** /end_disguise/{did} | 
 *SwaggerClient::DefaultApi* | [**apiproxy_get_pseudoprincipals_of**](docs/DefaultApi.md#apiproxy_get_pseudoprincipals_of) | **POST** /get_pseudoprincipals_of | 
@@ -192,9 +203,11 @@ Class | Method | HTTP request | Description
 
 ## Documentation for Models
 
+ - [SwaggerClient::APILocCap](docs/APILocCap.md)
  - [SwaggerClient::APIRowVal](docs/APIRowVal.md)
  - [SwaggerClient::ApplyDisguise](docs/ApplyDisguise.md)
  - [SwaggerClient::ApplyDisguiseResponse](docs/ApplyDisguiseResponse.md)
+ - [SwaggerClient::CleanupTokensOfDisguise](docs/CleanupTokensOfDisguise.md)
  - [SwaggerClient::CreatePseudoprincipalResponse](docs/CreatePseudoprincipalResponse.md)
  - [SwaggerClient::EndDisguiseResponse](docs/EndDisguiseResponse.md)
  - [SwaggerClient::GetPseudoprincipals](docs/GetPseudoprincipals.md)

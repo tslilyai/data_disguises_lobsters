@@ -6,25 +6,25 @@
 %
 \sys is a library that web application code calls into to invoke data disguises.
 %
-Web application developers rely on data disguises to help conveniently and
+Web application developers rely on data disguises to help them conveniently and
 correctly implement application-specific privacy transformations.
 %
 In particular, \sys guarantees that if a data disguise has disguised an original
-application data object $o$ into a disguised object $d$, the original, undisguised
-object $o$ is hidden from an attacker who compromises the server as long as it is
-not explicitly revealed by its original owner.
+application data object $O$ into a disguised object $D$, the original, undisguised
+object $O$ is hidden from an attacker who compromises the server as long as it is
+not actively and explicitly revealed by its original owner.
 %
 
 %
 In addition to the privacy-increasing, ``forward'' transformations that disguise
 data---\eg account deletion, anonymization, or data decay---\sys also makes it easy for
 developers to implement reversal of disguises (``backward'' transformations, \eg when a
-user reactivates their account) and operations over disguised data (\eg edits to
-anonymized information) while disguised data remains secure.
+user reactivates their account) and operations over data under disguise (\eg edits to
+anonymized information) while the data under disguise remains secure.
 %
 
 %
-Importantly, a application developer who uses \sys needs not to worry about the
+Importantly, an application developer who uses \sys needs not to worry about the
 cryptographic details or interaction between disguises.
 %
 Instead, the developer works with a set of abstractions that fit a wide
@@ -35,7 +35,7 @@ variety of application use cases.
 \label{s:threat}
 
 %
-Data disguises protect a web application's disguised user data against a
+Data disguises protect a web application's user data under disguise against a
 powerful attacker who compromises the web application server and gains full
 access to it.
 %
@@ -49,17 +49,24 @@ As a result of the compromise, the attacker can:
     \sys API calls.
 \end{enumerate}
 %
-A data disguise guarantees that the disguised data, and any metadata about who applied
-which disguise, is hidden from the attacker unless explicitly revealed by the user
-for whom it was disguised.
+We assume that the attacker has no auxiliary out-of-band information (\eg which or
+how many disguises a user applied).
 %
-Users who are inactive can therefore rest assured that their disguised data, and
-its existence, is never exposed.
+
+%
+A data disguise guarantees that the data under disguise, and any metadata about who
+applied which disguise, is hidden from the attacker unless explicitly revealed by the
+user for whom it was disguised.
+%
+Users who are inactive can therefore rest assured that their data under disguise
+is never exposed.
 %
 However, while \sys hides who disguised a piece of application data, it does not hide
-the existence of disguised data, nor does it protect against informationed leaked from
+the existence of disguised data, nor does it protect against information leaks from
 undisguised data that remains in the application database (\eg a message quoted
-within another message).
+within another message), against bugs in the application's disguise
+implementations, or against statistical inference attacks over information visible
+to the attacker.
 %
 
 %
@@ -72,8 +79,9 @@ learns \emph{nothing but}:
     disguised by each disguise;
   \item the disguises invoked, and the identity of the users invoking them,
     \emph{after} time $t$; and
-  \item any data disguised prior to $t$, if accessed and undisguised by the user
-    for whom the data was originally disguised.
+  \item data under disguise that \sys disguised prior to $t$, but which
+    the user for whom the data was originally disguised actively accesses or
+    reveals after time $t$.
 \end{enumerate}
 %
 We make standard assumptions about the security of cryptographic primitives: attackers
@@ -90,7 +98,7 @@ It's the application developer's job to invoke \sys, and \sys is normally
 hidden from end users of the web application.
 %
 However, the web application's UI may expose functionality that invokes \sys's
-data disguises behind the scenes, such as a ``Delete my account'' button.
+data disguises behind the scenes, such as a ``delete my account'' button.
 %
 
 %
@@ -104,9 +112,9 @@ administrators for global anonymization).
 
 \begin{figure}[t]
   \centering
-    \includegraphics[width=0.5\textwidth]{figs/edna_arch}
-  \caption{\sys handles application requests to disguise or reveal data. Only the
-    encryption of \sys's stored records is trusted.}
+    \includegraphics{figs/edna_arch}
+  \caption{\sys handles app requests to disguise or reveal data. Only the
+    encryption of \sys's stored records is trusted (blue).}
   \label{f:edna-overview}
 \end{figure}
 
@@ -124,11 +132,11 @@ requests) or asynchronous (\eg if the webapp sends emails to users).
 In normal application operation, \sys is uninvolved, except that the application
 registers each newly signed-up user with \sys.
 %
-This is so that \sys can set up the cryptographic keys for this new \emph{principal}.
+This is so that \sys can set up the cryptographic key for this new \emph{principal}.
 %
-\sys generates a public-private key pair and returns the private keys to the
-client (via the web application), but keeps a record of the public key associated
-with the application's unique ID for the new principal.
+The client on signup generates a public-private key pair and sends the public
+key to the web application, which registers it with \sys alongside the
+application's unique ID for the new principal.
 %
 
 %
@@ -179,6 +187,6 @@ The client supplies this material to the web application, which invokes \sys
 to obtain the plaintext data.
 %
 Depending on the use case, the application may then either re-disguise a
-potentially modified form of the data and store it in \sys again, or update the
-application database to replace disguised data with original data.
+modified form of the data and store it in \sys again, or put
+the revealed data back into the application DB.
 %

@@ -19,7 +19,7 @@ module SwaggerClient
 
     attr_accessor :data
 
-    attr_accessor :is_global
+    attr_accessor :acting_uid
 
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
@@ -27,7 +27,7 @@ module SwaggerClient
         :'uid' => :'uid',
         :'did' => :'did',
         :'data' => :'data',
-        :'is_global' => :'is_global'
+        :'acting_uid' => :'acting_uid'
       }
     end
 
@@ -37,13 +37,14 @@ module SwaggerClient
         :'uid' => :'Object',
         :'did' => :'Object',
         :'data' => :'Object',
-        :'is_global' => :'Object'
+        :'acting_uid' => :'Object'
       }
     end
 
     # List of attributes with nullable: true
     def self.openapi_nullable
       Set.new([
+        :'acting_uid'
       ])
     end
   
@@ -76,8 +77,8 @@ module SwaggerClient
         end
       end
 
-      if attributes.key?(:'is_global')
-        self.is_global = attributes[:'is_global']
+      if attributes.key?(:'acting_uid')
+        self.acting_uid = attributes[:'acting_uid']
       end
     end
 
@@ -97,10 +98,6 @@ module SwaggerClient
         invalid_properties.push('invalid value for "data", data cannot be nil.')
       end
 
-      if @is_global.nil?
-        invalid_properties.push('invalid value for "is_global", is_global cannot be nil.')
-      end
-
       invalid_properties
     end
 
@@ -110,7 +107,6 @@ module SwaggerClient
       return false if @uid.nil?
       return false if @did.nil?
       return false if @data.nil?
-      return false if @is_global.nil?
       true
     end
 
@@ -122,7 +118,7 @@ module SwaggerClient
           uid == o.uid &&
           did == o.did &&
           data == o.data &&
-          is_global == o.is_global
+          acting_uid == o.acting_uid
     end
 
     # @see the `==` method
@@ -134,7 +130,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [uid, did, data, is_global].hash
+      [uid, did, data, acting_uid].hash
     end
 
     # Builds the object from hash

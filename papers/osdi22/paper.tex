@@ -16,9 +16,12 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{wasysym}
+\usepackage{caption}
 \usepackage{subcaption}
 \usepackage{enumitem}
+\usepackage{comment}
 \usepackage[compact, small]{titlesec}
+\usepackage{xfrac}
 \usepackage [
 n , % or lambda
 advantage ,
@@ -67,6 +70,7 @@ keys
 \newcommand{\tabitem}{~~\llap{\textbullet}~~}
 \newcommand{\eg}{{e.g.},\xspace}
 \newcommand{\ie}{{i.e.},\xspace}
+\newcommand{\vs}{{vs.}\xspace}
 
 % Enumeration commands
 \newcommand{\one}{({\em i}\/)}
@@ -107,6 +111,8 @@ keys
 
 \lstdefinestyle{rust}{
     language = Rust,
+    aboveskip=3mm,
+    belowskip=3mm,
     basicstyle=\ttfamily\footnotesize,
     stringstyle=\color{blue},
     %backgroundcolor=\color{backcolour},
@@ -124,6 +130,9 @@ keys
     tabsize=2
 }
 \lstset{style=rust}
+
+% bold faced captions
+%\captionsetup{textfont=rm,belowskip=-8pt,aboveskip=8pt}
 
 %-------------------------------------------------------------------------------
 \begin{document}
@@ -150,7 +159,7 @@ keys
 %} % end author
 
 \author{
-{\rm Anonymous Authors}\\
+{Paper \#240}\\
 } % end author
 
 \maketitle
@@ -161,14 +170,15 @@ keys
 \input{related}
 \input{overview}
 \input{design}
+\input{composition}
 %\input{records_design}
 %\input{pseudoprincipal_design}
 %\input{disguise_specs}
-%\input{composition}
 \input{impl}
 \input{case_studies}
 \input{eval}
 \input{disc}
+\input{concl}
 
 %-------------------------------------------------------------------------------
 \printbibliography

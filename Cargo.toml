@@ -9,4 +9,5 @@ members = [
     "applications/hotcrp",
     "applications/lobsters",
     "applications/websubmit-rs",
+    "applications/enctest",
 ]

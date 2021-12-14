@@ -3,6 +3,5 @@
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**diff_locators** | **Hash&lt;String, Integer&gt;** |  | 
-**ownership_locators** | **Hash&lt;String, Integer&gt;** |  | 
+**locators** | **Hash&lt;String, Array&lt;APILocCap&gt;&gt;** |  | 
 

@@ -6,7 +6,7 @@ use std::str::FromStr;
 #[derive(Clone, Debug)]
 pub struct Args {
     pub nusers: usize,
-    //pub ndisguising: usize,
+    pub ndisguising: usize,
     pub nsleep: u64,
     pub nlec: usize,
     pub nqs: usize,
@@ -32,14 +32,14 @@ pub fn parse_args() -> Args {
                 .value_name("NSLEEP")
                 .default_value("10000"),
         )
-        /*.arg(
+        .arg(
             Arg::with_name("ndisguising")
                 .short("d")
                 .long("ndisguising")
                 .takes_value(true)
                 .value_name("NDIGUISING")
                 .default_value("2"),
-        )*/
+        )
         .arg(
             Arg::with_name("nusers")
                 .short("u")
@@ -67,6 +67,7 @@ pub fn parse_args() -> Args {
         .get_matches();
     Args {
         nusers: usize::from_str(args.value_of("nusers").unwrap()).unwrap(),
+        ndisguising: usize::from_str(args.value_of("ndisguising").unwrap()).unwrap(),
         nsleep: u64::from_str(args.value_of("nsleep").unwrap()).unwrap(),
         nlec: usize::from_str(args.value_of("nlec").unwrap()).unwrap(),
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),

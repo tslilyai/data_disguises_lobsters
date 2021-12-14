@@ -1,12 +1,8 @@
 extern crate base64;
-#[cfg(feature = "flame_it")]
-extern crate flame;
-#[cfg(feature = "flame_it")]
-extern crate flamer;
 extern crate mysql;
 extern crate ordered_float;
 
-use log::warn;
+use log::{warn, error};
 use mysql::prelude::*;
 use mysql::Opts;
 use rsa::RsaPrivateKey;
@@ -28,10 +24,19 @@ pub type DID = u64;
 pub type UID = String;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
-pub struct RowVal {
-    pub column: String,
-    pub value: String,
+pub struct RowVal(String, String);
+impl RowVal {
+    pub fn column(&self) -> String {
+        self.0.clone()
+    }
+    pub fn value(&self) -> String {
+        self.1.clone()
+    }
+    pub fn new(c: String, r: String) -> RowVal {
+        RowVal(c, r)
+    }
 }
+
 pub struct GuiseGen {
     pub guise_name: String,
     pub guise_id_col: String,
@@ -77,7 +82,7 @@ impl EdnaClient {
         guise_gen: Arc<RwLock<GuiseGen>>,
     ) -> EdnaClient {
         init_db(prime, in_memory, host, dbname, schema);
-        //XXX 
+        //XXX
         let root_url = if host != "127.0.0.1" {
             format!("mysql://root:password@{}", host)
         } else {
@@ -88,7 +93,12 @@ impl EdnaClient {
             schema: schema.to_string(),
             in_memory: in_memory,
             disguiser: disguise::Disguiser::new(
-                &root_url, &overall_url, keypool_size, guise_gen, batch),
+                &root_url,
+                &overall_url,
+                keypool_size,
+                guise_gen,
+                batch,
+            ),
         }
     }
 
@@ -109,10 +119,8 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     pub fn start_disguise(&self, _did: DID) {}
 
-    pub fn end_disguise(&self) -> (
-        HashMap<(UID, DID), tokens::LocCap>,
-        HashMap<(UID, DID), tokens::LocCap>,
-    ) {
+    pub fn end_disguise(&self) -> HashMap<(UID, DID), Vec<tokens::LocCap>>
+    {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let loc_caps = locked_token_ctrler.save_and_clear(&mut self.get_conn().unwrap());
         drop(locked_token_ctrler);
@@ -125,19 +133,50 @@ impl EdnaClient {
     // Additional function to get and mark tokens revealed (if tokens are retrieved for the
     // purpose of reversal)
     //-----------------------------------------------------------------------------
-    pub fn get_tokens_of_disguise(
+    pub fn cleanup_tokens_of_disguise(
         &self,
         did: DID,
         decrypt_cap: tokens::DecryptCap,
-        diff_loc_caps: Vec<tokens::LocCap>,
-        own_loc_caps: Vec<tokens::LocCap>,
-        reveal: bool,
-    ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
-        let locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
-        let (dts, own_tokens) =
-            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps, reveal);
-        diff_tokens.extend(dts.iter().cloned());
+        loc_caps: Vec<tokens::LocCap>,
+    ) {
+        let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        let mut db = self.get_conn().unwrap();
+        for lc in loc_caps {
+            locked_token_ctrler.cleanup_user_tokens(
+                did,
+                &decrypt_cap,
+                &lc,
+                &mut db,
+            );
+        }
+        drop(locked_token_ctrler);
+    }
+
+    pub fn get_tokens_of_disguise(
+        &self,
+        _did: DID,
+        decrypt_cap: tokens::DecryptCap,
+        loc_caps: Vec<tokens::LocCap>,
+    ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>, HashMap<UID, tokens::DecryptCap>) {
+        let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        //let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
+        //let mut own_tokens = locked_token_ctrler.get_global_ownership_tokens_of_disguise(did);
+        let mut diff_tokens = vec![];
+        let mut own_tokens = vec![];
+        let mut pk_tokens = HashMap::new();
+        for lc in loc_caps {
+            // XXX ignore did for now?
+            let (dts, ots, pks) = locked_token_ctrler.get_user_tokens(
+                //did,
+                &decrypt_cap,
+                &lc,
+            );
+            diff_tokens.extend(dts.iter().cloned());
+            own_tokens.extend(ots.iter().cloned());
+            for (new_uid, pk) in &pks {
+                pk_tokens.insert(new_uid.clone(), pk.clone());
+            }            
+        }
         drop(locked_token_ctrler);
         (
             diff_tokens
@@ -148,6 +187,7 @@ impl EdnaClient {
                 .iter()
                 .map(|wrapper| wrapper.token_data.clone())
                 .collect(),
+            pk_tokens
         )
     }
 
@@ -162,19 +202,21 @@ impl EdnaClient {
     }
 
     // TODO add API calls to remove/modify global tokens?
-    */ 
+    */
 
     //-----------------------------------------------------------------------------
     // Save arbitrary diffs performed by the disguise for the purpose of later
     // restoring.
     //-----------------------------------------------------------------------------
-    pub fn save_diff_token(&self, uid: UID, did: DID, data: Vec<u8>, is_global: bool) {
+    pub fn save_diff_token(&self, uid: UID, did: DID, data: Vec<u8>, acting_uid: Option<UID>) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let tok = tokens::new_generic_diff_token_wrapper(&uid, did, data, is_global);
-        if is_global {
+        let tok = tokens::new_generic_diff_token_wrapper(&uid, did, data);
+        /*if is_global {
             locked_token_ctrler.insert_global_diff_token_wrapper(&tok);
-        } else {
-            locked_token_ctrler.insert_user_diff_token_wrapper(&tok);
+        } else {*/
+        match acting_uid {
+            Some(u) =>locked_token_ctrler.insert_user_diff_token_wrapper_for(&tok, &u), 
+            None => locked_token_ctrler.insert_user_diff_token_wrapper_for(&tok, &uid), 
         }
         drop(locked_token_ctrler);
     }
@@ -194,6 +236,7 @@ impl EdnaClient {
         old_uid: UID,
         new_uid: UID,
         token_bytes: Vec<u8>,
+        acting_uid: Option<UID>,
     ) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         locked_token_ctrler.register_anon_principal(
@@ -202,6 +245,7 @@ impl EdnaClient {
             did,
             token_bytes,
             &mut self.get_conn().unwrap(),
+            &acting_uid,
         );
         drop(locked_token_ctrler);
     }
@@ -214,11 +258,10 @@ impl EdnaClient {
     pub fn get_pseudoprincipals(
         &self,
         decrypt_cap: tokens::DecryptCap,
-        ownership_loc_caps: Vec<tokens::LocCap>,
-        reveal: bool,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> Vec<UID> {
         self.disguiser
-            .get_pseudoprincipals(&decrypt_cap, &ownership_loc_caps, reveal)
+            .get_pseudoprincipals(&decrypt_cap, &loc_caps)
     }
 
     /**********************************************************************
@@ -228,29 +271,24 @@ impl EdnaClient {
         &mut self,
         disguise: Arc<spec::Disguise>,
         decrypt_cap: tokens::DecryptCap,
-        ownership_loc_caps: Vec<tokens::LocCap>,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> Result<
-        (
-            HashMap<(UID, DID), tokens::LocCap>,
-            HashMap<(UID, DID), tokens::LocCap>,
-        ),
+            HashMap<(UID, DID), Vec<tokens::LocCap>>,
         mysql::Error,
     > {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
-        self.disguiser
-            .apply(disguise.clone(), decrypt_cap, ownership_loc_caps)
+        self.disguiser.apply(disguise.clone(), decrypt_cap, loc_caps)
     }
 
     pub fn reverse_disguise(
         &mut self,
         did: DID,
+        table_info: &HashMap<String,spec::TableInfo>,
         decrypt_cap: tokens::DecryptCap,
-        diff_loc_caps: Vec<tokens::LocCap>,
-        ownership_loc_caps: Vec<tokens::LocCap>,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
         warn!("EDNA: REVERSING Disguise {}", did);
-        self.disguiser
-            .reverse(did, decrypt_cap, diff_loc_caps, ownership_loc_caps)?;
+        self.disguiser.reverse(did, table_info, decrypt_cap, loc_caps)?;
         Ok(())
     }
 
@@ -260,6 +298,14 @@ impl EdnaClient {
 
     pub fn get_stats(&self) -> Arc<Mutex<stats::QueryStat>> {
         self.disguiser.stats.clone()
+    }
+
+    pub fn get_sizes(&self) -> usize {
+        let locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        let bytes = locked_token_ctrler.get_sizes();
+        drop(locked_token_ctrler);
+        error!("TCTRLER BYTES\t {}", bytes);
+        bytes
     }
 }
 
@@ -294,7 +340,8 @@ fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<
 
 pub fn init_db(prime: bool, in_memory: bool, host: &str, dbname: &str, schema: &str) {
     warn!("EDNA: Init db {}!", dbname);
-    let url = format!("mysql://tslilyai:pass@{}", host);
+    // XXX 
+    let url = format!("mysql://root:password@{}", host);
     let mut db = mysql::Conn::new(Opts::from_url(&url).unwrap()).unwrap();
     if prime {
         warn!("Priming database");

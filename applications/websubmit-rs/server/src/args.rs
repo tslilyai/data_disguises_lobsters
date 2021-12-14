@@ -29,7 +29,8 @@ pub fn parse_args() -> Args {
                 .long("schema")
                 .takes_value(true)
                 .value_name("SCHEMA")
-                //.default_value("schema.sql")
+                //.default_value("src/schema.sql")
+                //.default_value("/home/tslilyai/disguises/applications/websubmit-rs/server/src/schema.sql")
                 .default_value("/home/tslilyai/Documents/MIT/Research/DataPrivacy/disguising/applications/websubmit-rs/server/src/schema.sql")
         )
         .arg(
@@ -38,7 +39,7 @@ pub fn parse_args() -> Args {
                 .long("config")
                 .takes_value(true)
                 .value_name("CONFIG_FILE")
-                //.default_value("sample-config.toml")
+                //.default_value("/home/tslilyai/disguises/applications/websubmit-rs/server/sample-config.toml")
                 .default_value("/home/tslilyai/Documents/MIT/Research/DataPrivacy/disguising/applications/websubmit-rs/server/sample-config.toml")
                 .help("Path to the configuration file for the deployment."),
         )

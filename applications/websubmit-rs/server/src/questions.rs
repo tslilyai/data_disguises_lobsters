@@ -133,12 +133,6 @@ pub(crate) fn questions(apikey: ApiKey, num: u8, bg: &State<MySqlBackend>) -> Te
     // check if user can edit these answers
     let user_res = bg.query_exec("is_anon", vec![apikey.user.clone().into()]);
     if user_res.len() < 1 {
-        debug!(
-            bg.log,
-            "User {} unauthorized to edit or submit answers for lec {} (no user found)",
-            apikey.user,
-            num
-        );
         let mut ctx = HashMap::new();
         ctx.insert("parent", String::from("layout"));
         return Template::render("login", ctx);
@@ -149,19 +143,10 @@ pub(crate) fn questions(apikey: ApiKey, num: u8, bg: &State<MySqlBackend>) -> Te
     );
     // if anon and doesn't have an answer, don't let submit
     if user_res[0][0] == 1.into() && answers_res.len() == 0 {
-        debug!(bg.log, "User {} unauthorized to edit or submit answers for lec {} (no answers for pseudoprincipal)", apikey.user, num);
         let mut ctx = HashMap::new();
         ctx.insert("parent", String::from("layout"));
         return Template::render("login", ctx);
     }
-    debug!(
-        bg.log,
-        "User {} authorized to edit or submit {} answers for lec {}",
-        apikey.user,
-        answers_res.len(),
-        num
-    );
-
     let key: Value = (num as u64).into();
     let mut answers = HashMap::new();
     for r in answers_res {
@@ -205,19 +190,7 @@ pub(crate) fn questions_submit(
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 
-    debug!(
-        bg.log,
-        "User {} updating {} answers",
-        apikey.user,
-        data.answers.len()
-    );
-
     for (id, answer) in &data.answers {
-        debug!(
-            bg.log,
-            "User {} edited q {} to answer {}", apikey.user, id, answer
-        );
-
         let rec: Vec<Value> = vec![
             apikey.user.clone().into(),
             vnum.clone(),
@@ -248,7 +221,6 @@ pub(crate) fn questions_submit(
         };
 
         email::send(
-            bg.log.clone(),
             apikey.user.clone(),
             recipients,
             format!("{} meeting {} questions", config.class, num),
@@ -260,19 +232,11 @@ pub(crate) fn questions_submit(
     // logout if user is anon
     let user_res = bg.query_exec("is_anon", vec![apikey.user.clone().into()]);
     if user_res.len() < 1 || user_res[0][0] == 1.into() {
-        debug!(
-            bg.log,
-            "Anon User {} edited an answer, logging out", apikey.user
-        );
         if let Some(cookie) = cookies.get("apikey") {
             cookies.remove(cookie.clone());
         }
         Redirect::to("/login")
     } else {
-        debug!(
-            bg.log,
-            "Real User {} edited an answer, continuing to leclist", apikey.user
-        );
         Redirect::to("/leclist")
     }
 }

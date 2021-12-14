@@ -1,18 +1,16 @@
 extern crate mysql;
 extern crate log;
-use log::{error};
 
 use mysql::prelude::*;
 use std::*;
 
 pub fn login(db: &mut mysql::PooledConn, uid: u64) -> Result<(), mysql::Error> {
-    let user : Option<u64> = db.query_first(format!(
+    let _user : Option<u64> = db.query_first(format!(
             "SELECT 1 as one FROM `users` WHERE `users`.`username` = 'user{}'",
              uid-1))?;
-    if user.is_none() {
-        error!("user {} could not log in?", uid);
+    /*if user.is_none() {
         db.query_drop(format!("INSERT INTO `users` (`username`) VALUES ('user{}')",uid-1))?;
-    }
+    }*/
     Ok(())
 }
 

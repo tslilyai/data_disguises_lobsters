@@ -8,28 +8,29 @@ mkdir output
 
 set -e
 l=20
-u=100
 
-for s in 0; do
-    ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
+for u in 1 30 ; do
+	for nd in 0 1; do
+	    ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
 
-    sleep 2
+	    sleep 2
 
-    echo "Starting server"
-    RUST_LOG=error ../../target/release/websubmit-server \
-        -i myclass --schema server/src/schema.sql --config server/sample-config.toml \
-        --benchmark false --prime true \
-        --nusers 0 --nlec 0 --nqs 0 &> \
-        output/server_${l}lec_${u}users_${s}sleep.out &
+	    echo "Starting server"
+	    RUST_LOG=error ../../target/release/websubmit-server \
+		-i myclass --schema server/src/schema.sql --config server/sample-config.toml \
+		--benchmark false --prime true \
+		--nusers 0 --nlec 0 --nqs 0 &> \
+		output/server_${l}lec_${u}users_0sleep.out &
 
-    sleep 5
+	    sleep 5
 
-    echo "Running client"
-    RUST_LOG=error perflock ../../target/release/websubmit-client \
-        --nusers $u --nlec $l --nqs 4 --nsleep $s \
-        --db myclass &> \
-        output/client_${l}lec_${u}users_${s}sleep.out
-    echo "Ran test($t) for $l lecture and $u, $s sleep"
+	    echo "Running client"
+	    RUST_LOG=error perflock ../../target/release/websubmit-client \
+		--nusers $u --nlec $l --nqs 4 --nsleep 0 --ndisguising $nd \
+		--db myclass &> \
+		output/client_${l}lec_${u}users_0sleep.out
+	    echo "Ran test($t) for $l lecture and $u users, 0 sleep"
 
-    rm *.txt
+	    rm *.txt
+	done
 done

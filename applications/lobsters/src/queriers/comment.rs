@@ -4,12 +4,15 @@ extern crate log;
 use mysql::prelude::*;
 use std::*;
 use std::collections::HashSet;
+use std::time;
+use log::warn;
 
 pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Result<(), mysql::Error> 
 {
     let mut comments = HashSet::new();
     let mut users = HashSet::new();
     let mut stories = HashSet::new();
+    let start = time::Instant::now();
     db.query_map(&format!(
             "SELECT  `comments`.`id`, `comments`.`user_id`, `comments`.`story_id` \
              FROM `comments` \
@@ -17,11 +20,12 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
              AND `comments`.`is_moderated` = 0 \
              ORDER BY id DESC \
              LIMIT 40",// OFFSET 0",
-        ), |(id, user_id, story_id) : (u32, u32, u32)| {
+        ), |(id, user_id, story_id) : (u32, u64, u32)| {
             comments.insert(id);
             users.insert(user_id);
             stories.insert(story_id);
         })?;
+    warn!("\t select comments {}", start.elapsed().as_micros());
 
     let stories = stories
         .into_iter()
@@ -30,6 +34,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
         .join(",");
 
     if let Some(uid) = acting_as {
+        let start = time::Instant::now();
         db.query_drop(
                 &format!(
                     "SELECT 1 FROM hidden_stories \
@@ -37,6 +42,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
                      AND hidden_stories.story_id IN ({})",
                      uid, stories
                 ))?;
+        warn!("\t select hidden {}", start.elapsed().as_micros());
     }
 
     assert!(!users.is_empty());
@@ -45,19 +51,23 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
         .map(|id| format!("{}", id))
         .collect::<Vec<_>>()
         .join(",");
+    let start = time::Instant::now();
     db.query_drop(&format!(
             "SELECT `users`.* FROM `users` \
              WHERE `users`.`id` IN ({})",
             users
         ))?;
+    warn!("\t select users {}", start.elapsed().as_micros());
    
     let mut authors = HashSet::new();
+    let start = time::Instant::now();
     db.query_map(&format!(
             "SELECT  `stories`.`user_id` FROM `stories` \
              WHERE `stories`.`id` IN ({})",
             stories
         ),
-        |user_id: u32| authors.insert(user_id))?;
+        |user_id: u64| authors.insert(user_id))?;
+    warn!("\t select authors {}", start.elapsed().as_micros());
 
     assert!(!authors.is_empty());
     if let Some(uid) = acting_as {
@@ -66,6 +76,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
             .map(|id| format!("{}", id))
             .collect::<Vec<_>>()
             .join(",");
+        let start = time::Instant::now();
         db.query_drop(
             &format!(
                 "SELECT `votes`.* FROM `votes` \
@@ -73,6 +84,7 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
                  AND `votes`.`comment_id` IN ({})",
                  uid, comments)
             )?;
+        warn!("\t select votes {}", start.elapsed().as_micros());
     }
 
     // NOTE: the real website issues all of these one by one...
@@ -82,11 +94,13 @@ pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Resul
         .collect::<Vec<_>>()
         .join(",");
 
+    let start = time::Instant::now();
     db.query_drop(&format!(
             "SELECT  `users`.* FROM `users` \
              WHERE `users`.`id` IN ({})",
             authors
         ))?;
+    warn!("\t select users again {}", start.elapsed().as_micros());
     Ok(())
 }
 

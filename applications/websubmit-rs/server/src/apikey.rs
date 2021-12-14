@@ -14,12 +14,11 @@ use rocket::State;
 use rocket_dyn_templates::Template;
 use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashMap;
-use std::time;
 
 /// (username, apikey)
 pub(crate) struct ApiKey {
     pub user: String,
-    pub key: String,
+    key: String,
 }
 
 #[derive(Debug, FromForm)]
@@ -44,17 +43,13 @@ impl<'r> FromRequest<'r> for ApiKey {
     type Error = ApiKeyError;
 
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        let be = request
-            .guard::<&State<MySqlBackend>>()
-            .await
-            .unwrap();
+        let be = request.guard::<&State<MySqlBackend>>().await.unwrap();
         request
             .cookies()
             .get("apikey")
             .and_then(|cookie| cookie.value().parse().ok())
             .and_then(|key: String| match check_api_key(&be, &key) {
                 Ok(user) => {
-                    //println!("API key in cookie for user {}", user);
                     Some(ApiKey { user, key })
                 }
                 Err(_) => None,
@@ -69,19 +64,12 @@ pub(crate) fn generate(
     bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Template {
-
     // generate an API key from email address
-    #[cfg(feature = "flame_it")]
-    flame::start("generate_apikey");
-    let start = time::Instant::now();
     let mut hasher = Sha256::new();
     hasher.input_str(&data.email);
     // add a secret to make API keys unforgeable without access to the server
     hasher.input_str(&config.secret);
     let hash = hasher.result_str();
-    info!(bg.log, "apikey hash: {}", start.elapsed().as_micros());
-    #[cfg(feature = "flame_it")]
-    flame::end("generate_apikey");
 
     let is_admin = if config.admins.contains(&data.email) {
         1.into()
@@ -90,9 +78,6 @@ pub(crate) fn generate(
     };
 
     // insert into MySql if not exists
-    #[cfg(feature = "flame_it")]
-    flame::start("insert_user");
-    let start = time::Instant::now();
     bg.insert(
         "users",
         vec![
@@ -102,39 +87,23 @@ pub(crate) fn generate(
             false.into(),
         ],
     );
-    info!(bg.log, "user insert: {}", start.elapsed().as_micros());
-    #[cfg(feature = "flame_it")]
-    flame::end("insert_user");
-    
+
     let mut privkey_str = String::new();
     if !config.is_baseline {
         // register user if not exists
-        #[cfg(feature = "flame_it")]
-        flame::start("register_principal");
-        let start = time::Instant::now();
         let private_key = bg.edna.lock().unwrap().register_principal(&data.email);
         privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
-        info!(bg.log, "register principal: {}", start.elapsed().as_micros());
-        #[cfg(feature = "flame_it")]
-        flame::end("register_principal");
     }
 
-    #[cfg(feature = "flame_it")]
-    flame::start("send_apikey_email");
-    let start = time::Instant::now();
     if config.send_emails {
         email::send(
-            bg.log.clone(),
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![data.email.clone()],
             format!("{} API key", config.class),
-            format!("APIKEY:{}\nDECRYPTCAP:{}", hash.as_str(), privkey_str,),
+            format!("APIKEY#{}\nDECRYPTCAP#{}", hash.as_str(), privkey_str),
         )
         .expect("failed to send API key email");
     }
-    info!(bg.log, "send apikey email: {}", start.elapsed().as_micros());
-    #[cfg(feature = "flame_it")]
-    flame::end("send_apikey_email");
 
     // return to user
     let mut ctx = HashMap::new();
@@ -143,10 +112,7 @@ pub(crate) fn generate(
     Template::render("apikey/generate", &ctx)
 }
 
-pub(crate) fn check_api_key(
-    bg: &State<MySqlBackend>,
-    key: &str,
-) -> Result<String, ApiKeyError> {
+pub(crate) fn check_api_key(bg: &State<MySqlBackend>, key: &str) -> Result<String, ApiKeyError> {
     let rs = bg.query_exec("users_by_apikey", vec![key.into()]);
     if rs.len() < 1 {
         Err(ApiKeyError::Missing)

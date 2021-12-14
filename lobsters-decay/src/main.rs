@@ -19,8 +19,7 @@ const SERVER: &'static str = "http://localhost:8000";
 
 #[derive(Serialize, Deserialize)]
 pub struct ApplyDisguiseResponse {
-    pub diff_locators: HashMap<edna::UID, edna::tokens::LocCap>,
-    pub ownership_locators: HashMap<edna::UID, edna::tokens::LocCap>,
+    pub locators: HashMap<edna::UID, edna::tokens::LocCap>,
 }
 
 fn init_logger() {
@@ -87,7 +86,7 @@ pub fn main() {
 
     let postdata = json!({
         "decrypt_cap": [],
-        "ownership_locators": [],
+        "locators": [],
     });
 
     for (u, email) in &users {
@@ -102,17 +101,13 @@ pub fn main() {
         let strbody = response.text().unwrap();
         warn!("Decay strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
-        let dl = if let Some(dl) = body.diff_locators.get(&u.to_string()) {
-            dl.to_string()
+        let l = if let Some(l) = body.locators.get(&u.to_string()) {
+            serde_json::to_string(l).unwrap()
         } else {
-            0.to_string()
-        };
-        let ol = if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
-            ol.to_string()
-        } else {
-            0.to_string()
+            let v : Vec<u64>= vec![];
+            serde_json::to_string(&v).unwrap()
         };
         // TODO send email with locators
-        warn!("Sending email to {} with ol and dl {} and {}", email, ol, dl);
+        warn!("Sending email to {}: Undecay your account with l {} at /users/undecay_account", email, l);
     }
 }
