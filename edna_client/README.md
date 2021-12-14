@@ -69,7 +69,7 @@ rescue SwaggerClient::ApiError => e
 end
 
 api_instance = SwaggerClient::DefaultApi.new
-body = SwaggerClient::GetTokensOfDisguise.new # GetTokensOfDisguise | 
+body = SwaggerClient::CleanupTokensOfDisguise.new # CleanupTokensOfDisguise | 
 
 
 begin
@@ -203,9 +203,11 @@ Class | Method | HTTP request | Description
 
 ## Documentation for Models
 
+ - [SwaggerClient::APILocCap](docs/APILocCap.md)
  - [SwaggerClient::APIRowVal](docs/APIRowVal.md)
  - [SwaggerClient::ApplyDisguise](docs/ApplyDisguise.md)
  - [SwaggerClient::ApplyDisguiseResponse](docs/ApplyDisguiseResponse.md)
+ - [SwaggerClient::CleanupTokensOfDisguise](docs/CleanupTokensOfDisguise.md)
  - [SwaggerClient::CreatePseudoprincipalResponse](docs/CreatePseudoprincipalResponse.md)
  - [SwaggerClient::EndDisguiseResponse](docs/EndDisguiseResponse.md)
  - [SwaggerClient::GetPseudoprincipals](docs/GetPseudoprincipals.md)

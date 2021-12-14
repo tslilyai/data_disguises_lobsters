@@ -77,7 +77,7 @@ No authorization required
 require 'swagger_client'
 
 api_instance = SwaggerClient::DefaultApi.new
-body = SwaggerClient::GetTokensOfDisguise.new # GetTokensOfDisguise | 
+body = SwaggerClient::CleanupTokensOfDisguise.new # CleanupTokensOfDisguise | 
 
 
 begin
@@ -91,7 +91,7 @@ end
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **body** | [**GetTokensOfDisguise**](GetTokensOfDisguise.md)|  | 
+ **body** | [**CleanupTokensOfDisguise**](CleanupTokensOfDisguise.md)|  | 
 
 ### Return type
 

@@ -16,9 +16,11 @@ require 'swagger_client/version'
 require 'swagger_client/configuration'
 
 # Models
+require 'swagger_client/models/api_loc_cap'
 require 'swagger_client/models/api_row_val'
 require 'swagger_client/models/apply_disguise'
 require 'swagger_client/models/apply_disguise_response'
+require 'swagger_client/models/cleanup_tokens_of_disguise'
 require 'swagger_client/models/create_pseudoprincipal_response'
 require 'swagger_client/models/end_disguise_response'
 require 'swagger_client/models/get_pseudoprincipals'
