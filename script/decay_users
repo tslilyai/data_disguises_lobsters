@@ -12,16 +12,16 @@ User.inactive.each_with_index do |u, x|
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
     body.decrypt_cap = Base64.decode64(params[:user][:pkey]).bytes
     body.locators = []
-    app = 'lobsters' # String |
-    did = 1 # Integer |
     uid = "#{uid}" # String |
-    locator = 0
     begin
       result = api_instance.apiproxy_apply_disguise(body, app, did, uid)
       # get locator of user (XXX note that only one user's locator is returned..)
       locator = JSON.dump(result.locators.values[0])
+      did = result.did
+
       p locator
-      DecayNotification.notify(@user, locator).deliver_now
+      p did 
+      DecayNotification.notify(@user, locator, did).deliver_now
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
