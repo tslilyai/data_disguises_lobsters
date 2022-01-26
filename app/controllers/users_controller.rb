@@ -166,6 +166,7 @@ class UsersController < ApplicationController
     body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
     locators_vec = JSON.parse(params[:locators])
     body.locators = locators_vec
+    body.tableinfo_json = File.read("disguises/table_info.json")
     did = 0 # Integer |
 
     puts body.locators
@@ -183,6 +184,7 @@ class UsersController < ApplicationController
     body = SwaggerClient::RevealDisguise.new # RevealDisguise |
     body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
     locators_vec = JSON.parse(params[:locators])
+    body.tableinfo_json = File.read("disguises/table_info.json")
     body.locators = locators_vec
     did = 1 # Integer |
 
