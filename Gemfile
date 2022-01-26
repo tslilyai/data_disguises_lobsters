@@ -66,4 +66,4 @@ group :test, :development do
 end
 
 # edna client
-gem 'edna_client', '~> 1.0.0', path: "edna_ruby_client"
+gem 'edna_client', '~> 1.0.0', path: "./edna_ruby_client"

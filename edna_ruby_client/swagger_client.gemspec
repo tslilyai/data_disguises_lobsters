@@ -15,7 +15,7 @@ $:.push File.expand_path("../lib", __FILE__)
 require "swagger_client/version"
 
 Gem::Specification.new do |s|
-  s.name        = "swagger_client"
+  s.name        = "edna_client"
   s.version     = SwaggerClient::VERSION
   s.platform    = Gem::Platform::RUBY
   s.authors     = ["Swagger-Codegen"]
