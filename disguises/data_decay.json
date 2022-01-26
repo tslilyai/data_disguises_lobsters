@@ -1,0 +1,253 @@
+{
+    "user": "UID",
+    "table_disguises": {
+        "hat_requests": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "hats": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "hidden_stories": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "invitations": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "read_ribbons": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "saved_stories": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "suggested_taggings": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "suggested_titles": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "tag_filters": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "users": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "id",
+                        "val": "UID"
+                    }
+                },
+                "trans": "Remove"
+            }
+        ],
+        "comments": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "user_id"
+                    }
+                }
+            }
+        ],
+        "messages": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "author_user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "author_user_id"
+                    }
+                }
+            },
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "recipient_user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "recipient_user_id"
+                    }
+                }
+            }
+        ],
+        "mod_notes": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "moderator_user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "user_id"
+                    }
+                }
+            },
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "user_id"
+                    }
+                }
+            }
+        ],
+        "moderations": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "moderator_user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "user_id"
+                    }
+                }
+            },
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "user_id"
+                    }
+                }
+            }
+        ],
+        "votes": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "user_id"
+                    }
+                }
+            }
+        ],
+        "stories": [
+            {
+                "pred": {
+                    "Eq" : {
+                        "col": "user_id",
+                        "val": "UID"
+                    }
+                },
+                "trans": {
+                    "Decor": {
+                        "fk_name": "users",
+                        "fk_col": "user_id"
+                    }
+                }
+            }
+        ]
+    }
+}
