@@ -38,6 +38,7 @@ class SettingsController < ApplicationController
     body.locators = []
     body.disguise_json = File.read("disguises/gdpr_disguise.json")
     body.tableinfo_json = File.read("disguises/table_info.json")
+    body.disguise_json.gsub! 'UID' uid
 
     begin
       result = api_instance.apiproxy_apply_disguise(body)
