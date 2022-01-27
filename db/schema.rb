@@ -12,10 +12,18 @@
 
 ActiveRecord::Schema.define(version: 2020_08_28_015742) do
 
-  create_table "EdnaPrincipals", primary_key: "uid", id: :string, options: "ENGINE=MEMORY DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
+  create_table "EdnaBags", primary_key: "loc", id: :bigint, unsigned: true, default: nil, options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
+    t.binary "encbag", size: :medium
+  end
+
+  create_table "EdnaPrincipals", primary_key: "uid", id: :string, options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
     t.integer "is_anon", limit: 1
     t.string "pubkey", limit: 1024
     t.string "locs", limit: 2048
+  end
+
+  create_table "EdnaRemovedPrincipals", id: false, options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
+    t.string "uid"
   end
 
   create_table "categories", options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", force: :cascade do |t|

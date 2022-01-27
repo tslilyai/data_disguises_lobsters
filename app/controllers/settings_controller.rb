@@ -39,7 +39,6 @@ class SettingsController < ApplicationController
     body.disguise_json = File.read("disguises/gdpr_disguise.json")
     body.tableinfo_json = File.read("disguises/table_info.json")
 
-    locator = 0
     begin
       result = api_instance.apiproxy_apply_disguise(body)
       # get locator of user (XXX note that only one user's locator is returned..)
@@ -47,11 +46,11 @@ class SettingsController < ApplicationController
       did = result.did
       p locator
       p did
+      DeleteNotification.notify(@user, locator, did).deliver_now
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
 
-    DeleteNotification.notify(@user, locator, did).deliver_now
     reset_session
     flash[:success] = "You have deleted your account and disowned your stories and comments. Bye."
     return redirect_to "/"
