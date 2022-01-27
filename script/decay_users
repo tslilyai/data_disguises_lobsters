@@ -12,9 +12,8 @@ User.inactive.each_with_index do |u, x|
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
     body.decrypt_cap = Base64.decode64(params[:user][:pkey]).bytes
     body.locators = []
-    uid = "#{uid}" # String |
     begin
-      result = api_instance.apiproxy_apply_disguise(body, app, did, uid)
+      result = api_instance.apiproxy_apply_disguise(body)
       # get locator of user (XXX note that only one user's locator is returned..)
       locator = JSON.dump(result.locators.values[0])
       did = result.did

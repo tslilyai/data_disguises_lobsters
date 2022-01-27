@@ -39,10 +39,9 @@ class SettingsController < ApplicationController
     body.disguise_json = File.read("disguises/gdpr_disguise.json")
     body.tableinfo_json = File.read("disguises/table_info.json")
 
-    uid = "#{uid}" # String |
     locator = 0
     begin
-      result = api_instance.apiproxy_apply_disguise(body, app, did, uid)
+      result = api_instance.apiproxy_apply_disguise(body)
       # get locator of user (XXX note that only one user's locator is returned..)
       locator = JSON.dump(result.locators.values[0])
       did = result.did
