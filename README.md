@@ -1,3 +1,9 @@
+Version of the Lobsters web application integrated with Edna.
+
+To get the Docker image with this Lobsters repo, do `docker pull tslilyai/lobsters-edna`
+
+-------------------------------------
+
 ### Lobsters Rails Project [![Build Status](https://travis-ci.org/lobsters/lobsters.svg?branch=master)](https://travis-ci.org/lobsters/lobsters)
 
 This is the
