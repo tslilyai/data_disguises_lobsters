@@ -6,7 +6,6 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**apiproxy_apply_disguise**](DefaultApi.md#apiproxy_apply_disguise) | **POST** /apply_disguise | 
 [**apiproxy_cleanup_records_of_disguise**](DefaultApi.md#apiproxy_cleanup_records_of_disguise) | **POST** /cleanup_records_of_disguise | 
-[**apiproxy_create_pseudoprincipal**](DefaultApi.md#apiproxy_create_pseudoprincipal) | **GET** /create_pp | 
 [**apiproxy_end_disguise**](DefaultApi.md#apiproxy_end_disguise) | **GET** /end_disguise/{did} | 
 [**apiproxy_end_reveal**](DefaultApi.md#apiproxy_end_reveal) | **GET** /end_reveal/{did} | 
 [**apiproxy_get_pseudoprincipals_of**](DefaultApi.md#apiproxy_get_pseudoprincipals_of) | **POST** /get_pps_of | 
@@ -101,44 +100,6 @@ No authorization required
 
  - **Content-Type**: application/json
  - **Accept**: Not defined
-
-
-
-# **apiproxy_create_pseudoprincipal**
-> CreatePseudoprincipalResponse apiproxy_create_pseudoprincipal
-
-
-
-### Example
-```ruby
-# load the gem
-require 'swagger_client'
-
-api_instance = SwaggerClient::DefaultApi.new
-
-begin
-  result = api_instance.apiproxy_create_pseudoprincipal
-  p result
-rescue SwaggerClient::ApiError => e
-  puts "Exception when calling DefaultApi->apiproxy_create_pseudoprincipal: #{e}"
-end
-```
-
-### Parameters
-This endpoint does not need any parameter.
-
-### Return type
-
-[**CreatePseudoprincipalResponse**](CreatePseudoprincipalResponse.md)
-
-### Authorization
-
-No authorization required
-
-### HTTP request headers
-
- - **Content-Type**: Not defined
- - **Accept**: application/json
 
 
 

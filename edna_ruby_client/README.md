@@ -76,15 +76,6 @@ rescue SwaggerClient::ApiError => e
 end
 
 api_instance = SwaggerClient::DefaultApi.new
-
-begin
-  result = api_instance.apiproxy_create_pseudoprincipal
-  p result
-rescue SwaggerClient::ApiError => e
-  puts "Exception when calling DefaultApi->apiproxy_create_pseudoprincipal: #{e}"
-end
-
-api_instance = SwaggerClient::DefaultApi.new
 did = 56 # Integer | 
 
 
@@ -206,7 +197,6 @@ Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *SwaggerClient::DefaultApi* | [**apiproxy_apply_disguise**](docs/DefaultApi.md#apiproxy_apply_disguise) | **POST** /apply_disguise | 
 *SwaggerClient::DefaultApi* | [**apiproxy_cleanup_records_of_disguise**](docs/DefaultApi.md#apiproxy_cleanup_records_of_disguise) | **POST** /cleanup_records_of_disguise | 
-*SwaggerClient::DefaultApi* | [**apiproxy_create_pseudoprincipal**](docs/DefaultApi.md#apiproxy_create_pseudoprincipal) | **GET** /create_pp | 
 *SwaggerClient::DefaultApi* | [**apiproxy_end_disguise**](docs/DefaultApi.md#apiproxy_end_disguise) | **GET** /end_disguise/{did} | 
 *SwaggerClient::DefaultApi* | [**apiproxy_end_reveal**](docs/DefaultApi.md#apiproxy_end_reveal) | **GET** /end_reveal/{did} | 
 *SwaggerClient::DefaultApi* | [**apiproxy_get_pseudoprincipals_of**](docs/DefaultApi.md#apiproxy_get_pseudoprincipals_of) | **POST** /get_pps_of | 
@@ -221,12 +211,10 @@ Class | Method | HTTP request | Description
 
 ## Documentation for Models
 
- - [SwaggerClient::APILocCap](docs/APILocCap.md)
- - [SwaggerClient::APIRowVal](docs/APIRowVal.md)
+ - [SwaggerClient::APILocator](docs/APILocator.md)
  - [SwaggerClient::ApplyDisguise](docs/ApplyDisguise.md)
  - [SwaggerClient::ApplyDisguiseResponse](docs/ApplyDisguiseResponse.md)
  - [SwaggerClient::CleanupRecordsOfDisguise](docs/CleanupRecordsOfDisguise.md)
- - [SwaggerClient::CreatePseudoprincipalResponse](docs/CreatePseudoprincipalResponse.md)
  - [SwaggerClient::EndDisguiseResponse](docs/EndDisguiseResponse.md)
  - [SwaggerClient::GetPseudoprincipals](docs/GetPseudoprincipals.md)
  - [SwaggerClient::GetRecordsOfDisguise](docs/GetRecordsOfDisguise.md)
