@@ -12,8 +12,8 @@ User.inactive.each_with_index do |u, x|
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
     body.decrypt_cap = Base64.decode64(params[:user][:pkey]).bytes
     body.locators = []
-    body.disguise_json = File.read("disguises/gdpr_disguise.json")
-    body.disguise_json.gsub! 'UID' uid
+    gdpr_disguise = File.read("disguises/gdpr_disguise.json")
+    body.disguise_json = gdpr_disguise.gsub('UID', uid)
     body.tableinfo_json = File.read("disguises/table_info.json")
 
     begin
