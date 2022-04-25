@@ -8,10 +8,10 @@ Method | HTTP request | Description
 [**apiproxy_cleanup_records_of_disguise**](DefaultApi.md#apiproxy_cleanup_records_of_disguise) | **POST** /cleanup_records_of_disguise | 
 [**apiproxy_end_disguise**](DefaultApi.md#apiproxy_end_disguise) | **GET** /end_disguise/{did} | 
 [**apiproxy_end_reveal**](DefaultApi.md#apiproxy_end_reveal) | **GET** /end_reveal/{did} | 
-[**apiproxy_get_pseudoprincipals_of**](DefaultApi.md#apiproxy_get_pseudoprincipals_of) | **POST** /get_pps_of | 
+[**apiproxy_get_pseudoprincipals_of**](DefaultApi.md#apiproxy_get_pseudoprincipals_of) | **POST** /get_pps_of/{uid} | 
 [**apiproxy_get_records_of_disguise**](DefaultApi.md#apiproxy_get_records_of_disguise) | **POST** /get_records_of_disguise | 
 [**apiproxy_register_principal**](DefaultApi.md#apiproxy_register_principal) | **POST** /register_principal | 
-[**apiproxy_reveal_disguise**](DefaultApi.md#apiproxy_reveal_disguise) | **POST** /reveal_disguise/{did} | 
+[**apiproxy_reveal_disguise**](DefaultApi.md#apiproxy_reveal_disguise) | **POST** /reveal_disguise/{uid}/{did} | 
 [**apiproxy_save_diff_record**](DefaultApi.md#apiproxy_save_diff_record) | **POST** /save_diff_record | 
 [**apiproxy_save_pseudoprincipal_record**](DefaultApi.md#apiproxy_save_pseudoprincipal_record) | **POST** /save_pp_record | 
 [**apiproxy_start_disguise**](DefaultApi.md#apiproxy_start_disguise) | **GET** /start_disguise | 
@@ -189,7 +189,7 @@ No authorization required
 
 
 # **apiproxy_get_pseudoprincipals_of**
-> Array&lt;String&gt; apiproxy_get_pseudoprincipals_of(body)
+> Array&lt;String&gt; apiproxy_get_pseudoprincipals_of(bodyuid)
 
 
 
@@ -200,10 +200,11 @@ require 'swagger_client'
 
 api_instance = SwaggerClient::DefaultApi.new
 body = SwaggerClient::GetPseudoprincipals.new # GetPseudoprincipals | 
+uid = 'uid_example' # String | 
 
 
 begin
-  result = api_instance.apiproxy_get_pseudoprincipals_of(body)
+  result = api_instance.apiproxy_get_pseudoprincipals_of(bodyuid)
   p result
 rescue SwaggerClient::ApiError => e
   puts "Exception when calling DefaultApi->apiproxy_get_pseudoprincipals_of: #{e}"
@@ -215,6 +216,7 @@ end
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **body** | [**GetPseudoprincipals**](GetPseudoprincipals.md)|  | 
+ **uid** | **String**|  | 
 
 ### Return type
 
@@ -285,7 +287,7 @@ No authorization required
 require 'swagger_client'
 
 api_instance = SwaggerClient::DefaultApi.new
-body = 'body_example' # String | 
+body = SwaggerClient::RegisterPrincipal.new # RegisterPrincipal | 
 
 
 begin
@@ -300,7 +302,7 @@ end
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **body** | [**String**](String.md)|  | 
+ **body** | [**RegisterPrincipal**](RegisterPrincipal.md)|  | 
 
 ### Return type
 
@@ -312,13 +314,13 @@ No authorization required
 
 ### HTTP request headers
 
- - **Content-Type**: application/octet-stream
+ - **Content-Type**: application/json
  - **Accept**: application/json
 
 
 
 # **apiproxy_reveal_disguise**
-> apiproxy_reveal_disguise(bodydid)
+> apiproxy_reveal_disguise(bodyuiddid)
 
 
 
@@ -329,11 +331,12 @@ require 'swagger_client'
 
 api_instance = SwaggerClient::DefaultApi.new
 body = SwaggerClient::RevealDisguise.new # RevealDisguise | 
+uid = 'uid_example' # String | 
 did = 56 # Integer | 
 
 
 begin
-  api_instance.apiproxy_reveal_disguise(bodydid)
+  api_instance.apiproxy_reveal_disguise(bodyuiddid)
 rescue SwaggerClient::ApiError => e
   puts "Exception when calling DefaultApi->apiproxy_reveal_disguise: #{e}"
 end
@@ -344,6 +347,7 @@ end
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **body** | [**RevealDisguise**](RevealDisguise.md)|  | 
+ **uid** | **String**|  | 
  **did** | **Integer**|  | 
 
 ### Return type

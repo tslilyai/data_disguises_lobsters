@@ -3,6 +3,6 @@
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**decrypt_cap** | **Array&lt;Integer&gt;** |  | 
+**password** | **String** |  | 
 **ownership_locators** | [**Array&lt;APILocator&gt;**](APILocator.md) |  | 
 

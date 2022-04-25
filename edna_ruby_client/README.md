@@ -98,10 +98,11 @@ end
 
 api_instance = SwaggerClient::DefaultApi.new
 body = SwaggerClient::GetPseudoprincipals.new # GetPseudoprincipals | 
+uid = 'uid_example' # String | 
 
 
 begin
-  result = api_instance.apiproxy_get_pseudoprincipals_of(body)
+  result = api_instance.apiproxy_get_pseudoprincipals_of(body, uid)
   p result
 rescue SwaggerClient::ApiError => e
   puts "Exception when calling DefaultApi->apiproxy_get_pseudoprincipals_of: #{e}"
@@ -119,7 +120,7 @@ rescue SwaggerClient::ApiError => e
 end
 
 api_instance = SwaggerClient::DefaultApi.new
-body = 'body_example' # String | 
+body = SwaggerClient::RegisterPrincipal.new # RegisterPrincipal | 
 
 
 begin
@@ -131,11 +132,12 @@ end
 
 api_instance = SwaggerClient::DefaultApi.new
 body = SwaggerClient::RevealDisguise.new # RevealDisguise | 
+uid = 'uid_example' # String | 
 did = 56 # Integer | 
 
 
 begin
-  api_instance.apiproxy_reveal_disguise(body, did)
+  api_instance.apiproxy_reveal_disguise(body, uid, did)
 rescue SwaggerClient::ApiError => e
   puts "Exception when calling DefaultApi->apiproxy_reveal_disguise: #{e}"
 end
@@ -199,10 +201,10 @@ Class | Method | HTTP request | Description
 *SwaggerClient::DefaultApi* | [**apiproxy_cleanup_records_of_disguise**](docs/DefaultApi.md#apiproxy_cleanup_records_of_disguise) | **POST** /cleanup_records_of_disguise | 
 *SwaggerClient::DefaultApi* | [**apiproxy_end_disguise**](docs/DefaultApi.md#apiproxy_end_disguise) | **GET** /end_disguise/{did} | 
 *SwaggerClient::DefaultApi* | [**apiproxy_end_reveal**](docs/DefaultApi.md#apiproxy_end_reveal) | **GET** /end_reveal/{did} | 
-*SwaggerClient::DefaultApi* | [**apiproxy_get_pseudoprincipals_of**](docs/DefaultApi.md#apiproxy_get_pseudoprincipals_of) | **POST** /get_pps_of | 
+*SwaggerClient::DefaultApi* | [**apiproxy_get_pseudoprincipals_of**](docs/DefaultApi.md#apiproxy_get_pseudoprincipals_of) | **POST** /get_pps_of/{uid} | 
 *SwaggerClient::DefaultApi* | [**apiproxy_get_records_of_disguise**](docs/DefaultApi.md#apiproxy_get_records_of_disguise) | **POST** /get_records_of_disguise | 
 *SwaggerClient::DefaultApi* | [**apiproxy_register_principal**](docs/DefaultApi.md#apiproxy_register_principal) | **POST** /register_principal | 
-*SwaggerClient::DefaultApi* | [**apiproxy_reveal_disguise**](docs/DefaultApi.md#apiproxy_reveal_disguise) | **POST** /reveal_disguise/{did} | 
+*SwaggerClient::DefaultApi* | [**apiproxy_reveal_disguise**](docs/DefaultApi.md#apiproxy_reveal_disguise) | **POST** /reveal_disguise/{uid}/{did} | 
 *SwaggerClient::DefaultApi* | [**apiproxy_save_diff_record**](docs/DefaultApi.md#apiproxy_save_diff_record) | **POST** /save_diff_record | 
 *SwaggerClient::DefaultApi* | [**apiproxy_save_pseudoprincipal_record**](docs/DefaultApi.md#apiproxy_save_pseudoprincipal_record) | **POST** /save_pp_record | 
 *SwaggerClient::DefaultApi* | [**apiproxy_start_disguise**](docs/DefaultApi.md#apiproxy_start_disguise) | **GET** /start_disguise | 
@@ -219,6 +221,7 @@ Class | Method | HTTP request | Description
  - [SwaggerClient::GetPseudoprincipals](docs/GetPseudoprincipals.md)
  - [SwaggerClient::GetRecordsOfDisguise](docs/GetRecordsOfDisguise.md)
  - [SwaggerClient::GetRecordsOfDisguiseResponse](docs/GetRecordsOfDisguiseResponse.md)
+ - [SwaggerClient::RegisterPrincipal](docs/RegisterPrincipal.md)
  - [SwaggerClient::RegisterPrincipalResponse](docs/RegisterPrincipalResponse.md)
  - [SwaggerClient::RevealDisguise](docs/RevealDisguise.md)
  - [SwaggerClient::SaveDiffRecord](docs/SaveDiffRecord.md)

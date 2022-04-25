@@ -2,6 +2,10 @@ Version of the Lobsters web application integrated with Edna.
 
 To get the Docker image with this Lobsters repo, do `docker pull tslilyai/lobsters-edna`
 
+To import a new ruby client from [Swagger](https://editor.swagger.io/): 
+- update `swagger_client.gemspec` to have gem name `edna_client`
+- update `lib/swagger_client/configuration.rb` to have the right endpoint (e.g., `localhost:8000`)
+
 -------------------------------------
 
 ### Lobsters Rails Project [![Build Status](https://travis-ci.org/lobsters/lobsters.svg?branch=master)](https://travis-ci.org/lobsters/lobsters)

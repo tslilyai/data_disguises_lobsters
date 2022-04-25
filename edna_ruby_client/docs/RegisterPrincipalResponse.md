@@ -3,5 +3,5 @@
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**privkey** | **String** |  | 
+**share** | **String** |  | 
 
