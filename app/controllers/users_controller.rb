@@ -163,14 +163,16 @@ class UsersController < ApplicationController
   def recover_account
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::RevealDisguise.new # RevealDisguise |
-    body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
     locators_vec = JSON.parse(params[:locators])
     body.locators = locators_vec
+    body.password = Base64.decode64(params[:password]).bytes
     body.tableinfo_json = File.read("disguises/table_info.json")
+    body.guisegen_json = File.read("disguises/guise_gen.json")
     did = params[:did] # Integer |
+    uid = params[:uid] # String |
 
     begin
-      api_instance.apiproxy_reveal_disguise(body, did)
+      api_instance.apiproxy_reveal_disguise(body, uid, did)
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_reveal_disguise: #{e}"
     end
@@ -180,14 +182,16 @@ class UsersController < ApplicationController
   def undecay_account
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::RevealDisguise.new # RevealDisguise |
-    body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
     locators_vec = JSON.parse(params[:locators])
-    body.tableinfo_json = File.read("disguises/table_info.json")
     body.locators = locators_vec
+    body.password = Base64.decode64(params[:password]).bytes
+    body.tableinfo_json = File.read("disguises/table_info.json")
+    body.guisegen_json = File.read("disguises/guise_gen.json")
     did = params[:did] # Integer |
+    uid = params[:uid] # String |
 
     begin
-      api_instance.apiproxy_reveal_disguise(body, did)
+      api_instance.apiproxy_reveal_disguise(body, uid, did)
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_reveal_disguise: #{e}"
     end

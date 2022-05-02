@@ -10,15 +10,15 @@ User.inactive.each_with_index do |u, x|
     uid = @u.id.to_s
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
-    body.decrypt_cap = Base64.decode64(params[:user][:pkey]).bytes
+    body.user = uid
+    body.password = "" # No composition for decay
     body.locators = []
-    gdpr_disguise = File.read("disguises/gdpr_disguise.json")
-    body.disguise_json = gdpr_disguise.gsub('UID', uid)
+    gdpr_disguise_json = File.read("disguises/gdpr_disguise.json")
     body.tableinfo_json = File.read("disguises/table_info.json")
+    body.guisegen_json = File.read("disguises/guise_gen.json")
 
     begin
       result = api_instance.apiproxy_apply_disguise(body)
-      # get locator of user (XXX note that only one user's locator is returned..)
       locator = JSON.dump(result.locators.values[0])
       did = result.did
 

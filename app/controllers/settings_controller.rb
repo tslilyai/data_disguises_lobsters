@@ -34,11 +34,12 @@ class SettingsController < ApplicationController
     uid = @user.id.to_s
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
-    body.decrypt_cap = Base64.decode64(params[:user][:pkey]).bytes
+    body.user = uid
+    body.password = params[:user][:password].to_s
     body.locators = []
-    gdpr_disguise = File.read("disguises/gdpr_disguise.json")
-    body.disguise_json = gdpr_disguise.gsub('UID', uid)
+    gdpr_disguise_json = File.read("disguises/gdpr_disguise.json")
     body.tableinfo_json = File.read("disguises/table_info.json")
+    body.guisegen_json = File.read("disguises/guise_gen.json")
 
     begin
       result = api_instance.apiproxy_apply_disguise(body)

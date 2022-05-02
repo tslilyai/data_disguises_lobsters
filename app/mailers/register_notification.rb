@@ -1,6 +1,6 @@
 class RegisterNotification < ApplicationMailer
-  def notify(user, privkey)
-    @privkey = privkey 
+  def notify(user, share)
+    @share = share 
 
     mail(
       :to => user.email,
