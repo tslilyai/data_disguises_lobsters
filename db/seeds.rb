@@ -3,8 +3,7 @@ User.create(
   :username => "inactive-user",
   :email => "inactive-user@example.com",
   :password => pwd,
-  :password_confirmation => pwd,
-  :last_login => Time.current
+  :password_confirmation => pwd
 )
 
 User.create(
@@ -20,8 +19,7 @@ User.create(
     User::MIN_KARMA_TO_SUBMIT_STORIES,
     User::MIN_KARMA_FOR_INVITATION_REQUESTS
   ].max,
-  :created_at => User::NEW_USER_DAYS.days.ago,
-  :last_login => Time.current
+  :created_at => User::NEW_USER_DAYS.days.ago
 )
 
 c = Category.create!(category: "Category")
