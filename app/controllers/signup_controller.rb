@@ -68,11 +68,10 @@ class SignupController < ApplicationController
       flash[:success] = "Welcome to #{Rails.application.name}, " <<
                         "#{@new_user.username}!"
 
-      uid = @new_user.id.to_s
       api_instance = SwaggerClient::DefaultApi.new
       body = SwaggerClient::RegisterPrincipal.new() # RegisterPrincipal |
-      body.uid = uid
       body.pw = params[:user][:password].to_s
+      body.uid = @new_user.id.to_s
 
       begin
         result = api_instance.apiproxy_register_principal(body)

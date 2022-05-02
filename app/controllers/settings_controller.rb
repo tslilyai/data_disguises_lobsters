@@ -31,10 +31,9 @@ class SettingsController < ApplicationController
     #end
     
     # Edna: disguise user.
-    uid = @user.id.to_s
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
-    body.user = uid
+    body.user = @user.id.to_s
     body.password = params[:user][:password].to_s
     body.locators = []
     body.disguise_json = File.read("disguises/gdpr_disguise.json").to_s
@@ -48,7 +47,7 @@ class SettingsController < ApplicationController
       did = result.did
       p locator
       p did
-      DeleteNotification.notify(@user, locator, did).deliver_now
+      DeleteNotification.notify(@user, did, locator).deliver_now
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end

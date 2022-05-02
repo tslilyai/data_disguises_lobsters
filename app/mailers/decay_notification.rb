@@ -1,7 +1,8 @@
 class DecayNotification < ApplicationMailer
-  def notify(user, locator, did)
+  def notify(user, did, locator)
     @loc = locator
     @did = did 
+    @uid = user.id
 
     mail(
       :to => user.email,
