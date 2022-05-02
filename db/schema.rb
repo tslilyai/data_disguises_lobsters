@@ -16,14 +16,26 @@ ActiveRecord::Schema.define(version: 2020_08_28_015742) do
     t.binary "encbag", size: :medium
   end
 
-  create_table "EdnaPrincipals", primary_key: "uid", id: :string, options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
+  create_table "EdnaPrincipals", primary_key: "uid", id: :string, options: "ENGINE=MEMORY DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
     t.integer "is_anon", limit: 1
     t.string "pubkey", limit: 1024
     t.string "locs", limit: 2048
   end
 
-  create_table "EdnaRemovedPrincipals", id: false, options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
+  create_table "EdnaRemovedPrincipals", id: false, options: "ENGINE=MEMORY DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
     t.string "uid"
+  end
+
+  create_table "EdnaRemovedSharedObjects", id: false, options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
+    t.string "object", limit: 2048
+    t.string "data", limit: 2048
+  end
+
+  create_table "EdnaShares", primary_key: "loc", id: :bigint, unsigned: true, default: nil, options: "ENGINE=MEMORY DEFAULT CHARSET=utf8mb3", force: :cascade do |t|
+    t.string "edna_share_x_val", limit: 1024
+    t.string "edna_share_y_value", limit: 1024
+    t.string "user_share_value", limit: 1024
+    t.string "password_salt", limit: 1024
   end
 
   create_table "categories", options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", force: :cascade do |t|

@@ -1,4 +1,4 @@
-require 'edna_client'
+require 'swagger_client'
 
 class SettingsController < ApplicationController
   before_action :require_logged_in_user
@@ -37,9 +37,9 @@ class SettingsController < ApplicationController
     body.user = uid
     body.password = params[:user][:password].to_s
     body.locators = []
-    gdpr_disguise_json = File.read("disguises/gdpr_disguise.json")
-    body.tableinfo_json = File.read("disguises/table_info.json")
-    body.guisegen_json = File.read("disguises/guise_gen.json")
+    body.disguise_json = File.read("disguises/gdpr_disguise.json").to_s
+    body.tableinfo_json = File.read("disguises/table_info.json").to_s
+    body.guisegen_json = File.read("disguises/guise_gen.json").to_s
 
     begin
       result = api_instance.apiproxy_apply_disguise(body)

@@ -1,5 +1,5 @@
 require "base64"
-require 'edna_client'
+require 'swagger_client'
 require 'json'
 
 class UsersController < ApplicationController
@@ -166,8 +166,8 @@ class UsersController < ApplicationController
     locators_vec = JSON.parse(params[:locators])
     body.locators = locators_vec
     body.password = Base64.decode64(params[:password]).bytes
-    body.tableinfo_json = File.read("disguises/table_info.json")
-    body.guisegen_json = File.read("disguises/guise_gen.json")
+    body.tableinfo_json = File.read("disguises/table_info.json").to_s
+    body.guisegen_json = File.read("disguises/guise_gen.json").to_s
     did = params[:did] # Integer |
     uid = params[:uid] # String |
 
@@ -185,8 +185,8 @@ class UsersController < ApplicationController
     locators_vec = JSON.parse(params[:locators])
     body.locators = locators_vec
     body.password = Base64.decode64(params[:password]).bytes
-    body.tableinfo_json = File.read("disguises/table_info.json")
-    body.guisegen_json = File.read("disguises/guise_gen.json")
+    body.tableinfo_json = File.read("disguises/table_info.json").to_s
+    body.guisegen_json = File.read("disguises/guise_gen.json").to_s
     did = params[:did] # Integer |
     uid = params[:uid] # String |
 

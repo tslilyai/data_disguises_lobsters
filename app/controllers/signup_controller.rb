@@ -1,4 +1,4 @@
-require 'edna_client'
+require 'swagger_client'
 
 class SignupController < ApplicationController
   before_action :require_logged_in_user, :check_new_users, :check_can_invite, :only => :invite
@@ -71,7 +71,7 @@ class SignupController < ApplicationController
       uid = @new_user.id.to_s
       api_instance = SwaggerClient::DefaultApi.new
       body = SwaggerClient::RegisterPrincipal.new() # RegisterPrincipal |
-      body.user = uid
+      body.uid = uid
       body.pw = params[:user][:password].to_s
 
       begin
