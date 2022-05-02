@@ -1,4 +1,8 @@
 <div class="box" id="story_box">
+  <div class="legend">
+    Edit Story
+  </div>
+
   <%= form_with model: @story, url: story_path(@story.short_id), method: :put, id: 'edit_story', local: true do |f| %>
     <%= render :partial => "stories/form", :locals => { :story => @story,
       :f => f } %>
@@ -41,15 +45,20 @@
 
         <% if @story.is_gone? && @story.is_undeletable_by_user?(@user) %>
           &nbsp; | &nbsp;
-          <%= f.submit "Undelete", formaction: story_undelete_path(@story.short_id),
-            :data => { :confirm => "Are you sure you want to undelete this story?" } %>
+          <%= link_to "Undelete", story_undelete_path(@story.short_id),
+            :method => :post, :data => {
+            :confirm => "Are you sure you want to undelete this story?" },
+            :class => "button" %>
         <% elsif !@story.is_gone? %>
           &nbsp; | &nbsp;
           <% if @story.user_id != @user.id && @user.is_moderator? %>
-            <%= f.submit "Delete", formaction: story_destroy_path(@story.short_id), :class => "deletion" %>
+            <%= link_to "Delete", story_path(@story.short_id),
+              :method => :delete, :class => "button mod_story_link deletion" %>
           <% else %>
-            <%= f.submit "Delete", formaction: story_destroy_path(@story.short_id),
-              :class => "deletion", :data => { :confirm => "Are you sure you want to delete this story?" } %>
+            <%= link_to "Delete", story_path(@story.short_id),
+              :method => :delete, :data => {
+              :confirm => "Are you sure you want to delete this story?" },
+              :class => "button" %>
           <% end %>
         <% end %>
 

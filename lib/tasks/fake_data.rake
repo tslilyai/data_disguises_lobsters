@@ -18,7 +18,7 @@ class FakeDataGenerator
         password: password,
         password_confirmation: password,
         username: Faker::Internet.user_name(specifier: name, separators: %w(_)),
-        created_at: (User::NEW_USER_DAYS + 1).days.ago,
+        created_at: User::NEW_USER_DAYS.days.ago,
       }
       create_args.merge!(is_moderator: true) if i % 7 == 0
       users << User.create!(create_args)
@@ -48,9 +48,7 @@ class FakeDataGenerator
       end
     end
 
-    # User-deleted stories. The stories are created here and deleted after
-    # adding comments.
-    deleted_stories = []
+    # User-deleted stories
     (@stories_count / 10).times do
       user = users[Random.rand(@users_count-1)]
       title = Faker::Lorem.sentence(word_count: 3)
@@ -58,12 +56,12 @@ class FakeDataGenerator
       tag_name = title.split(' ').first.downcase
       tag = Tag.find_by tag: tag_name
       tag ||= Tag.create! tag: tag_name, category: category
-      deleted_story = Story.create! user: user,
+      Story.create! user: user,
         title: title,
         tags_a: [tag.tag],
         description: Faker::Lorem.paragraphs(number: 1),
+        is_expired: true,
         editor: user
-      deleted_stories << deleted_story
     end
 
     # Comments
@@ -80,11 +78,6 @@ class FakeDataGenerator
             parent_comment_id: c.id
         end
       end
-    end
-
-    # Delete the stories marked for deletion before adding comments.
-    deleted_stories.each do |story|
-      story.update(is_deleted: true)
     end
 
     # Hats

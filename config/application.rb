@@ -22,7 +22,7 @@ Bundler.require(*Rails.groups)
 module Lobsters
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
-    config.load_defaults 6.1
+    config.load_defaults 5.2
 
     # Settings in config/environments/* take precedence over those specified here.
     # Application configuration can go into files in config/initializers
@@ -31,6 +31,9 @@ module Lobsters
 
     # Custom directories with classes and modules you want to be autoloadable.
     # config.autoload_paths += %W(#{config.root}/extras)
+
+    # Eager load everything in extras/
+    config.eager_load_paths << Rails.root.join("extras").to_s
 
     # Set Time.zone default to the specified zone and make Active Record auto-convert to this zone.
     # Run "rake -D time" for a list of tasks for finding time zone names. Default is UTC.
@@ -67,22 +70,20 @@ silence_warnings do
   ActionDispatch::Http::Parameters::DEFAULT_PARSERS = {}.freeze
 end
 
-# site-wide settings
+# define site name and domain to be used globally, should be overridden in a
+# local file such as config/initializers/production.rb
 class << Rails.application
   def allow_invitation_requests?
-    false
-  end
-
-  def allow_new_users_to_invite?
-    false
+    true
   end
 
   def open_signups?
-    ENV["OPEN_SIGNUPS"] == "true"
+    #ENV["OPEN_SIGNUPS"] == "true"
+    true
   end
 
   def domain
-    "lobste.rs"
+    "example.com"
   end
 
   def name

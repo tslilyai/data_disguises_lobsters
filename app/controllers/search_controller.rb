@@ -1,8 +1,7 @@
 class SearchController < ApplicationController
-  before_action :show_title_h1
-
   def index
     @title = "Search"
+    @cur_url = "/search"
 
     @search = Search.new
 

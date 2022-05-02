@@ -7,7 +7,7 @@ describe 'users controller' do
 
       get "/u/#{user.username}"
 
-      expect(response.body).to include(user.username)
+      expect(response.body).to include("User #{user.username}")
     end
   end
 
@@ -53,24 +53,6 @@ describe 'users controller' do
 
       get "/u/#{bad_user.username}/standing"
       expect(response.body).to include("flags")
-    end
-  end
-
-  describe 'username case mismatch' do
-    it 'redirects to correct-case user page' do
-      user = create(:user)
-
-      get user_path(user.username.upcase)
-
-      expect(response).to redirect_to(user_path(user.username))
-    end
-
-    it 'redirects to correct-case user standing page' do
-      user = create(:user)
-
-      get user_standing_path(user.username.upcase)
-
-      expect(response).to redirect_to(user_standing_path(user.username))
     end
   end
 end

@@ -7,7 +7,6 @@ class CommentsController < ApplicationController
                 :only => [:create, :preview, :upvote, :flag, :unvote]
   before_action :require_logged_in_user, :only => [:upvoted]
   before_action :flag_warning, only: [:threads]
-  before_action :show_title_h1
 
   # for rss feeds, load the user's tag filters if a token is passed
   before_action :find_user_from_rss_token, :only => [:index]
@@ -35,16 +34,7 @@ class CommentsController < ApplicationController
       end
     end
 
-    # sometimes on slow connections people resubmit; silently accept it
-    if (already = Comment.find_by(user: comment.user,
-                                  story: comment.story,
-                                  parent_comment_id: comment.parent_comment_id,
-                                  comment: comment.comment))
-      self.render_created_comment(already)
-      return
-    end
-
-    # rate-limit users to one reply per 5m per parent comment
+    # prevent double-clicks of the post button
     if params[:preview].blank? &&
        (pc = Comment.where(:story_id => story.id,
                            :user_id => @user.id,
@@ -60,21 +50,18 @@ class CommentsController < ApplicationController
 
     if comment.valid? && params[:preview].blank? && ActiveRecord::Base.transaction { comment.save }
       comment.current_vote = { :vote => 1 }
-      self.render_created_comment(comment)
+
+      if request.xhr?
+        render :partial => "comments/postedreply", :layout => false,
+          :content_type => "text/html", :locals => { :comment => comment }
+      else
+        redirect_to comment.path
+      end
     else
       comment.score = 1
       comment.current_vote = { :vote => 1 }
 
       preview comment
-    end
-  end
-
-  def render_created_comment(comment)
-    if request.xhr?
-      render :partial => "comments/postedreply", :layout => false,
-        :content_type => "text/html", :locals => { :comment => comment }
-    else
-      redirect_to comment.path
     end
   end
 
@@ -240,7 +227,8 @@ class CommentsController < ApplicationController
       :href => "/comments.rss" + (@user ? "?token=#{@user.rss_token}" : ""),
     }
 
-    @title = "Newest Comments"
+    @heading = @title = "Newest Comments"
+    @cur_url = "/comments"
 
     @page = params[:page].to_i
     if @page == 0
@@ -253,7 +241,7 @@ class CommentsController < ApplicationController
       .not_on_story_hidden_by(@user)
       .order("id DESC")
       .includes(:user, :hat, :story => :user)
-      .joins(:story).where.not(stories: { is_deleted: true })
+      .joins(:story).where.not(stories: { is_expired: true })
       .limit(COMMENTS_PER_PAGE)
       .offset((@page - 1) * COMMENTS_PER_PAGE)
 
@@ -285,8 +273,8 @@ class CommentsController < ApplicationController
       :href => upvoted_comments_path(format: :rss) + (@user ? "?token=#{@user.rss_token}" : ""),
     }
 
-    @title = "Upvoted Comments"
-    @saved_subnav = true
+    @heading = @title = "Upvoted Comments"
+    @cur_url = upvoted_comments_path
 
     @page = params[:page].to_i
     if @page == 0
@@ -300,7 +288,7 @@ class CommentsController < ApplicationController
       .order("id DESC")
       .includes(:user, :hat, :story => :user)
       .joins(:votes).where(votes: { user_id: @user.id, vote: 1 })
-      .joins(:story).where.not(stories: { is_deleted: true })
+      .joins(:story).where.not(stories: { is_expired: true })
       .limit(COMMENTS_PER_PAGE)
       .offset((@page - 1) * COMMENTS_PER_PAGE)
 
@@ -312,7 +300,7 @@ class CommentsController < ApplicationController
     end
 
     respond_to do |format|
-      format.html { render action: :index }
+      format.html { render action: :index, layout: 'upvoted' }
       format.rss {
         if @user && params[:token].present?
           @title = "Upvoted comments feed for #{@user.username}"
@@ -326,12 +314,15 @@ class CommentsController < ApplicationController
   def threads
     if params[:user]
       @showing_user = User.find_by!(username: params[:user])
-      @title = "Threads for #{@showing_user.username}"
+      @heading = @title = "Threads for #{@showing_user.username}"
+      @cur_url = "/threads/#{@showing_user.username}"
     elsif !@user
-      return redirect_to active_path
+      # TODO: show all recent threads
+      return redirect_to "/login"
     else
       @showing_user = @user
-      @title = "Your Threads"
+      @heading = @title = "Your Threads"
+      @cur_url = "/threads"
     end
 
     thread_ids = @showing_user.recent_threads(
@@ -343,7 +334,7 @@ class CommentsController < ApplicationController
     comments = Comment.accessible_to_user(@user)
       .where(:thread_id => thread_ids)
       .includes(:user, :hat, :story => :user, :votes => :user)
-      .joins(:story).where.not(stories: { is_deleted: true })
+      .joins(:story).where.not(stories: { is_expired: true })
       .arrange_for_user(@user)
 
     comments_by_thread_id = comments.group_by(&:thread_id)

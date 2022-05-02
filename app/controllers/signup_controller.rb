@@ -1,9 +1,10 @@
+require 'swagger_client'
+
 class SignupController < ApplicationController
   before_action :require_logged_in_user, :check_new_users, :check_can_invite, :only => :invite
-  before_action :check_for_read_only_mode, :show_title_h1
+  before_action :check_for_read_only_mode
 
   def index
-    @title = "Create an Account"
     if @user
       flash[:error] = "You are already signed up."
       return redirect_to "/"
@@ -11,6 +12,7 @@ class SignupController < ApplicationController
     if Rails.application.open_signups?
       redirect_to action: :invited, invitation_code: 'open' and return
     end
+    @title = "Signup"
   end
 
   def invite
@@ -18,11 +20,8 @@ class SignupController < ApplicationController
   end
 
   def invited
-    @title = "Create an Account"
-
     if @user
       flash[:error] = "You are already signed up."
-      ModNote.tattle_on_invited(@user, params[:invitation_code])
       return redirect_to "/"
     end
 
@@ -65,14 +64,26 @@ class SignupController < ApplicationController
         @invitation.update(used_at: Time.current, new_user: @new_user)
       end
       session[:u] = @new_user.session_token
+      @new_user.update_last_login!
       flash[:success] = "Welcome to #{Rails.application.name}, " <<
                         "#{@new_user.username}!"
 
-      if Rails.application.allow_new_users_to_invite?
-        return redirect_to signup_invite_path
-      else
-        return redirect_to root_path
+      uid = @new_user.id.to_s
+      api_instance = SwaggerClient::DefaultApi.new
+      body = "#{uid}" # String |
+      begin
+        result = api_instance.apiproxy_register_principal(body)
+        p result
+      rescue SwaggerClient::ApiError => e
+        puts "Exception when calling DefaultApi->apiproxy_register_principal: #{e}"
       end
+
+      # XXX LYT This is only set in Lobsters production instances, just redirect to root
+      #if Rails.application.allow_new_users_to_invite?
+      #  return redirect_to signup_invite_path
+      #else
+      return redirect_to root_path
+      #end
     else
       render :action => "invited"
     end

@@ -1,8 +1,3 @@
-<% if @user && @user.is_moderator? && @story.is_gone? %>
-  <%= render partial: 'stories/missing' %>
-  <hr class="mod">
-  <p>Full display for submitter and mods:</p>
-<% end %>
 <ol class="stories">
   <%= render :partial => "stories/listdetail",
     :locals => { :story => @story, :single_story => true } %>
@@ -18,7 +13,7 @@
   <% if @story.is_unavailable %>
     <% StoryText.cached?(@story) do |text| %>
       <a id="story_text_expander">Source URL considered unavailable as of
-      <%= time_ago_in_words_label(@story.unavailable_at) %>, cached text available; also see archive links above</a>
+      <%= time_ago_in_words_label(@story.unavailable_at) %>, cached text available</a>
       <div id="collapsed_story_text">
         <p>
         <em>All story content copyright of its respective owner.</em>
@@ -44,7 +39,7 @@
 
 <% if !@story.previewing %>
   <ol class="comments comments1">
-    <% if !@story.is_gone? && !@story.previewing && @story.accepting_comments? %>
+    <% if !@story.is_gone? && !@story.previewing %>
       <li class="comments_subtree"><%= render "comments/commentbox", :comment => @comment %></li>
       <% if @user %><script>autosize($("#comment")[0]);</script><% end %>
     <% end %>
@@ -83,9 +78,9 @@
   </ol>
 <% end %>
 
-<% if !@story.previewing && @story.public_similar_stories(@user).any? %>
+<% if !@story.previewing && @story.public_similar_stories.any? %>
   <div class="box wide">
     <h4>Stories with similar links:</h4>
-    <%= render partial: "stories/similar", locals: { similar: @story.public_similar_stories(@user) } %>
+    <%= render partial: "stories/similar", locals: { similar: @story.public_similar_stories } %>
   </div>
 <% end %>

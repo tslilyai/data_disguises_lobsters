@@ -1,7 +1,7 @@
-<%= render partial: 'subnav' %>
+<%= render partial: 'nav' %>
 
 <% if @stories.present? %>
-  <ol class="stories list">
+  <ol class="stories list <%= @cur_url == "/hidden" ? "show_hidden" : "" %>">
     <%= render :partial => "stories/listdetail",
               :collection => @stories,
               :as => :story %>

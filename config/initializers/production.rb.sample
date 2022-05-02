@@ -12,7 +12,6 @@ if Rails.env.production?
     :ignore_exceptions => [
       "ActionController::UnknownFormat",
       "ActionController::BadRequest",
-      "ActionDispatch::Http::MimeNegotiation::InvalidType",
       "ActionDispatch::RemoteIp::IpSpoofAttackError",
     ] + ExceptionNotifier.ignored_exceptions,
     :email => {

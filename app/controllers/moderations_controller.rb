@@ -1,8 +1,6 @@
 class ModerationsController < ApplicationController
   ENTRIES_PER_PAGE = 50
 
-  before_action :show_title_h1
-
   def index
     @title = "Moderation Log"
     @moderators = ['(All)', '(Users)'] + User.moderators.map(&:username)

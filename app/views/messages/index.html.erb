@@ -7,9 +7,21 @@
   });
 </script>
 
-<%= render partial: 'subnav' %>
-
 <div class="box wide">
+  <div class="legend" style="float: right;">
+    <% if @direction == :out %>
+      <a href="/messages">View Received</a>
+    <% else %>
+      <a href="/messages/sent">View Sent</a>
+    <% end %>
+  </div>
+  <div class="legend">
+    Private Messages
+    <% if @direction == :out %>
+      Sent
+    <% end %>
+  </div>
+
   <% if @messages.any? %>
     <%= form_with url: batch_delete_messages_path, local: true do |f| %>
       <table class="data zebra" width="100%" cellspacing=0>
@@ -20,7 +32,7 @@
         <th width="17%"><%= @direction == :in ? "Received" : "Sent" %></th>
         <th width="60%">Subject</th>
       </tr>
-      <% @messages.each do |message| %>
+      <% @messages.includes(:author, :recipient).each do |message| %>
         <tr class="<%= message.has_been_read? ? "" : "bold" %>">
           <td><%= check_box_tag "delete_#{message.short_id}" %></td>
           <td>
@@ -58,9 +70,9 @@
 
   <br>
 
-  <p>
+  <div class="legend">
     Compose Message
-  </p>
+  </div>
 
   <%= render partial: 'form', locals: { new_message: @new_message, replying: false } %>
 </div>

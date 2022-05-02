@@ -1,5 +1,4 @@
 require "rails"
-require "rubocop"
 
 unless Rails.env.production?
   module RuboCop

@@ -6,10 +6,8 @@
   <% mod_notes.each do |note| %>
     <tr class="nobottom">
       <td>
-        <% if note.moderator != InactiveUser.inactive_user %>
-          <%= note.moderator.username %>
-          &rarr;
-        <% end %>
+        <%= note.moderator.username %>
+        &rarr;
         <%= link_to note.user.username, user_path(note.user) %>
         <br>
         <%= raw note.created_at.strftime("%Y-%m-%d&nbsp;%H:%M&nbsp;%z") %>

@@ -6,7 +6,7 @@ FactoryBot.define do
     tags_a { ["tag1", "tag2"] }
 
     trait :deleted do
-      is_deleted { true }
+      is_expired { true }
       editor { user }
     end
   end

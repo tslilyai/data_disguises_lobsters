@@ -9,10 +9,10 @@ class StoriesController < ApplicationController
   before_action :find_user_story, :only => [:destroy, :edit, :undelete, :update]
   before_action :find_story!, :only => [:suggest, :submit_suggestions]
   around_action :track_story_reads, only: [:show], if: -> { @user.present? }
-  before_action :show_title_h1, only: [:new, :edit, :suggest]
 
   def create
     @title = "Submit Story"
+    @cur_url = "/stories/new"
 
     @story = Story.new(user: @user)
     @story.attributes = story_params
@@ -33,17 +33,14 @@ class StoriesController < ApplicationController
       return redirect_to "/"
     end
 
-    update_story_attributes
-
-    if @story.user_id != @user.id && @user.is_moderator? && !@story.moderation_reason.present?
-      @story.errors.add(:moderation_reason, message: 'is required')
-      return render :action => "edit"
-    end
-
-    @story.is_deleted = true
+    @story.is_expired = true
     @story.editor = @user
 
-    if @story.save
+    if params[:reason].present? && @story.user_id != @user.id
+      @story.moderation_reason = params[:reason]
+    end
+
+    if @story.save(:validate => false)
       Keystore.increment_value_for("user:#{@story.user.id}:stories_deleted")
     end
 
@@ -74,6 +71,7 @@ class StoriesController < ApplicationController
 
   def new
     @title = "Submit Story"
+    @cur_url = "/stories/new"
 
     @story = Story.new(user_id: @user.id)
     @story.fetching_ip = request.remote_ip
@@ -133,18 +131,8 @@ class StoriesController < ApplicationController
       end
     end
 
-    if @story.is_gone?
-      @moderation = Moderation
-        .where(story: @story, comment: nil)
-        .where("action LIKE '%deleted story%'")
-        .order('id desc')
-        .first
-    end
     if !@story.can_be_seen_by_user?(@user)
-      respond_to do |format|
-        format.html { return render action: '_missing', status: 404 }
-        format.json { raise ActiveRecord::RecordNotFound }
-      end
+      raise ActionController::RoutingError.new("story gone")
     end
 
     @comments = get_arranged_comments_from_cache(params[:id]) do
@@ -185,7 +173,6 @@ class StoriesController < ApplicationController
   end
 
   def suggest
-    @title = 'Suggest Story Changes'
     if !@story.can_have_suggestions_from_user?(@user)
       flash[:error] = "You are not allowed to offer suggestions on that story."
       return redirect_to @story.comments_path
@@ -238,11 +225,10 @@ class StoriesController < ApplicationController
       return redirect_to "/"
     end
 
-    update_story_attributes
-    @story.is_deleted = false
+    @story.is_expired = false
     @story.editor = @user
 
-    if @story.save
+    if @story.save(:validate => false)
       Keystore.increment_value_for("user:#{@story.user.id}:stories_deleted", -1)
     end
 
@@ -255,9 +241,14 @@ class StoriesController < ApplicationController
       return redirect_to "/"
     end
 
-    @story.is_deleted = false
+    @story.is_expired = false
     @story.editor = @user
-    update_story_attributes
+
+    if @story.url_is_editable_by_user?(@user)
+      @story.attributes = story_params
+    else
+      @story.attributes = story_params.except(:url)
+    end
 
     if @story.save
       return redirect_to @story.comments_path
@@ -374,7 +365,7 @@ class StoriesController < ApplicationController
           :content_type => "text/html", :locals => { :story => @story }
       }
       format.json {
-        similar_stories = @story.public_similar_stories(@user).map(&:as_json)
+        similar_stories = @story.similar_stories.base.map(&:as_json)
 
         render :json => @story.as_json.merge(similar_stories: similar_stories)
       }
@@ -405,22 +396,11 @@ private
     end
   end
 
-  def update_story_attributes
-    if @story.url_is_editable_by_user?(@user)
-      @story.attributes = story_params
-    else
-      @story.attributes = story_params.except(:url)
-    end
-  end
-
   def find_story
-    story = Story.find_by(:short_id => params[:story_id])
+    story = Story.where(:short_id => params[:story_id]).first
     if @user && story
-      story.vote = Vote.find_by(
-        user: @user,
-        story: story.id,
-        comment:  nil
-      ).try(:vote)
+      story.vote = Vote.where(:user_id => @user.id,
+        :story_id => story.id, :comment_id => nil).first.try(:vote)
     end
 
     story
