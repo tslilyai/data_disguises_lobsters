@@ -1,5 +1,5 @@
 require "base64"
-require 'swagger_client'
+require 'edna_client'
 require 'json'
 
 class UsersController < ApplicationController

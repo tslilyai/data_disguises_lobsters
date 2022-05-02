@@ -1,4 +1,4 @@
-require 'swagger_client'
+require 'edna_client'
 
 class SignupController < ApplicationController
   before_action :require_logged_in_user, :check_new_users, :check_can_invite, :only => :invite
