@@ -313,6 +313,32 @@
   <br>
   <br>
 
+  <div class="cat_anon">
+      <%= form_with model: @edit_user, url: cat_anon_path, method: :post, id: 'cat_anon', local: true do |f| %>
+      <div class="legend">
+        Anonymize a Category 
+      </div>
+
+      <p>
+      Verify your current password below to anonymize the selected category.
+      </p>
+
+      <div class="boxline">
+        <%= f.label :password, "Verify Password:", :class => "required" %>
+        <%= f.password_field :password, :size => 40, :autocomplete => "off" %>
+      </div>
+      <div class="boxline">
+        <%= f.label :cat, "Category to anonymize:" %>
+        <%= f.select :cat, options_for_select(
+          Tag.all_with_filtered_counts_for(@user).map{|t|
+            html = "<strong>#{h(t.tag)}</strong> - #{h(t.description.to_s)}"
+            [ "#{t.tag} - #{t.description}", t.tag, { "data-html" => raw(html) } ]}) 
+        %>
+      </div>
+      <%= f.submit "Yes, anonymize this category", :class => "cat_anon" %>
+    <% end %>
+  </div>
+
   <div class="deletion">
       <%= form_with model: @edit_user, url: delete_account_path, method: :post, id: 'delete_user', local: true do |f| %>
       <div class="legend">

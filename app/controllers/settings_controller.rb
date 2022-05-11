@@ -11,6 +11,45 @@ class SettingsController < ApplicationController
     @edit_user = @user.dup
   end
 
+  def category_anon 
+    unless @user.try(:authenticate, params[:user][:password].to_s)
+      flash[:error] = "Given password doesn't match account."
+      return redirect_to settings_path
+    end
+
+    # TODO get category input
+    cat = params[:user][:cat]
+    p cat
+
+    # Edna: anonymize the category
+    api_instance = SwaggerClient::DefaultApi.new
+    body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
+    body.user = @user.id.to_s
+    body.password = params[:user][:password].to_s
+    body.locators = []
+    spec = File.read("disguises/hobby_anon.json").to_s
+    spec.gsub!("starwars", cat)
+    body.disguise_json = spec
+    body.tableinfo_json = File.read("disguises/table_info.json").to_s
+    body.guisegen_json = File.read("disguises/guise_gen.json").to_s
+
+    begin
+      result = api_instance.apiproxy_apply_disguise(body)
+      # get locator of user (XXX note that only one user's locator is returned..)
+      locator = JSON.dump(result.locators.values[0])
+      did = result.did
+      p locator
+      p did
+      CategoryAnonNotification.notify(@user, cat, did, locator).deliver_now
+    rescue SwaggerClient::ApiError => e
+      puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
+    end
+
+    reset_session
+    flash[:success] = "You have disowned stories, comments, and votes with category #{cat}"
+    return redirect_to "/"
+  end
+
   def delete_account
     unless params[:user][:i_am_sure].present?
       flash[:error] = 'You did not check the "I am sure" checkbox.'
