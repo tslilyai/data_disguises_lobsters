@@ -17,7 +17,6 @@ class SettingsController < ApplicationController
       return redirect_to settings_path
     end
 
-    # TODO get category input
     cat = params[:user][:cat]
     p cat
 
@@ -45,7 +44,6 @@ class SettingsController < ApplicationController
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
 
-    reset_session
     flash[:success] = "You have disowned stories, comments, and votes with category #{cat}"
     return redirect_to "/"
   end
