@@ -2,6 +2,7 @@
     "hat_requests": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -9,6 +10,7 @@
     "hats": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -16,6 +18,7 @@
     "hidden_stories": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -23,6 +26,7 @@
     "invitations": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -30,6 +34,7 @@
     "read_ribbons": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -37,6 +42,7 @@
     "saved_stories": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -44,6 +50,7 @@
     "suggested_taggings": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -51,6 +58,7 @@
     "suggested_titles": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -58,6 +66,7 @@
     "tag_filters": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -65,6 +74,7 @@
     "users": [
         {
             "Remove": {
+                "from": "",
                 "pred": "True"
             }
         }
@@ -72,6 +82,7 @@
     "comments": [
         {
             "Decor": {
+                "from": "",
                 "pred": "True",
                 "group_by_cols": []
             }
@@ -80,6 +91,7 @@
     "stories": [
         {
             "Decor" : {
+                "from": "",
                 "pred": "True",
                 "group_by_cols": []
             }
@@ -88,6 +100,7 @@
     "messages": [
         {        
             "Decor" : {
+                "from": "",
                 "pred": "True",
                 "group_by_cols": []
             }
@@ -96,6 +109,7 @@
     "mod_notes": [
         {
             "Decor" : {
+                "from": "",
                 "pred": "True",
                 "group_by_cols": []
             }
@@ -104,6 +118,7 @@
     "moderations": [
         {
             "Decor" : {
+                "from": "",
                 "pred": "True",
                 "group_by_cols": []
             }
@@ -112,6 +127,7 @@
     "votes": [
         {
             "Decor" : {
+                "from": "",
                 "pred": "True",
                 "group_by_cols": []
             }
