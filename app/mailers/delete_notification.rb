@@ -1,6 +1,5 @@
 class DeleteNotification < ApplicationMailer
-  def notify(user, did, locator)
-    @loc = locator
+  def notify(user, did)
     @did = did 
     @uid = user.id
 

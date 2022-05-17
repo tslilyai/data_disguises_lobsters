@@ -1,6 +1,5 @@
 class CategoryAnonNotification < ApplicationMailer
-  def notify(user, cat, did, locator)
-    @loc = locator
+  def notify(user, cat, did)
     @did = did 
     @uid = user.id
     @cat = cat

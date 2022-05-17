@@ -25,7 +25,6 @@ class SettingsController < ApplicationController
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
     body.user = @user.id.to_s
     body.password = params[:user][:password].to_s
-    body.locators = []
     spec = File.read("disguises/hobby_anon.json").to_s
     spec.gsub!("starwars", cat)
     body.disguise_json = spec
@@ -34,12 +33,9 @@ class SettingsController < ApplicationController
 
     begin
       result = api_instance.apiproxy_apply_disguise(body)
-      # get locator of user (XXX note that only one user's locator is returned..)
-      locator = JSON.dump(result.locators.values[0])
       did = result.did
-      p locator
       p did
-      CategoryAnonNotification.notify(@user, cat, did, locator).deliver_now
+      CategoryAnonNotification.notify(@user, cat, did).deliver_now
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
@@ -72,19 +68,15 @@ class SettingsController < ApplicationController
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
     body.user = @user.id.to_s
     body.password = params[:user][:password].to_s
-    body.locators = []
     body.disguise_json = File.read("disguises/gdpr_disguise.json").to_s
     body.tableinfo_json = File.read("disguises/table_info.json").to_s
     body.guisegen_json = File.read("disguises/guise_gen.json").to_s
 
     begin
       result = api_instance.apiproxy_apply_disguise(body)
-      # get locator of user (XXX note that only one user's locator is returned..)
-      locator = JSON.dump(result.locators.values[0])
       did = result.did
-      p locator
       p did
-      DeleteNotification.notify(@user, did, locator).deliver_now
+      DeleteNotification.notify(@user, did).deliver_now
     rescue SwaggerClient::ApiError => e
       puts "Exception when calling DefaultApi->apiproxy_apply_disguise: #{e}"
     end
