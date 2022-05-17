@@ -16,11 +16,9 @@ require 'swagger_client/version'
 require 'swagger_client/configuration'
 
 # Models
-require 'swagger_client/models/api_locator'
 require 'swagger_client/models/apply_disguise'
 require 'swagger_client/models/apply_disguise_response'
 require 'swagger_client/models/cleanup_records_of_disguise'
-require 'swagger_client/models/end_disguise_response'
 require 'swagger_client/models/get_pseudoprincipals'
 require 'swagger_client/models/get_records_of_disguise'
 require 'swagger_client/models/get_records_of_disguise_response'

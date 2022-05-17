@@ -8,5 +8,4 @@ Name | Type | Description | Notes
 **tableinfo_json** | **String** |  | 
 **password** | **String** |  | 
 **guisegen_json** | **String** |  | 
-**locators** | [**Array&lt;APILocator&gt;**](APILocator.md) |  | 
 

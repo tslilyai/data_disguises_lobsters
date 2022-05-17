@@ -14,7 +14,7 @@ Method | HTTP request | Description
 [**apiproxy_reveal_disguise**](DefaultApi.md#apiproxy_reveal_disguise) | **POST** /reveal_disguise/{uid}/{did} | 
 [**apiproxy_save_diff_record**](DefaultApi.md#apiproxy_save_diff_record) | **POST** /save_diff_record | 
 [**apiproxy_save_pseudoprincipal_record**](DefaultApi.md#apiproxy_save_pseudoprincipal_record) | **POST** /save_pp_record | 
-[**apiproxy_start_disguise**](DefaultApi.md#apiproxy_start_disguise) | **GET** /start_disguise | 
+[**apiproxy_start_disguise**](DefaultApi.md#apiproxy_start_disguise) | **GET** /start_disguise/{acting_uid} | 
 [**apiproxy_start_reveal**](DefaultApi.md#apiproxy_start_reveal) | **GET** /start_reveal/{did} | 
 [**index**](DefaultApi.md#index) | **GET** / | 
 
@@ -104,7 +104,7 @@ No authorization required
 
 
 # **apiproxy_end_disguise**
-> EndDisguiseResponse apiproxy_end_disguise(did)
+> apiproxy_end_disguise(did)
 
 
 
@@ -118,8 +118,7 @@ did = 56 # Integer |
 
 
 begin
-  result = api_instance.apiproxy_end_disguise(did)
-  p result
+  api_instance.apiproxy_end_disguise(did)
 rescue SwaggerClient::ApiError => e
   puts "Exception when calling DefaultApi->apiproxy_end_disguise: #{e}"
 end
@@ -133,7 +132,7 @@ Name | Type | Description  | Notes
 
 ### Return type
 
-[**EndDisguiseResponse**](EndDisguiseResponse.md)
+nil (empty response body)
 
 ### Authorization
 
@@ -142,7 +141,7 @@ No authorization required
 ### HTTP request headers
 
  - **Content-Type**: Not defined
- - **Accept**: application/json
+ - **Accept**: Not defined
 
 
 
@@ -450,7 +449,7 @@ No authorization required
 
 
 # **apiproxy_start_disguise**
-> StartDisguiseResponse apiproxy_start_disguise
+> StartDisguiseResponse apiproxy_start_disguise(acting_uid)
 
 
 
@@ -460,9 +459,11 @@ No authorization required
 require 'swagger_client'
 
 api_instance = SwaggerClient::DefaultApi.new
+acting_uid = 'acting_uid_example' # String | 
+
 
 begin
-  result = api_instance.apiproxy_start_disguise
+  result = api_instance.apiproxy_start_disguise(acting_uid)
   p result
 rescue SwaggerClient::ApiError => e
   puts "Exception when calling DefaultApi->apiproxy_start_disguise: #{e}"
@@ -470,7 +471,10 @@ end
 ```
 
 ### Parameters
-This endpoint does not need any parameter.
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **acting_uid** | **String**|  | 
 
 ### Return type
 

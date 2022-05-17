@@ -15,21 +15,17 @@ module SwaggerClient
   class ApplyDisguiseResponse
     attr_accessor :did
 
-    attr_accessor :locators
-
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'did' => :'did',
-        :'locators' => :'locators'
+        :'did' => :'did'
       }
     end
 
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'did' => :'Object',
-        :'locators' => :'Object'
+        :'did' => :'Object'
       }
     end
 
@@ -57,12 +53,6 @@ module SwaggerClient
       if attributes.key?(:'did')
         self.did = attributes[:'did']
       end
-
-      if attributes.key?(:'locators')
-        if (value = attributes[:'locators']).is_a?(Hash)
-          self.locators = value
-        end
-      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -73,10 +63,6 @@ module SwaggerClient
         invalid_properties.push('invalid value for "did", did cannot be nil.')
       end
 
-      if @locators.nil?
-        invalid_properties.push('invalid value for "locators", locators cannot be nil.')
-      end
-
       invalid_properties
     end
 
@@ -84,7 +70,6 @@ module SwaggerClient
     # @return true if the model is valid
     def valid?
       return false if @did.nil?
-      return false if @locators.nil?
       true
     end
 
@@ -93,8 +78,7 @@ module SwaggerClient
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          did == o.did &&
-          locators == o.locators
+          did == o.did
     end
 
     # @see the `==` method
@@ -106,7 +90,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [did, locators].hash
+      [did].hash
     end
 
     # Builds the object from hash

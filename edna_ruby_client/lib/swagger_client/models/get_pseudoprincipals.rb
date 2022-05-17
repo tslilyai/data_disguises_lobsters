@@ -15,21 +15,17 @@ module SwaggerClient
   class GetPseudoprincipals
     attr_accessor :password
 
-    attr_accessor :ownership_locators
-
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'password' => :'password',
-        :'ownership_locators' => :'ownership_locators'
+        :'password' => :'password'
       }
     end
 
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'password' => :'Object',
-        :'ownership_locators' => :'Object'
+        :'password' => :'Object'
       }
     end
 
@@ -57,12 +53,6 @@ module SwaggerClient
       if attributes.key?(:'password')
         self.password = attributes[:'password']
       end
-
-      if attributes.key?(:'ownership_locators')
-        if (value = attributes[:'ownership_locators']).is_a?(Array)
-          self.ownership_locators = value
-        end
-      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -73,10 +63,6 @@ module SwaggerClient
         invalid_properties.push('invalid value for "password", password cannot be nil.')
       end
 
-      if @ownership_locators.nil?
-        invalid_properties.push('invalid value for "ownership_locators", ownership_locators cannot be nil.')
-      end
-
       invalid_properties
     end
 
@@ -84,7 +70,6 @@ module SwaggerClient
     # @return true if the model is valid
     def valid?
       return false if @password.nil?
-      return false if @ownership_locators.nil?
       true
     end
 
@@ -93,8 +78,7 @@ module SwaggerClient
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          password == o.password &&
-          ownership_locators == o.ownership_locators
+          password == o.password
     end
 
     # @see the `==` method
@@ -106,7 +90,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [password, ownership_locators].hash
+      [password].hash
     end
 
     # Builds the object from hash

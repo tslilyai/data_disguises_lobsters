@@ -80,8 +80,7 @@ did = 56 # Integer |
 
 
 begin
-  result = api_instance.apiproxy_end_disguise(did)
-  p result
+  api_instance.apiproxy_end_disguise(did)
 rescue SwaggerClient::ApiError => e
   puts "Exception when calling DefaultApi->apiproxy_end_disguise: #{e}"
 end
@@ -163,9 +162,11 @@ rescue SwaggerClient::ApiError => e
 end
 
 api_instance = SwaggerClient::DefaultApi.new
+acting_uid = 'acting_uid_example' # String | 
+
 
 begin
-  result = api_instance.apiproxy_start_disguise
+  result = api_instance.apiproxy_start_disguise(acting_uid)
   p result
 rescue SwaggerClient::ApiError => e
   puts "Exception when calling DefaultApi->apiproxy_start_disguise: #{e}"
@@ -207,17 +208,15 @@ Class | Method | HTTP request | Description
 *SwaggerClient::DefaultApi* | [**apiproxy_reveal_disguise**](docs/DefaultApi.md#apiproxy_reveal_disguise) | **POST** /reveal_disguise/{uid}/{did} | 
 *SwaggerClient::DefaultApi* | [**apiproxy_save_diff_record**](docs/DefaultApi.md#apiproxy_save_diff_record) | **POST** /save_diff_record | 
 *SwaggerClient::DefaultApi* | [**apiproxy_save_pseudoprincipal_record**](docs/DefaultApi.md#apiproxy_save_pseudoprincipal_record) | **POST** /save_pp_record | 
-*SwaggerClient::DefaultApi* | [**apiproxy_start_disguise**](docs/DefaultApi.md#apiproxy_start_disguise) | **GET** /start_disguise | 
+*SwaggerClient::DefaultApi* | [**apiproxy_start_disguise**](docs/DefaultApi.md#apiproxy_start_disguise) | **GET** /start_disguise/{acting_uid} | 
 *SwaggerClient::DefaultApi* | [**apiproxy_start_reveal**](docs/DefaultApi.md#apiproxy_start_reveal) | **GET** /start_reveal/{did} | 
 *SwaggerClient::DefaultApi* | [**index**](docs/DefaultApi.md#index) | **GET** / | 
 
 ## Documentation for Models
 
- - [SwaggerClient::APILocator](docs/APILocator.md)
  - [SwaggerClient::ApplyDisguise](docs/ApplyDisguise.md)
  - [SwaggerClient::ApplyDisguiseResponse](docs/ApplyDisguiseResponse.md)
  - [SwaggerClient::CleanupRecordsOfDisguise](docs/CleanupRecordsOfDisguise.md)
- - [SwaggerClient::EndDisguiseResponse](docs/EndDisguiseResponse.md)
  - [SwaggerClient::GetPseudoprincipals](docs/GetPseudoprincipals.md)
  - [SwaggerClient::GetRecordsOfDisguise](docs/GetRecordsOfDisguise.md)
  - [SwaggerClient::GetRecordsOfDisguiseResponse](docs/GetRecordsOfDisguiseResponse.md)

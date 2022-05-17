@@ -19,15 +19,12 @@ module SwaggerClient
 
     attr_accessor :password
 
-    attr_accessor :locators
-
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
         :'tableinfo_json' => :'tableinfo_json',
         :'guisegen_json' => :'guisegen_json',
-        :'password' => :'password',
-        :'locators' => :'locators'
+        :'password' => :'password'
       }
     end
 
@@ -36,8 +33,7 @@ module SwaggerClient
       {
         :'tableinfo_json' => :'Object',
         :'guisegen_json' => :'Object',
-        :'password' => :'Object',
-        :'locators' => :'Object'
+        :'password' => :'Object'
       }
     end
 
@@ -73,12 +69,6 @@ module SwaggerClient
       if attributes.key?(:'password')
         self.password = attributes[:'password']
       end
-
-      if attributes.key?(:'locators')
-        if (value = attributes[:'locators']).is_a?(Array)
-          self.locators = value
-        end
-      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -97,10 +87,6 @@ module SwaggerClient
         invalid_properties.push('invalid value for "password", password cannot be nil.')
       end
 
-      if @locators.nil?
-        invalid_properties.push('invalid value for "locators", locators cannot be nil.')
-      end
-
       invalid_properties
     end
 
@@ -110,7 +96,6 @@ module SwaggerClient
       return false if @tableinfo_json.nil?
       return false if @guisegen_json.nil?
       return false if @password.nil?
-      return false if @locators.nil?
       true
     end
 
@@ -121,8 +106,7 @@ module SwaggerClient
       self.class == o.class &&
           tableinfo_json == o.tableinfo_json &&
           guisegen_json == o.guisegen_json &&
-          password == o.password &&
-          locators == o.locators
+          password == o.password
     end
 
     # @see the `==` method
@@ -134,7 +118,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [tableinfo_json, guisegen_json, password, locators].hash
+      [tableinfo_json, guisegen_json, password].hash
     end
 
     # Builds the object from hash

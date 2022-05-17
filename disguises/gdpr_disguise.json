@@ -84,6 +84,7 @@
             "Decor": {
                 "pred": "True",
                 "from": "",
+                "user_fk_cols": ["user_id"],
                 "group_by_cols": []
             }
         },
@@ -117,6 +118,7 @@
             "Decor" : {
                 "from": "",
                 "pred": "True",
+                "user_fk_cols": ["user_id"],
                 "group_by_cols": []
             }
         },
@@ -178,6 +180,7 @@
             "Decor" : {
                 "from": "",
                 "pred": "True",
+                "user_fk_cols": ["moderator_user_id", "user_id"],
                 "group_by_cols": []
             }
         }
@@ -187,6 +190,7 @@
             "Decor" : {
                 "from": "",
                 "pred": "True",
+                "user_fk_cols": ["moderator_user_id", "user_id"],
                 "group_by_cols": []
             }
         }
@@ -196,6 +200,7 @@
             "Decor" : {
                 "from": "",
                 "pred": "True",
+                "user_fk_cols": ["user_id"],
                 "group_by_cols": []
             }
         }
