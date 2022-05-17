@@ -19,15 +19,12 @@ module SwaggerClient
 
     attr_accessor :data
 
-    attr_accessor :acting_uid
-
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
         :'uid' => :'uid',
         :'did' => :'did',
-        :'data' => :'data',
-        :'acting_uid' => :'acting_uid'
+        :'data' => :'data'
       }
     end
 
@@ -36,15 +33,13 @@ module SwaggerClient
       {
         :'uid' => :'Object',
         :'did' => :'Object',
-        :'data' => :'Object',
-        :'acting_uid' => :'Object'
+        :'data' => :'Object'
       }
     end
 
     # List of attributes with nullable: true
     def self.openapi_nullable
       Set.new([
-        :'acting_uid'
       ])
     end
   
@@ -75,10 +70,6 @@ module SwaggerClient
         if (value = attributes[:'data']).is_a?(Array)
           self.data = value
         end
-      end
-
-      if attributes.key?(:'acting_uid')
-        self.acting_uid = attributes[:'acting_uid']
       end
     end
 
@@ -117,8 +108,7 @@ module SwaggerClient
       self.class == o.class &&
           uid == o.uid &&
           did == o.did &&
-          data == o.data &&
-          acting_uid == o.acting_uid
+          data == o.data
     end
 
     # @see the `==` method
@@ -130,7 +120,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [uid, did, data, acting_uid].hash
+      [uid, did, data].hash
     end
 
     # Builds the object from hash

@@ -7,5 +7,4 @@ Name | Type | Description | Notes
 **old_uid** | **String** |  | 
 **new_uid** | **String** |  | 
 **record_bytes** | **Array&lt;Integer&gt;** |  | 
-**acting_uid** | **String** |  | [optional] 
 

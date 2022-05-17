@@ -21,16 +21,13 @@ module SwaggerClient
 
     attr_accessor :record_bytes
 
-    attr_accessor :acting_uid
-
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
         :'did' => :'did',
         :'old_uid' => :'old_uid',
         :'new_uid' => :'new_uid',
-        :'record_bytes' => :'record_bytes',
-        :'acting_uid' => :'acting_uid'
+        :'record_bytes' => :'record_bytes'
       }
     end
 
@@ -40,15 +37,13 @@ module SwaggerClient
         :'did' => :'Object',
         :'old_uid' => :'Object',
         :'new_uid' => :'Object',
-        :'record_bytes' => :'Object',
-        :'acting_uid' => :'Object'
+        :'record_bytes' => :'Object'
       }
     end
 
     # List of attributes with nullable: true
     def self.openapi_nullable
       Set.new([
-        :'acting_uid'
       ])
     end
   
@@ -83,10 +78,6 @@ module SwaggerClient
         if (value = attributes[:'record_bytes']).is_a?(Array)
           self.record_bytes = value
         end
-      end
-
-      if attributes.key?(:'acting_uid')
-        self.acting_uid = attributes[:'acting_uid']
       end
     end
 
@@ -131,8 +122,7 @@ module SwaggerClient
           did == o.did &&
           old_uid == o.old_uid &&
           new_uid == o.new_uid &&
-          record_bytes == o.record_bytes &&
-          acting_uid == o.acting_uid
+          record_bytes == o.record_bytes
     end
 
     # @see the `==` method
@@ -144,7 +134,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [did, old_uid, new_uid, record_bytes, acting_uid].hash
+      [did, old_uid, new_uid, record_bytes].hash
     end
 
     # Builds the object from hash

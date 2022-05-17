@@ -17,14 +17,11 @@ module SwaggerClient
 
     attr_accessor :decrypt_cap
 
-    attr_accessor :locators
-
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
         :'did' => :'did',
-        :'decrypt_cap' => :'decrypt_cap',
-        :'locators' => :'locators'
+        :'decrypt_cap' => :'decrypt_cap'
       }
     end
 
@@ -32,8 +29,7 @@ module SwaggerClient
     def self.openapi_types
       {
         :'did' => :'Object',
-        :'decrypt_cap' => :'Object',
-        :'locators' => :'Object'
+        :'decrypt_cap' => :'Object'
       }
     end
 
@@ -67,12 +63,6 @@ module SwaggerClient
           self.decrypt_cap = value
         end
       end
-
-      if attributes.key?(:'locators')
-        if (value = attributes[:'locators']).is_a?(Array)
-          self.locators = value
-        end
-      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -87,10 +77,6 @@ module SwaggerClient
         invalid_properties.push('invalid value for "decrypt_cap", decrypt_cap cannot be nil.')
       end
 
-      if @locators.nil?
-        invalid_properties.push('invalid value for "locators", locators cannot be nil.')
-      end
-
       invalid_properties
     end
 
@@ -99,7 +85,6 @@ module SwaggerClient
     def valid?
       return false if @did.nil?
       return false if @decrypt_cap.nil?
-      return false if @locators.nil?
       true
     end
 
@@ -109,8 +94,7 @@ module SwaggerClient
       return true if self.equal?(o)
       self.class == o.class &&
           did == o.did &&
-          decrypt_cap == o.decrypt_cap &&
-          locators == o.locators
+          decrypt_cap == o.decrypt_cap
     end
 
     # @see the `==` method
@@ -122,7 +106,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [did, decrypt_cap, locators].hash
+      [did, decrypt_cap].hash
     end
 
     # Builds the object from hash

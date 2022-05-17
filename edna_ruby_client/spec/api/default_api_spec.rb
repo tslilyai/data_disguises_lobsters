@@ -54,7 +54,7 @@ describe 'DefaultApi' do
   # unit tests for apiproxy_end_disguise
   # @param did 
   # @param [Hash] opts the optional parameters
-  # @return [EndDisguiseResponse]
+  # @return [nil]
   describe 'apiproxy_end_disguise test' do
     it 'should work' do
       # assertion here. ref: https://www.relishapp.com/rspec/rspec-expectations/docs/built-in-matchers
@@ -135,6 +135,7 @@ describe 'DefaultApi' do
   end
 
   # unit tests for apiproxy_start_disguise
+  # @param acting_uid 
   # @param [Hash] opts the optional parameters
   # @return [StartDisguiseResponse]
   describe 'apiproxy_start_disguise test' do

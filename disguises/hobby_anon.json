@@ -4,6 +4,7 @@
             "Decor": {
                 "pred": "tags.tag = 'starwars'",
                 "from": "comments INNER JOIN stories ON stories.id = comments.story_id INNER JOIN taggings ON stories.id = taggings.story_id INNER JOIN tags ON taggings.tag_id = tags.id",
+                "user_fk_cols": ["user_id"],
                 "group_by_cols": []
             }
         }
@@ -13,23 +14,16 @@
             "Decor" : {
                 "pred": "tags.tag = 'starwars'",
                 "from": "stories INNER JOIN taggings ON stories.id = taggings.story_id INNER JOIN tags ON taggings.tag_id = tags.id",
+                "user_fk_cols": ["user_id"],
                 "group_by_cols": []
             }
         }
     ],
     "votes": [
         {
-            "Decor" : {
+            "Remove" : {
                 "pred": "tags.tag = 'starwars'",
-                "from": "votes INNER JOIN stories ON stories.id = votes.story_id INNER JOIN taggings ON stories.id = taggings.story_id INNER JOIN tags ON taggings.tag_id = tags.id",
-                "group_by_cols": []
-            }
-	},
-	{
-            "Decor" : {
-                "pred": "tags.tag = 'starwars'",
-                "from": "votes INNER JOIN comments ON comments.id = votes.comment_id INNER JOIN stories ON stories.id = votes.story_id INNER JOIN taggings ON stories.id = taggings.story_id INNER JOIN tags ON taggings.tag_id = tags.id", 
-                "group_by_cols": []
+                "from": "votes INNER JOIN comments ON comments.id = votes.comment_id INNER JOIN stories ON stories.id = votes.story_id INNER JOIN taggings ON stories.id = taggings.story_id INNER JOIN tags ON taggings.tag_id = tags.id"
             }
         }
     ]

@@ -124,15 +124,15 @@ module SwaggerClient
     end
     # @param did 
     # @param [Hash] opts the optional parameters
-    # @return [EndDisguiseResponse]
+    # @return [nil]
     def apiproxy_end_disguise(did, opts = {})
-      data, _status_code, _headers = apiproxy_end_disguise_with_http_info(did, opts)
-      data
+      apiproxy_end_disguise_with_http_info(did, opts)
+      nil
     end
 
     # @param did 
     # @param [Hash] opts the optional parameters
-    # @return [Array<(EndDisguiseResponse, Integer, Hash)>] EndDisguiseResponse data, response status code and response headers
+    # @return [Array<(nil, Integer, Hash)>] nil, response status code and response headers
     def apiproxy_end_disguise_with_http_info(did, opts = {})
       if @api_client.config.debugging
         @api_client.config.logger.debug 'Calling API: DefaultApi.apiproxy_end_disguise ...'
@@ -149,8 +149,6 @@ module SwaggerClient
 
       # header parameters
       header_params = opts[:header_params] || {}
-      # HTTP header 'Accept' (if needed)
-      header_params['Accept'] = @api_client.select_header_accept(['application/json'])
 
       # form parameters
       form_params = opts[:form_params] || {}
@@ -158,7 +156,7 @@ module SwaggerClient
       # http body (model)
       post_body = opts[:body] 
 
-      return_type = opts[:return_type] || 'EndDisguiseResponse' 
+      return_type = opts[:return_type] 
 
       auth_names = opts[:auth_names] || []
       data, status_code, headers = @api_client.call_api(:GET, local_var_path,
@@ -560,21 +558,27 @@ module SwaggerClient
       end
       return data, status_code, headers
     end
+    # @param acting_uid 
     # @param [Hash] opts the optional parameters
     # @return [StartDisguiseResponse]
-    def apiproxy_start_disguise(opts = {})
-      data, _status_code, _headers = apiproxy_start_disguise_with_http_info(opts)
+    def apiproxy_start_disguise(acting_uid, opts = {})
+      data, _status_code, _headers = apiproxy_start_disguise_with_http_info(acting_uid, opts)
       data
     end
 
+    # @param acting_uid 
     # @param [Hash] opts the optional parameters
     # @return [Array<(StartDisguiseResponse, Integer, Hash)>] StartDisguiseResponse data, response status code and response headers
-    def apiproxy_start_disguise_with_http_info(opts = {})
+    def apiproxy_start_disguise_with_http_info(acting_uid, opts = {})
       if @api_client.config.debugging
         @api_client.config.logger.debug 'Calling API: DefaultApi.apiproxy_start_disguise ...'
       end
+      # verify the required parameter 'acting_uid' is set
+      if @api_client.config.client_side_validation && acting_uid.nil?
+        fail ArgumentError, "Missing the required parameter 'acting_uid' when calling DefaultApi.apiproxy_start_disguise"
+      end
       # resource path
-      local_var_path = '/start_disguise'
+      local_var_path = '/start_disguise/{acting_uid}'.sub('{' + 'acting_uid' + '}', acting_uid.to_s)
 
       # query parameters
       query_params = opts[:query_params] || {}
