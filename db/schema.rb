@@ -36,6 +36,7 @@ ActiveRecord::Schema.define(version: 2020_08_28_015742) do
     t.string "edna_share_y_value", limit: 1024
     t.string "user_share_value", limit: 1024
     t.string "password_salt", limit: 1024
+    t.string "locs", limit: 2048
   end
 
   create_table "categories", options: "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", force: :cascade do |t|
